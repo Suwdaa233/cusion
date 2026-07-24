@@ -693,6 +693,55 @@ tbody tr:hover td{background:var(--sur2)}
   </div>
 </div>
 
+
+<!-- EDIT SALE MODAL -->
+<div class="modal-ov" id="edit-sale-modal">
+  <div class="modal modal-lg">
+    <div class="mh">
+      <span><i class="ti ti-edit" style="margin-right:6px"></i>Борлуулалт засах</span>
+      <button class="btn bg bxs" onclick="closeModal('edit-sale-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:16px">
+      <div class="fg">
+        <div class="fl"><label>Огноо</label><input type="date" id="es-date"></div>
+        <div class="fl"><label>Харилцагч</label>
+          <select id="es-cust" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)">
+            <option value="">-- Сонгох --</option>
+          </select>
+        </div>
+        <div class="fl"><label>Байршил</label>
+          <select id="es-loc" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)">
+            <option value="">-- Сонгох --</option>
+          </select>
+        </div>
+        <div class="fl"><label>Төлбөрийн төрөл</label>
+          <select id="es-pay-type" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)">
+            <option value="cash">Бэлэн</option>
+            <option value="transfer">Дансаар</option>
+            <option value="credit">Зээл</option>
+            <option value="online">Онлайн</option>
+          </select>
+        </div>
+      </div>
+      <div class="fl" style="margin-bottom:12px"><label>Тэмдэглэл</label><input type="text" id="es-note"></div>
+      <!-- Барааны мэдээлэл (зөвхөн харах) -->
+      <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Барааны мэдээлэл</div>
+      <div id="es-items" class="cb np" style="background:var(--sur2);border-radius:var(--r);padding:10px;margin-bottom:12px;font-size:12px"></div>
+      <!-- Төлбөрийн мэдээлэл -->
+      <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Төлбөрийн мэдээлэл</div>
+      <div class="fg">
+        <div class="fl"><label>Нийт дүн</label><input type="number" id="es-total" readonly style="background:var(--sur2);color:var(--tx2)"></div>
+        <div class="fl"><label>Төлсөн дүн</label><input type="number" id="es-paid" min="0"></div>
+      </div>
+      <input type="hidden" id="es-id">
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn bp" onclick="saveEditSale()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('edit-sale-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- LINK MODAL -->
 <div class="modal-ov" id="link-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
   <div class="modal modal-lg">
@@ -2797,7 +2846,73 @@ window.setDefaultBank = async (id) => {
 window.openEditSale = (id) => {
   const sale = sales.find(s => s.id === id);
   if(!sale) return;
-  openInvoice(id);
+  // Populate edit modal
+  document.getElementById('es-id').value = id;
+  document.getElementById('es-date').value = sale.date || today();
+  document.getElementById('es-note').value = sale.note || '';
+  document.getElementById('es-total').value = sale.total || 0;
+  document.getElementById('es-paid').value = sale.paid || 0;
+  // Pay type
+  const pt = document.getElementById('es-pay-type');
+  if(pt) pt.value = sale.paymentType || sale.payType || sale.method || 'cash';
+  // Customer select
+  const cs = document.getElementById('es-cust');
+  cs.innerHTML = '<option value="">-- Сонгох --</option>' + customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  cs.value = sale.customerId || '';
+  // Location select
+  const ls = document.getElementById('es-loc');
+  ls.innerHTML = '<option value="">-- Сонгох --</option>' + locations.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  ls.value = sale.locationId || '';
+  // Items display
+  const itemsEl = document.getElementById('es-items');
+  itemsEl.innerHTML = (sale.items||[]).map((it,i)=>`
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bd)">
+      <span>${i+1}. ${it.label?.replace('·',' ')}</span>
+      <span>${it.qty}ш × ${it.price?.toLocaleString()}₮ = <b>${it.sub?.toLocaleString()}₮</b></span>
+    </div>`).join('') || '<div style="color:var(--tx3)">Бараа байхгүй</div>';
+  openModal('edit-sale-modal');
+};
+
+window.saveEditSale = async () => {
+  const id = document.getElementById('es-id').value;
+  if(!id) return;
+  const sale = sales.find(s=>s.id===id);
+  if(!sale) return;
+  const newDate = document.getElementById('es-date').value || today();
+  const newCustId = document.getElementById('es-cust').value || sale.customerId;
+  const newLocId = document.getElementById('es-loc').value || sale.locationId;
+  const newPayType = document.getElementById('es-pay-type').value || 'cash';
+  const newNote = document.getElementById('es-note').value || '';
+  const newPaid = parseInt(document.getElementById('es-paid').value) || 0;
+  const newRecv = Math.max(0, sale.total - newPaid);
+  const newCust = customers.find(c=>c.id===newCustId) || {};
+  const newLoc = locations.find(l=>l.id===newLocId) || {};
+  try {
+    await updateDoc(doc(db,'sales',id),{
+      date: newDate,
+      customerId: newCustId,
+      customerName: newCust.name || sale.customerName,
+      customerReg: newCust.reg || sale.customerReg || '',
+      customerPhone: newCust.phone || sale.customerPhone || '',
+      customerAddress: newCust.address || sale.customerAddress || '',
+      customerCode: newCust.customerCode || sale.customerCode || '',
+      locationId: newLocId,
+      locationName: newLoc.name || sale.locationName,
+      paymentType: newPayType,
+      payType: newPayType,
+      method: newPayType,
+      note: newNote,
+      paid: newPaid,
+      recv: newRecv,
+      status: newRecv === 0 ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid',
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser.email
+    });
+    closeModal('edit-sale-modal');
+    alert('Борлуулалт амжилттай шинэчлэгдлээ!');
+  } catch(e) {
+    alert('Алдаа: ' + e.message);
+  }
 };
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 addSaleRow();
