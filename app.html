@@ -1,0 +1,2819 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cusion — Борлуулалтын систем</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.19.0/dist/tabler-icons.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F5F4F0;--sur:#fff;--sur2:#F0EEE9;--sur3:#E8E5DF;
+  --bd:#E2DDD5;--bd2:#CCC7BE;
+  --tx:#1A1814;--tx2:#6B6560;--tx3:#A09890;
+  --pu:#534AB7;--pul:#EEEDFE;--pud:#3C3489;
+  --am:#B86E0C;--aml:#FEF0DC;
+  --gr:#2E6B0A;--grl:#E8F4D9;
+  --re:#A32020;--rel:#FCEAEA;
+  --bl:#1056A0;--bll:#E3EEFB;
+  --te:#0A6B52;--tel:#DDF4EE;
+  --r:8px;--rl:12px;--f:'DM Sans',system-ui,sans-serif
+}
+body{font-family:var(--f);background:var(--bg);color:var(--tx);font-size:14px;min-height:100vh}
+.app{display:flex;min-height:100vh}
+.sb{width:210px;background:var(--sur);border-right:1px solid var(--bd);display:flex;flex-direction:column;flex-shrink:0}
+.sb-logo{padding:16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between}
+.sb-logo b{font-size:15px;font-weight:700;color:var(--pu)}
+.sb-logo small{display:block;font-size:11px;color:var(--tx3)}
+.sb-nav{padding:6px 0;flex:1;overflow-y:auto}
+.sb-sec{padding:14px 14px 4px;font-size:10px;font-weight:700;color:var(--tx3);letter-spacing:1px;text-transform:uppercase}
+.ni{display:flex;align-items:center;gap:9px;padding:8px 14px;font-size:13px;color:var(--tx2);cursor:pointer;border:none;background:none;width:100%;text-align:left;border-left:2px solid transparent;transition:.12s}
+.ni:hover{background:var(--sur2);color:var(--tx)}
+.ni.on{background:var(--pul);color:var(--pu);border-left-color:var(--pu);font-weight:500}
+.ni i{font-size:16px;width:18px;flex-shrink:0}
+.user-bar{padding:12px 14px;border-top:1px solid var(--bd);font-size:12px}
+.user-email{color:var(--tx2);font-size:11px;word-break:break-all;margin-bottom:6px}
+.user-role{margin-bottom:8px}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--sur);border-bottom:1px solid var(--bd);padding:11px 22px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.topbar-title{font-size:15px;font-weight:600}
+.topbar-right{display:flex;align-items:center;gap:10px}
+.content{padding:18px 22px;overflow-y:auto;flex:1}
+.sec{display:none}.sec.on{display:block}
+
+/* === COMPONENTS (same as v4) === */
+.card{background:var(--sur);border:1px solid var(--bd);border-radius:var(--rl);margin-bottom:14px;overflow:hidden}
+.ch{padding:12px 16px;border-bottom:1px solid var(--bd);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.ct{font-size:13px;font-weight:600;display:flex;align-items:center;gap:6px}
+.cb{padding:14px 16px}.cb.np{padding:0}
+.mg{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:16px}
+.mc{background:var(--sur);border:1px solid var(--bd);border-radius:var(--rl);padding:14px 16px}
+.ml{font-size:10px;color:var(--tx3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;font-weight:600}
+.mv{font-size:21px;font-weight:700}.ms{font-size:11px;color:var(--tx3);margin-top:3px}
+.pu{color:var(--pu)}.am{color:var(--am)}.gr{color:var(--gr)}.re{color:var(--re)}
+.fg{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:10px}
+.fl{display:flex;flex-direction:column;gap:4px}
+.fl label{font-size:11px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.4px}
+.fl input,.fl select,.fl textarea{font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx);outline:none;transition:border .12s;font-family:var(--f)}
+.fl input:focus,.fl select:focus{border-color:var(--pu)}
+.fl textarea{resize:vertical;min-height:56px}
+.fl input[type=color]{padding:2px;height:34px}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:var(--r);font-size:13px;font-weight:500;cursor:pointer;border:1px solid transparent;transition:.12s;font-family:var(--f);white-space:nowrap}
+.bp{background:var(--pu);color:#fff;border-color:var(--pu)}.bp:hover{background:var(--pud)}
+.bg{background:transparent;border-color:var(--bd);color:var(--tx2)}.bg:hover{background:var(--sur2)}
+.bd2{background:transparent;border-color:#F5C1C1;color:var(--re)}.bd2:hover{background:var(--rel)}
+.bs{background:var(--grl);border-color:#B8DCA0;color:var(--gr)}.bs:hover{background:#d8efc4}
+.bxs{padding:3px 9px;font-size:11px;border-radius:6px}
+.bam{background:var(--aml);border-color:#F5C878;color:var(--am)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{padding:8px 12px;font-size:10px;font-weight:700;color:var(--tx3);background:var(--sur2);border-bottom:1px solid var(--bd);text-transform:uppercase;letter-spacing:.5px;text-align:left;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:var(--sur2)}
+.tw{overflow-x:auto}
+.ba{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.bpu{background:var(--pul);color:var(--pud)}.bgr{background:var(--grl);color:var(--gr)}
+.bam2{background:var(--aml);color:var(--am)}.bre{background:var(--rel);color:var(--re)}
+.bbl{background:var(--bll);color:var(--bl)}.bte{background:var(--tel);color:var(--te)}
+.bgr2{background:var(--sur2);color:var(--tx2)}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%}
+.item-rows{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
+.item-row{display:grid;gap:8px;align-items:end;background:var(--sur2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px}
+.item-row.sale-row{grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 36px}
+.item-row.inv-row{grid-template-columns:2fr 1fr 1fr 36px}
+.item-row .fl label{font-size:10px}
+.item-row .fl input,.item-row .fl select{font-size:12px;padding:5px 8px}
+.row-total{font-size:12px;font-weight:600;color:var(--pu);align-self:flex-end;padding-bottom:8px}
+.add-row-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px dashed var(--bd2);border-radius:var(--r);background:none;cursor:pointer;font-size:12px;color:var(--tx2);transition:.12s;width:100%;justify-content:center}
+.add-row-btn:hover{background:var(--sur2);border-color:var(--pu);color:var(--pu)}
+.prev-box{background:var(--pul);border:1px solid #B5AFF0;border-radius:var(--r);padding:12px 14px;margin-top:10px;font-size:13px}
+.prev-row{display:flex;justify-content:space-between;padding:3px 0}
+.prev-row.total{border-top:1px solid #B5AFF0;padding-top:8px;margin-top:4px;font-weight:700;font-size:14px;color:var(--pu)}
+.tab-bar{display:flex;gap:0;border-bottom:1px solid var(--bd);margin-bottom:16px}
+.tb{padding:8px 16px;font-size:13px;border:none;background:none;cursor:pointer;color:var(--tx2);border-bottom:2px solid transparent;margin-bottom:-1px;font-family:var(--f);transition:.12s;display:flex;align-items:center;gap:5px}
+.tb.on{color:var(--pu);border-bottom-color:var(--pu);font-weight:500}
+.modal-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:none;align-items:center;justify-content:center;padding:16px}
+.modal-ov.open{display:flex}
+.modal{background:var(--sur);border-radius:var(--rl);padding:22px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.modal-sm{max-width:420px}.modal-lg{max-width:760px}
+.mh{font-size:15px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between}
+.recv-card{background:var(--sur);border:1px solid var(--bd);border-radius:var(--rl);margin-bottom:10px;overflow:hidden}
+.recv-header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;gap:8px;flex-wrap:wrap}
+.recv-body{padding:0 16px 14px;border-top:1px solid var(--bd);display:none}
+.recv-body.open{display:block}
+.pay-hist-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--bd);font-size:12px}
+.pay-hist-row:last-child{border-bottom:none}
+.al{display:flex;align-items:center;gap:7px;padding:8px 12px;border-radius:var(--r);font-size:12px;margin-bottom:10px}
+.al-warn{background:var(--aml);color:var(--am);border:1px solid #F5C878}
+.empty{text-align:center;padding:30px;color:var(--tx3);font-size:13px}
+.empty i{font-size:28px;display:block;margin-bottom:8px;opacity:.35}
+
+/* Date filter */
+.date-filter{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.date-filter input[type=date]{font-size:12px;padding:5px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)}
+
+/* Spinner overlay */
+.loading-ov{position:fixed;inset:0;background:rgba(255,255,255,.8);z-index:300;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--tx2)}
+.spin{width:32px;height:32px;border:3px solid var(--bd);border-top-color:var(--pu);border-radius:50%;animation:sp .6s linear infinite;margin-bottom:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* Invoice print */
+.inv-print-area{padding:44px 48px;font-family:'DM Sans',system-ui,sans-serif;color:#1A1814;background:#fff}
+@media print{
+  body>.app,.no-print{display:none!important}
+  #inv-modal{position:static!important;background:transparent!important;padding:0!important}
+  #inv-modal>.modal{box-shadow:none!important;border-radius:0!important;max-width:100%!important;padding:0!important;max-height:none!important}
+}
+.inv-st{display:inline-block;padding:3px 12px;border-radius:20px;font-size:12px;font-weight:700}
+.ist-paid{background:var(--grl);color:var(--gr)}.ist-partial{background:var(--aml);color:var(--am)}.ist-unpaid{background:var(--rel);color:var(--re)}
+
+@media(max-width:680px){
+  .sb{width:48px}.sb-logo b,.sb-logo small,.sb-sec,.ni span,.user-email,.user-role{display:none}
+  .ni{justify-content:center;padding:10px}
+  .content{padding:10px}
+  .item-row.sale-row,.item-row.inv-row{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div class="loading-ov" id="loading-ov">
+  <div style="text-align:center"><div class="spin"></div><div>Уншиж байна...</div></div>
+</div>
+
+<div class="app" id="main-app" style="display:none">
+
+<!-- SIDEBAR -->
+<div class="sb">
+  <div class="sb-logo">
+    <div><b>Cusion</b><small>Борлуулалтын систем</small></div>
+  </div>
+  <div class="sb-nav">
+    <div class="sb-sec">Үндсэн</div>
+    <button class="ni on" onclick="goSec('dashboard',this)"><i class="ti ti-layout-dashboard"></i><span>Дашборд</span></button>
+    <button class="ni" onclick="goSec('sales',this)"><i class="ti ti-shopping-cart"></i><span>Борлуулалт</span></button>
+    <button class="ni" onclick="goSec('receivable',this)"><i class="ti ti-file-invoice"></i><span>Авлага</span></button>
+    <div class="sb-sec">Бүртгэл</div>
+    <button class="ni" onclick="goSec('inventory',this)"><i class="ti ti-clipboard-list"></i><span>Бараа материал</span></button>
+    <button class="ni" onclick="goSec('customers',this)"><i class="ti ti-users"></i><span>Харилцагч</span></button>
+    <button class="ni" onclick="goSec('products',this)"><i class="ti ti-box"></i><span>Бараа</span></button>
+    <button class="ni" onclick="goSec('locations',this)"><i class="ti ti-map-pin"></i><span>Байршил</span></button>
+    <div class="sb-sec">Санхүү</div>
+    <button class="ni" onclick="goSec('bank',this)"><i class="ti ti-building-bank"></i><span>Банкны хуулга</span></button>
+    <div class="sb-sec">Тайлан</div>
+    <button class="ni" onclick="goSec('report',this)"><i class="ti ti-chart-bar"></i><span>Тайлан</span></button>
+  </div>
+  <div class="user-bar">
+    <div class="user-email" id="user-email"></div>
+    <div class="user-role" id="user-role-badge"></div>
+    <button class="btn bd2 bxs" onclick="doLogout()" style="width:100%"><i class="ti ti-logout"></i>Гарах</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+<div class="topbar">
+  <div class="topbar-title" id="sec-title">Дашборд</div>
+  <div class="topbar-right">
+    <span id="top-date" style="font-size:12px;color:var(--tx3)"></span>
+  </div>
+</div>
+<div class="content">
+
+<!-- DASHBOARD -->
+<div id="sec-dashboard" class="sec on">
+  <!-- KPI filter -->
+  <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
+    <button class="btn bp bxs" onclick="setDashPeriod('today')">Өнөөдөр</button>
+    <button class="btn bg bxs" onclick="setDashPeriod('month')">Энэ сар</button>
+    <button class="btn bg bxs" onclick="setDashPeriod('year')">Энэ жил</button>
+    <input type="date" id="d-from" style="font-size:12px;padding:5px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+    <span style="font-size:12px;color:var(--tx3)">—</span>
+    <input type="date" id="d-to" style="font-size:12px;padding:5px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+    <button class="btn bg bxs" onclick="renderDashboard()"><i class="ti ti-filter"></i>Шүүх</button>
+    <span id="d-period-label" style="font-size:12px;color:var(--tx3)"></span>
+  </div>
+  <!-- 5 KPI cards -->
+  <div class="mg" id="d-metrics"></div>
+  <!-- Bottom: Top10 receivable + stock -->
+  <div style="display:grid;grid-template-columns:58% 40%;gap:14px">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-users"></i>Өндөр авлагын үлдэгдэлтэй 10 харилцагч</span></div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th style="width:30px">№</th><th>Харилцагч</th><th>Регистр</th><th style="text-align:right">Авлагын үлдэгдэл</th></tr></thead>
+        <tbody id="d-top-recv"></tbody>
+      </table></div></div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-package"></i>Барааны үлдэгдэл</span></div>
+      <div class="cb" id="d-stock" style="max-height:320px;overflow-y:auto"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SALES -->
+<div id="sec-sales" class="sec">
+  <div class="card">
+    <div class="ch"><span class="ct"><i class="ti ti-plus"></i>Борлуулалт бүртгэх</span></div>
+    <div class="cb">
+      <div class="fg">
+        <div class="fl"><label>Огноо</label><input type="date" id="s-date"></div>
+        <div class="fl"><label>Харилцагч</label><select id="s-cust"><option value="">-- Сонгох --</option></select></div>
+        <div class="fl"><label>Байршил</label><select id="s-loc" onchange="refreshSaleRows()"><option value="">-- Сонгох --</option></select></div>
+        <div class="fl"><label>Төлбөрийн төрөл</label>
+          <select id="s-pay-type" onchange="onPayTypeChange()">
+            <option value="cash">Бэлэн</option>
+            <option value="transfer">Дансаар</option>
+            <option value="credit">Зээл</option>
+            <option value="online">Онлайн</option>
+          </select>
+        </div>
+      </div>
+      <div id="s-advance-row" style="display:none" class="fg">
+        <div class="fl"><label>Урьдчилгаа (₮)</label><input type="number" id="s-advance" placeholder="0" oninput="calcSaleTotal()"></div>
+        <div class="fl"><label>Тэмдэглэл</label><input type="text" id="s-note"></div>
+      </div>
+      <div id="s-note-row" class="fg">
+        <div class="fl" style="grid-column:1/-1"><label>Тэмдэглэл</label><input type="text" id="s-note2"></div>
+      </div>
+      <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px">Бараaны мөрүүд</div>
+      <div class="item-rows" id="s-rows"></div>
+      <button class="add-row-btn" onclick="addSaleRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
+      <div id="s-prev" style="display:none" class="prev-box">
+        <div class="prev-row"><span>Нийт тоо</span><span id="pv-qty"></span></div>
+        <div class="prev-row"><span>Нийт дүн</span><span id="pv-tot"></span></div>
+        <div class="prev-row"><span>Төлсөн</span><span id="pv-paid"></span></div>
+        <div class="prev-row total"><span>Авлага</span><span id="pv-recv"></span></div>
+      </div>
+      <div id="s-warn" class="al al-warn" style="display:none;margin-top:8px"><i class="ti ti-alert-triangle"></i><span id="s-warn-txt"></span></div>
+      <div style="margin-top:12px"><button class="btn bp" onclick="submitSale()"><i class="ti ti-check"></i>Борлуулалт бүртгэх</button></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch">
+      <span class="ct"><i class="ti ti-list"></i>Борлуулалтын бүртгэл</span>
+      <div class="date-filter">
+        <select id="s-filter-cust" style="font-size:12px;padding:5px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх харилцагч</option></select>
+        <input type="date" id="s-from">
+        <span style="font-size:12px;color:var(--tx3)">—</span>
+        <input type="date" id="s-to">
+        <button class="btn bp bxs" onclick="renderSalesTable()"><i class="ti ti-filter"></i>Шүүх</button>
+        <button class="btn bg bxs" onclick="clearSalesFilter()">Цэвэрлэх</button>
+      </div>
+    </div>
+    <div class="cb np"><div class="tw"><table>
+      <thead><tr><th>Огноо</th><th>Харилцагч</th><th>Байршил</th><th>Бараaнууд</th><th>Нийт</th><th>Авлага</th><th>Хэрэгсэл</th><th>Статус</th><th>Бүртгэсэн</th><th></th></tr></thead>
+      <tbody id="s-tbody"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- RECEIVABLE -->
+<div id="sec-receivable" class="sec">
+  <div class="tab-bar">
+    <button class="tb on" onclick="showRTab('summary',this)"><i class="ti ti-layout-grid"></i>Товчоо</button>
+    <button class="tb" onclick="showRTab('detail',this)"><i class="ti ti-list-details"></i>Дэлгэрэнгүй</button>
+    <button class="tb" onclick="showRTab('history',this)"><i class="ti ti-history"></i>Төлөлтийн түүх</button>
+    <button class="tb" onclick="showRTab('ledger',this)"><i class="ti ti-book"></i>Авлагын тайлан</button>
+    <button class="tb" onclick="showRTab('reconcile',this)"><i class="ti ti-file-check"></i>Тооцоо нийлэлт</button>
+  </div>
+  <div id="rt-summary" class="r-tab">
+    <div class="mg" id="rv-metrics"></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px" id="rv-by-method"></div>
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-users"></i>Харилцагчаар</span></div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Харилцагч</th><th>Нийт борлуулалт</th><th>Нийт төлсөн</th><th>Авлага</th><th>Сүүлийн огноо</th></tr></thead>
+        <tbody id="rv-by-cust"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+  <div id="rt-detail" class="r-tab" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fl"><label style="font-size:10px">Харилцагч</label>
+        <select id="rv-cust-filter" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx);min-width:160px"><option value="">Бүх харилцагч</option></select>
+      </div>
+      <div class="fl"><label style="font-size:10px">Эхлэх огноо</label><input type="date" id="rv-date-from" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"></div>
+      <div class="fl"><label style="font-size:10px">Дуусах огноо</label><input type="date" id="rv-date-to" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"></div>
+      <div class="fl"><label style="font-size:10px">Статус</label>
+        <select id="rv-sf" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="">Бүгд</option><option value="unpaid">Авлагатай</option><option value="partial">Хэсэгчилсэн</option><option value="paid">Төлөгдсөн</option>
+        </select>
+      </div>
+      <button class="btn bp bxs" onclick="renderRecvDetail()"><i class="ti ti-filter"></i>Шүүх</button>
+      <button class="btn bg bxs" onclick="clearRecvFilter()">Цэвэрлэх</button>
+    </div>
+    <div id="rv-cards"></div>
+  </div>
+  <div id="rt-history" class="r-tab" style="display:none">
+    <div class="card">
+      <div class="ch" style="flex-wrap:wrap;gap:8px">
+        <span class="ct"><i class="ti ti-history"></i>Бүх төлөлтийн бүртгэл</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <select id="ph-cust" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx);min-width:150px"><option value="">Бүх харилцагч</option></select>
+          <input type="date" id="ph-from" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <span style="font-size:12px;color:var(--tx3)">—</span>
+          <input type="date" id="ph-to" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <button class="btn bp bxs" onclick="renderRecvHistory()"><i class="ti ti-filter"></i>Шүүх</button>
+          <button class="btn bg bxs" onclick="clearHistoryFilter()">Цэвэрлэх</button>
+        </div>
+      </div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Харилцагч</th><th>Борлуулалт №</th><th>Бараa</th><th>Төлсөн дүн</th><th>Хэрэгсэл</th><th>Тэмдэглэл</th></tr></thead>
+        <tbody id="rv-hist-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+</div>
+
+  <!-- LEDGER TAB -->
+  <div id="rt-ledger" class="r-tab" style="display:none">
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
+      <div class="fl"><label style="font-size:10px">Харилцагч</label>
+        <select id="ldg-cust" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx);min-width:180px"><option value="">-- Харилцагч сонгох --</option></select>
+      </div>
+      <div class="fl"><label style="font-size:10px">Эхлэх огноо</label><input type="date" id="ldg-from" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"></div>
+      <div class="fl"><label style="font-size:10px">Дуусах огноо</label><input type="date" id="ldg-to" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"></div>
+      <button class="btn bp bxs" onclick="renderLedger()"><i class="ti ti-filter"></i>Шүүх</button>
+      <button class="btn bg bxs" onclick="printLedger()"><i class="ti ti-printer"></i>Хэвлэх</button>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-book"></i>Авлагын дэлгэрэнгүй тайлан</span></div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>№</th><th>Огноо</th><th>Баримт №</th><th>Гүйлгээний утга</th><th>Төлбөрийн төрөл</th><th style="text-align:right">Дебет</th><th style="text-align:right">Кредит</th><th style="text-align:right">Үлдэгдэл</th></tr></thead>
+        <tbody id="ldg-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+
+  <!-- RECONCILE TAB -->
+  <div id="rt-reconcile" class="r-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-file-check"></i>Тооцоо нийлэлт үүсгэх</span></div>
+      <div class="cb">
+        <div class="fg">
+          <div class="fl"><label>Харилцагч</label><select id="rec-cust" onchange="loadReconcileData()" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)"><option value="">-- Харилцагч сонгох --</option></select></div>
+          <div class="fl"><label>Эхлэх огноо</label><input type="date" id="rec-from" onchange="loadReconcileData()"></div>
+          <div class="fl"><label>Дуусах огноо</label><input type="date" id="rec-to" onchange="loadReconcileData()"></div>
+          <div class="fl"><label>Тооцоо нийлсэн огноо</label><input type="date" id="rec-date"></div>
+        </div>
+        <div class="fg">
+          <div class="fl"><label>Нэхэмжлэгчийн банкны данс</label>
+            <select id="rec-bank"><option value="">-- Данс сонгох --</option></select>
+          </div>
+          <div class="fl"><label>Тухайн сарын борлуулалтын дүн (гараар)</label><input type="number" id="rec-manual-sale" placeholder="0" oninput="updateRecWords()"></div>
+          <div class="fl"><label>Тайлбар</label><input type="text" id="rec-note" placeholder="Тайлбар"></div>
+        </div>
+        <div id="rec-words" style="font-size:12px;color:var(--tx2);margin-bottom:12px;font-style:italic"></div>
+        <div id="rec-summary" style="display:none;background:var(--sur2);border-radius:var(--r);padding:14px;margin-bottom:12px;font-size:13px"></div>
+        <input type="hidden" id="rec-edit-id">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn bp" onclick="saveReconcile()"><i class="ti ti-device-floppy"></i>Хадгалах</button>
+          <button class="btn bg" onclick="previewReconcile()"><i class="ti ti-eye"></i>Урьдчилан харах</button>
+          <button class="btn bg" onclick="printReconcile()"><i class="ti ti-printer"></i>Хэвлэх</button>
+        </div>
+        <div id="rec-list" style="margin-top:12px"></div>
+      </div>
+    </div>
+  </div>
+
+<!-- INVOICE PRINT -->
+<!-- INVENTORY --><div id="sec-inventory" class="sec">
+  <div class="tab-bar">
+    <button class="tb on" onclick="showInvTab('in',this)"><i class="ti ti-arrow-down-circle"></i>Орлого</button>
+    <button class="tb" onclick="showInvTab('out',this)"><i class="ti ti-arrow-up-circle"></i>Зарлага</button>
+    <button class="tb" onclick="showInvTab('transfer',this)"><i class="ti ti-arrows-exchange"></i>Шилжүүлэлт</button>
+    <button class="tb" onclick="showInvTab('log',this)"><i class="ti ti-history"></i>Хөдөлгөөний түүх</button>
+  </div>
+  <div id="it-in" class="i-tab">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-plus"></i>Бараа хүлээн авах (орлого)</span></div>
+      <div class="cb">
+        <div class="fg">
+          <div class="fl"><label>Огноо</label><input type="date" id="in-date"></div>
+          <div class="fl"><label>Байршил</label><select id="in-loc"><option value="">-- Сонгох --</option></select></div>
+          <div class="fl"><label>Нийлүүлэгч / Тэмдэглэл</label><input type="text" id="in-note" placeholder="Нийлүүлэгч, баримт №..."></div>
+        </div>
+        <div class="item-rows" id="in-rows"></div>
+        <button class="add-row-btn" onclick="addInRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
+        <div style="margin-top:12px"><button class="btn bp" onclick="submitIn()"><i class="ti ti-check"></i>Орлого бүртгэх</button></div>
+      </div>
+    </div>
+  </div>
+  <div id="it-out" class="i-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-minus"></i>Бараа зарлага / хорогдол / шилжүүлэлт</span></div>
+      <div class="cb">
+        <div class="fg">
+          <div class="fl"><label>Огноо</label><input type="date" id="out-date"></div>
+          <div class="fl"><label>Байршлаас</label><select id="out-loc" onchange="refreshOutRows()"><option value="">-- Сонгох --</option></select></div>
+          <div class="fl"><label>Шалтгаан</label>
+            <select id="out-reason" onchange="onOutReasonChange()">
+              <option value="damage">Гэмтэл / хорогдол</option>
+              <option value="transfer">Байршил шилжүүлэлт</option>
+              <option value="return">Буцаалт</option>
+              <option value="other">Бусад</option>
+            </select>
+          </div>
+          <div class="fl" id="out-to-wrap" style="display:none"><label>Шилжих байршил</label><select id="out-to-loc"><option value="">-- Сонгох --</option></select></div>
+        </div>
+        <div class="item-rows" id="out-rows"></div>
+        <button class="add-row-btn" onclick="addOutRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
+        <div class="fg" style="margin-top:10px">
+          <div class="fl"><label>Тэмдэглэл</label><input type="text" id="out-note"></div>
+        </div>
+        <button class="btn bp" onclick="submitOut()"><i class="ti ti-check"></i>Зарлага бүртгэх</button>
+      </div>
+    </div>
+  </div>
+  <!-- TRANSFER TAB -->
+  <div id="it-transfer" class="i-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-arrows-exchange"></i>Байршил хоорондын шилжүүлэлт бүртгэх</span></div>
+      <div class="cb">
+        <div class="fg">
+          <div class="fl"><label>Огноо</label><input type="date" id="tr-date"></div>
+          <div class="fl"><label>Шилжүүлэх байршил</label><select id="tr-from-loc" onchange="refreshTransferRows()"><option value="">-- Сонгох --</option></select></div>
+          <div class="fl"><label>Хүлээн авах байршил</label><select id="tr-to-loc"><option value="">-- Сонгох --</option></select></div>
+          <div class="fl"><label>Тэмдэглэл</label><input type="text" id="tr-note" placeholder="Тэмдэглэл"></div>
+        </div>
+        <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--tx2)">Шилжүүлэх бараанууд</div>
+        <div class="item-rows" id="tr-rows"></div>
+        <button class="add-row-btn" onclick="addTransferRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
+        <div style="margin-top:12px"><button class="btn bp" onclick="submitTransfer()"><i class="ti ti-check"></i>Шилжүүлэлт бүртгэх</button></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-list"></i>Шилжүүлэлтийн жагсаалт</span></div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Дугаар</th><th>Шилжүүлсэн</th><th>Хүлээн авсан</th><th>Тоо</th><th>Тэмдэглэл</th><th></th></tr></thead>
+        <tbody id="tr-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+
+  <div id="it-log" class="i-tab" style="display:none">
+    <div class="card">
+      <div class="ch">
+        <span class="ct"><i class="ti ti-history"></i>Бараaны хөдөлгөөний түүх</span>
+        <div class="date-filter">
+          <input type="date" id="il-from" onchange="renderInvLog()">
+          <span style="font-size:12px;color:var(--tx3)">—</span>
+          <input type="date" id="il-to" onchange="renderInvLog()">
+          <button class="btn bg bxs" onclick="document.getElementById('il-from').value='';document.getElementById('il-to').value='';renderInvLog()">Бүгд</button>
+        </div>
+      </div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Төрөл</th><th>Бараa</th><th>Байршил</th><th>Тоо</th><th>Тэмдэглэл</th><th>Бүртгэсэн</th></tr></thead>
+        <tbody id="inv-log-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- CUSTOMERS -->
+<div id="sec-customers" class="sec">
+  <div class="card">
+    <div class="ch"><span class="ct"><i class="ti ti-user-plus"></i>Харилцагч нэмэх</span></div>
+    <div class="cb">
+      <div class="fg">
+        <div class="fl"><label>Нэр</label><input type="text" id="c-name"></div>
+        <div class="fl"><label>Регистр</label><input type="text" id="c-reg" placeholder="УА12345678"></div>
+        <div class="fl"><label>Утас</label><input type="text" id="c-phone"></div>
+        <div class="fl"><label>Нэмэлт утас</label><input type="text" id="c-phone2"></div>
+      </div>
+      <div class="fg">
+        <div class="fl"><label>Төрөл</label><select id="c-type"><option value="org">Байгууллага</option><option value="person">Хувь хүн</option></select></div>
+        <div class="fl"><label>Суваг</label><select id="c-chan"><option value="offline">Шууд</option><option value="online">Онлайн</option><option value="both">Хоёулаа</option></select></div>
+        <div class="fl"><label>Хаяг</label><input type="text" id="c-addr"></div>
+        <div class="fl"><label>И-мэйл</label><input type="text" id="c-email"></div>
+      </div>
+      <div class="fg"><div class="fl" style="grid-column:1/-1"><label>Тэмдэглэл</label><textarea id="c-note"></textarea></div></div>
+      <button class="btn bp" onclick="addCustomer()"><i class="ti ti-check"></i>Бүртгэх</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch">
+      <span class="ct"><i class="ti ti-users"></i>Харилцагчид (<span id="c-count">0</span>)</span>
+      <input type="text" id="c-search" placeholder="Хайх..." oninput="renderCustomers()" style="font-size:12px;padding:5px 10px;border:1px solid var(--bd);border-radius:var(--r);width:170px">
+    </div>
+    <div class="cb np"><div class="tw"><table>
+      <thead><tr><th>Нэр</th><th>Регистр</th><th>Утас</th><th>Төрөл</th><th>Суваг</th><th>Хаяг</th><th>Тэмдэглэл</th><th></th></tr></thead>
+      <tbody id="c-tbody"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- PRODUCTS -->
+<div id="sec-products" class="sec">
+  <div class="card">
+    <div class="ch"><span class="ct"><i class="ti ti-plus"></i>Бараa нэмэх</span></div>
+    <div class="cb">
+      <div class="fg">
+        <div class="fl"><label>Нэр</label><input type="text" id="p-name" placeholder="Cusion пудр"></div>
+        <div class="fl"><label>Хувилбар / Өнгө</label><input type="text" id="p-var"></div>
+        <div class="fl"><label>SKU</label><input type="text" id="p-sku"></div>
+      </div>
+      <div class="fg">
+        <div class="fl"><label>Борлуулалтын үнэ (₮)</label><input type="number" id="p-price"></div>
+        <div class="fl"><label>Өртөг (₮)</label><input type="number" id="p-cost"></div>
+        <div class="fl"><label>Өнгө</label><input type="color" id="p-color" value="#D2A679"></div>
+        <div class="fl"><label>Тэмдэглэл</label><input type="text" id="p-note"></div>
+      </div>
+      <button class="btn bp" onclick="addProduct()"><i class="ti ti-check"></i>Бүртгэх</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><span class="ct"><i class="ti ti-box"></i>Бараaны жагсаалт</span></div>
+    <div class="cb np"><div class="tw"><table>
+      <thead><tr><th></th><th>Нэр</th><th>Хувилбар</th><th>SKU</th><th>Үнэ</th><th>Өртөг</th><th>Нийт үлдэгдэл</th><th></th></tr></thead>
+      <tbody id="p-tbody"></tbody>
+    </table></div></div>
+  </div>
+</div>
+
+<!-- LOCATIONS -->
+<div id="sec-locations" class="sec">
+  <div class="card">
+    <div class="ch"><span class="ct"><i class="ti ti-plus"></i>Байршил нэмэх</span></div>
+    <div class="cb">
+      <div class="fg">
+        <div class="fl"><label>Нэр</label><input type="text" id="l-name"></div>
+        <div class="fl"><label>Төрөл</label><select id="l-type"><option value="store">Дэлгүүр</option><option value="warehouse">Агуулах</option><option value="online">Онлайн</option><option value="consign">Консигнаци</option><option value="other">Бусад</option></select></div>
+        <div class="fl"><label>Хаяг</label><input type="text" id="l-addr"></div>
+        <div class="fl"><label>Холбоо барих</label><input type="text" id="l-contact"></div>
+      </div>
+      <div class="fg">
+        <div class="fl"><label>Анхааруулах доод хэмжээ</label><input type="number" id="l-min" value="10"></div>
+        <div class="fl"><label>Тэмдэглэл</label><input type="text" id="l-note"></div>
+      </div>
+      <button class="btn bp" onclick="addLocation()"><i class="ti ti-check"></i>Бүртгэх</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ch"><span class="ct"><i class="ti ti-map-pin"></i>Байршлуудын жагсаалт</span></div>
+    <div class="cb" id="l-list"></div>
+  </div>
+</div>
+
+<!-- BANK -->
+<div id="sec-bank" class="sec">
+  <div class="tab-bar">
+    <button class="tb on" onclick="showBankTab('accounts',this)"><i class="ti ti-credit-card"></i>Банкны данс</button>
+    <button class="tb" onclick="showBankTab('import',this)"><i class="ti ti-file-import"></i>Хуулга импортлох</button>
+    <button class="tb" onclick="showBankTab('paste',this)"><i class="ti ti-clipboard"></i>Хуулж оруулах</button>
+    <button class="tb" onclick="showBankTab('transactions',this)"><i class="ti ti-list"></i>Банкны гүйлгээ</button>
+    <button class="tb" onclick="showBankTab('links',this)"><i class="ti ti-link"></i>Авлага холболт</button>
+  </div>
+  <div id="bt-accounts" class="b-tab">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-plus"></i>Банкны данс нэмэх</span></div>
+      <div class="cb">
+        <div class="fg">
+          <div class="fl"><label>Банкны нэр</label><input type="text" id="ba-bank" placeholder="Хаан банк, Голомт..."></div>
+          <div class="fl"><label>Дансны дугаар</label><input type="text" id="ba-number" placeholder="1234567890"></div>
+          <div class="fl"><label>Дансны нэр</label><input type="text" id="ba-name" placeholder="Дансны нэр"></div>
+          <div class="fl"><label>Валют</label><select id="ba-currency"><option value="MNT">MNT — Төгрөг</option><option value="USD">USD — Доллар</option></select></div>
+        </div>
+        <div class="fg">
+          <div class="fl"><label>Эхний үлдэгдэл (₮)</label><input type="number" id="ba-balance" placeholder="0"></div>
+          <div class="fl"><label>Тэмдэглэл</label><input type="text" id="ba-note"></div>
+        </div>
+        <button class="btn bp" onclick="addBankAccount()"><i class="ti ti-check"></i>Бүртгэх</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-credit-card"></i>Банкны дансны жагсаалт</span></div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Банкны нэр</th><th>Дансны дугаар</th><th>Нэр</th><th>Валют</th><th>Эхний үлдэгдэл</th><th>Статус</th><th></th></tr></thead>
+        <tbody id="ba-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+  <div id="bt-import" class="b-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-file-import"></i>Excel/CSV импортлох</span></div>
+      <div class="cb">
+        <div class="fg"><div class="fl"><label>Банкны данс</label><select id="imp-account"><option value="">-- Данс сонгох --</option></select></div></div>
+        <div style="border:2px dashed var(--bd);border-radius:var(--r);padding:24px;text-align:center;margin-bottom:12px;cursor:pointer;background:var(--sur2)" onclick="document.getElementById('imp-file').click()">
+          <i class="ti ti-upload" style="font-size:28px;color:var(--tx3);display:block;margin-bottom:8px"></i>
+          <p style="font-size:13px;color:var(--tx2)">Excel (.xlsx, .xls) эсвэл CSV файл сонгох</p>
+          <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this)">
+        </div>
+        <div id="imp-column-map" style="display:none">
+          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Баганын тохиргоо</div>
+          <div class="fg" id="imp-map-fields"></div>
+          <button class="btn bp" onclick="previewImport()" style="margin-top:8px"><i class="ti ti-eye"></i>Урьдчилан харах</button>
+        </div>
+        <div id="imp-preview" style="display:none">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Урьдчилан харах (<span id="imp-count">0</span> мөр) <span id="imp-dup-warn" style="color:var(--am);font-size:12px"></span></div>
+          <div class="tw" style="max-height:280px;overflow-y:auto"><table>
+            <thead><tr><th>#</th><th>Огноо</th><th>Утга</th><th>Орлого</th><th>Зарлага</th><th>Статус</th></tr></thead>
+            <tbody id="imp-preview-tbody"></tbody>
+          </table></div>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button class="btn bp" onclick="submitImport()"><i class="ti ti-check"></i>Хадгалах</button>
+            <button class="btn bg" onclick="cancelImport()">Цуцлах</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="bt-paste" class="b-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-clipboard"></i>Хуулж буулгах</span></div>
+      <div class="cb">
+        <div class="fg"><div class="fl"><label>Банкны данс</label><select id="paste-account"><option value="">-- Данс сонгох --</option></select></div></div>
+        <div class="fl" style="margin-bottom:12px">
+          <label>Хүснэгтийн мэдээлэл буулгах</label>
+          <textarea id="paste-data" placeholder="Excel/интернет банкнаас хуулсан мэдээллийг энд буулгана уу..." style="min-height:150px;font-family:monospace;font-size:12px"></textarea>
+        </div>
+        <button class="btn bp" onclick="parsePasteData()"><i class="ti ti-scan"></i>Мэдээлэл таних</button>
+        <div id="paste-map" style="display:none;margin-top:12px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Баганын тохиргоо</div>
+          <div class="fg" id="paste-map-fields"></div>
+          <button class="btn bp" onclick="previewPaste()" style="margin-top:8px"><i class="ti ti-eye"></i>Урьдчилан харах</button>
+        </div>
+        <div id="paste-preview" style="display:none;margin-top:12px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Урьдчилан харах (<span id="paste-count">0</span> мөр)</div>
+          <div class="tw" style="max-height:280px;overflow-y:auto"><table>
+            <thead><tr><th>#</th><th>Огноо</th><th>Утга</th><th>Орлого</th><th>Зарлага</th><th>Статус</th></tr></thead>
+            <tbody id="paste-preview-tbody"></tbody>
+          </table></div>
+          <div style="margin-top:10px;display:flex;gap:8px">
+            <button class="btn bp" onclick="submitPaste()"><i class="ti ti-check"></i>Хадгалах</button>
+            <button class="btn bg" onclick="document.getElementById('paste-preview').style.display='none'">Буцах</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="bt-transactions" class="b-tab" style="display:none">
+    <div class="card">
+      <div class="ch" style="flex-wrap:wrap;gap:8px">
+        <span class="ct"><i class="ti ti-list"></i>Банкны гүйлгээ</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <select id="txn-acc-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх данс</option></select>
+          <input type="date" id="txn-from" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <span style="font-size:12px;color:var(--tx3)">—</span>
+          <input type="date" id="txn-to" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <select id="txn-type-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүгд</option><option value="income">Орлого</option><option value="expense">Зарлага</option></select>
+          <select id="txn-status-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх статус</option><option value="unlinked">Холбоогүй</option><option value="partial">Хэсэгчлэн</option><option value="linked">Бүрэн холбосон</option><option value="other">Бусад орлого</option></select>
+          <input type="text" id="txn-search" placeholder="Утгаар хайх..." style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);width:140px">
+          <button class="btn bp bxs" onclick="renderTransactions()"><i class="ti ti-filter"></i>Шүүх</button>
+          <button class="btn bg bxs" onclick="clearTxnFilter()">Цэвэрлэх</button>
+        </div>
+      </div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Орлого</th><th>Зарлага</th><th>Холбосон</th><th>Холбоогүй</th><th>Статус</th><th>Үйлдэл</th></tr></thead>
+        <tbody id="txn-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+  <div id="bt-links" class="b-tab" style="display:none">
+    <div class="card">
+      <div class="ch" style="flex-wrap:wrap;gap:8px">
+        <span class="ct"><i class="ti ti-link"></i>Авлага холболтын түүх</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+          <select id="lnk-acc" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх данс</option></select>
+          <select id="lnk-cust" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх харилцагч</option></select>
+          <input type="date" id="lnk-from" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <span style="font-size:12px;color:var(--tx3)">—</span>
+          <input type="date" id="lnk-to" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <button class="btn bp bxs" onclick="renderLinks()"><i class="ti ti-filter"></i>Шүүх</button>
+          <button class="btn bg bxs" onclick="clearLinkFilter()">Цэвэрлэх</button>
+        </div>
+      </div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Харилцагч</th><th>Борлуулалт №</th><th>Холбосон дүн</th><th>Холболт хийсэн</th><th>Үйлдэл</th></tr></thead>
+        <tbody id="lnk-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- LINK MODAL -->
+<div class="modal-ov" id="link-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
+  <div class="modal modal-lg">
+    <div class="mh"><span><i class="ti ti-link" style="margin-right:6px"></i>Авлагад холбох</span><button class="btn bg bxs" onclick="closeModal('link-modal')"><i class="ti ti-x"></i></button></div>
+    <div id="link-txn-info" style="background:var(--sur2);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;font-size:13px"></div>
+    <div class="fg" style="margin-bottom:12px">
+      <div class="fl"><label>Харилцагч сонгох</label>
+        <select id="link-cust-sel" onchange="loadCustReceivables()" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)"><option value="">-- Харилцагч сонгох --</option></select>
+      </div>
+    </div>
+    <div id="link-recv-list" style="display:none">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Авлагын жагсаалт</div>
+      <div class="tw"><table style="font-size:12px">
+        <thead><tr><th>Огноо</th><th>Борлуулалт №</th><th>Нийт</th><th>Өмнө төлсөн</th><th>Авлага</th><th>Энэ удаа</th></tr></thead>
+        <tbody id="link-recv-tbody"></tbody>
+      </table></div>
+      <div style="margin-top:10px;padding:10px;background:var(--pul);border-radius:var(--r);font-size:13px;display:flex;justify-content:space-between">
+        <span>Нийт хуваарилсан:</span><span id="link-total-alloc" style="font-weight:700;color:var(--pu)">0₮</span>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:8px">
+        <button class="btn bp" onclick="saveLinkage()"><i class="ti ti-check"></i>Холболт хадгалах</button>
+        <button class="btn bg" onclick="closeModal('link-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- REPORT -->
+<div id="sec-report" class="sec">
+  <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:flex-end">
+    <div class="fl"><label style="font-size:10px">Эхлэх огноо</label><input type="date" id="rp-from" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"></div>
+    <div class="fl"><label style="font-size:10px">Дуусах огноо</label><input type="date" id="rp-to" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"></div>
+    <button class="btn bp" onclick="renderReport()"><i class="ti ti-chart-bar"></i>Тайлан харах</button>
+    <button class="btn bg" onclick="setThisMonth()"><i class="ti ti-calendar"></i>Энэ сар</button>
+    <button class="btn bg" onclick="setThisYear()"><i class="ti ti-calendar-stats"></i>Энэ жил</button>
+  </div>
+  <div class="mg" id="rp-metrics"></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="card"><div class="ch"><span class="ct"><i class="ti ti-cash"></i>Төлбөрийн хэрэгслээр</span></div><div class="cb" id="rp-method"></div></div>
+    <div class="card"><div class="ch"><span class="ct"><i class="ti ti-box"></i>Бараa тус бүрээр</span></div><div class="cb" id="rp-prod"></div></div>
+  </div>
+  <div class="card"><div class="ch"><span class="ct"><i class="ti ti-map-pin"></i>Байршил тус бүрийн тайлан</span></div><div class="cb" id="rp-loc"></div></div>
+  <div class="card"><div class="ch"><span class="ct"><i class="ti ti-package"></i>Барааны үлдэгдэл</span></div><div class="cb" id="rp-stock"></div></div>
+</div>
+
+</div><!-- content -->
+</div><!-- main -->
+</div><!-- app -->
+
+<!-- PAYMENT MODAL -->
+<div class="modal-ov modal-sm" id="pay-modal">
+  <div class="modal modal-sm">
+    <div class="mh"><span><i class="ti ti-cash" style="margin-right:6px"></i>Төлөлт бүртгэх</span><button class="btn bg bxs" onclick="closeModal('pay-modal')"><i class="ti ti-x"></i></button></div>
+    <div id="pm-sale-info" style="background:var(--sur2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px"></div>
+    <div class="fg" style="margin-bottom:10px">
+      <div class="fl"><label>Огноо</label><input type="date" id="pm-date"></div>
+      <div class="fl"><label>Төлсөн дүн (₮)</label><input type="number" id="pm-amt" placeholder="0"></div>
+    </div>
+    <div class="fg" style="margin-bottom:14px">
+      <div class="fl"><label>Хэрэгсэл</label><select id="pm-method"><option value="cash">Бэлнээр</option><option value="card">Картаар</option><option value="transfer">Дансаар</option><option value="online">Онлайн</option></select></div>
+      <div class="fl"><label>Тэмдэглэл</label><input type="text" id="pm-note"></div>
+    </div>
+    <button class="btn bp" onclick="submitPayment()"><i class="ti ti-check"></i>Бүртгэх</button>
+    <input type="hidden" id="pm-sale-id">
+  </div>
+</div>
+
+<!-- INVOICE MODAL -->
+<div class="modal-ov" id="inv-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
+  <div class="modal modal-lg" style="padding:0">
+    <div class="no-print" style="background:#1A1814;padding:11px 18px;display:flex;align-items:center;justify-content:space-between;border-radius:12px 12px 0 0">
+      <span style="color:#fff;font-size:13px;font-weight:500">Нэхэмжлэх</span>
+      <div style="display:flex;gap:8px">
+        <button onclick="window.print()" style="background:var(--pu);color:#fff;border:none;border-radius:7px;padding:6px 14px;font-size:13px;cursor:pointer"><i class="ti ti-printer"></i> Хэвлэх</button>
+        <button onclick="closeModal('inv-modal')" style="background:rgba(255,255,255,.15);color:#fff;border:none;border-radius:7px;padding:6px 10px;font-size:13px;cursor:pointer"><i class="ti ti-x"></i></button>
+      </div>
+    </div>
+    <div class="inv-print-area" id="inv-content"></div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+import {
+  getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
+  onSnapshot, query, orderBy, serverTimestamp, getDoc, setDoc, runTransaction
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+// ⬇️ FIREBASE CONFIG - ЭНД ӨӨРИЙН CONFIG ОРУУЛНА УУ
+const firebaseConfig = {
+  apiKey: "AIzaSyBGQe6_1WwhC06_hGyNpZh_cFTMFKTJYJQ",
+  authDomain: "cusion.firebaseapp.com",
+  projectId: "cusion",
+  storageBucket: "cusion.firebasestorage.app",
+  messagingSenderId: "400511203197",
+  appId: "1:400511203197:web:353486e6a71b61d8dcfe14"
+};
+
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const MLABELS={cash:'Бэлнээр',card:'Картаар',transfer:'Дансаар',online:'Онлайн',credit:'Зээлээр',mixed:'Хосолсон'};
+const MBADGE={cash:'bgr2',card:'bbl',transfer:'bpu',online:'bte',credit:'bre',mixed:'bam2'};
+const LTYPES={store:'Дэлгүүр',warehouse:'Агуулах',online:'Онлайн',consign:'Консигнаци',other:'Бусад'};
+const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivable:'Авлага',inventory:'Бараа материал',customers:'Харилцагч',products:'Бараа',locations:'Байршил',bank:'Банкны хуулга',report:'Тайлан'};
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+let currentUser = null;
+let userRole = 'viewer';
+let customers = [], products = [], locations = [], sales = [], invLogs = [], stockMap = {};
+let reconcileDocs = [];
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+onAuthStateChanged(auth, async user => {
+  if (!user) { window.location.href = 'index.html'; return; }
+  currentUser = user;
+  document.getElementById('user-email').textContent = user.email;
+
+  // Get role from Firestore
+  try {
+    const roleDoc = await getDoc(doc(db, 'users', user.uid));
+    userRole = roleDoc.exists() ? (roleDoc.data().role || 'viewer').toLowerCase().trim() : 'viewer';
+  } catch(e) { userRole = 'viewer'; }
+
+  const roleLabels = { admin:'<span class="ba bpu">Admin</span>', manager:'<span class="ba bgr">Менежер</span>', viewer:'<span class="ba bgr2">Харагч</span>' };
+  document.getElementById('user-role-badge').innerHTML = roleLabels[userRole] || '';
+
+  document.getElementById('loading-ov').style.display = 'none';
+  document.getElementById('main-app').style.display = 'flex';
+
+  initDates();
+  subscribeAll();
+});
+
+window.doLogout = async () => {
+  await signOut(auth);
+  window.location.href = 'index.html';
+};
+
+// ─── FIRESTORE SUBSCRIPTIONS ─────────────────────────────────────────────────
+function subscribeAll() {
+  onSnapshot(query(collection(db,'customers'), orderBy('createdAt','desc')), snap => {
+    customers = snap.docs.map(d => ({id:d.id,...d.data()}));
+    populateSels(); renderCustomers();
+  });
+  onSnapshot(query(collection(db,'products'), orderBy('createdAt','desc')), snap => {
+    products = snap.docs.map(d => ({id:d.id,...d.data()}));
+    populateSels(); renderProducts();
+  });
+  onSnapshot(query(collection(db,'locations'), orderBy('createdAt','desc')), snap => {
+    locations = snap.docs.map(d => ({id:d.id,...d.data()}));
+    populateSels(); renderLocations();
+  });
+  onSnapshot(query(collection(db,'sales'), orderBy('date','desc')), snap => {
+    sales = snap.docs.map(d => ({id:d.id,...d.data()}));
+    renderDashboard(); renderSalesTable(); renderRecvSummary();
+    const det = document.getElementById('rt-detail');
+    if (det && det.style.display !== 'none') renderRecvDetail();
+    const hist = document.getElementById('rt-history');
+    if (hist && hist.style.display !== 'none') renderRecvHistory();
+  });
+  onSnapshot(query(collection(db,'invLogs'), orderBy('date','desc')), snap => {
+    invLogs = snap.docs.map(d => ({id:d.id,...d.data()}));
+    renderInvLog();
+  });
+  onSnapshot(doc(db,'stock','current'), snap => {
+    stockMap = snap.exists() ? snap.data() : {};
+    renderLocations(); renderProducts(); renderDashboard();
+  });
+  // Bank & Transfers
+  onSnapshot(query(collection(db,'bankAccounts'),orderBy('createdAt','desc')), snap=>{
+    bankAccounts=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderBankAccounts(); populateSels();
+  });
+  onSnapshot(query(collection(db,'bankTxns'),orderBy('date','desc')), snap=>{
+    bankTxns=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderTransactions();
+  });
+  onSnapshot(query(collection(db,'bankLinks'),orderBy('linkedAt','desc')), snap=>{
+    bankLinks=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderLinks();
+  });
+  onSnapshot(query(collection(db,'transfers'),orderBy('date','desc')), snap=>{
+    transfers=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderTransferList();
+  });
+  onSnapshot(query(collection(db,'reconcileDocs'),orderBy('createdAt','desc')), snap=>{
+    reconcileDocs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderReconcileList();
+  });
+}
+
+// ─── STOCK HELPERS ────────────────────────────────────────────────────────────
+function sk(pid,lid){ return pid+'_'+lid; }
+function gst(pid,lid){ return stockMap[sk(pid,lid)] || 0; }
+async function updateStock(changes) {
+  const ref = doc(db,'stock','current');
+  const upd = {};
+  changes.forEach(({pid,lid,delta}) => { upd[sk(pid,lid)] = (stockMap[sk(pid,lid)]||0) + delta; });
+  await setDoc(ref, {...stockMap, ...upd}, {merge:true});
+}
+function totByProd(pid){ return locations.reduce((a,l)=>a+gst(pid,l.id),0); }
+function totByLoc(lid){ return products.reduce((a,p)=>a+gst(p.id,lid),0); }
+
+// ─── HELPERS ─────────────────────────────────────────────────────────────────
+function fmt(n){ return Math.round(n||0).toLocaleString()+'₮'; }
+function today(){ return new Date().toISOString().slice(0,10); }
+function invNum(id){ return 'INV-'+String(id).slice(-4).toUpperCase(); }
+function canEdit(){ return userRole === 'admin' || userRole === 'manager'; }
+
+function initDates(){
+  const t = today();
+  ['s-date','in-date','out-date','d-date-filter'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value=t;
+  });
+  document.getElementById('pm-date').value = t;
+  document.getElementById('top-date').textContent = new Date().toLocaleDateString('mn-MN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+  setThisMonth();
+}
+
+// ─── NAV ─────────────────────────────────────────────────────────────────────
+window.goSec = (name, btn) => {
+  document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
+  document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
+  document.getElementById('sec-'+name).classList.add('on');
+  if(btn) btn.classList.add('on');
+  document.getElementById('sec-title').textContent = MTITLES[name]||name;
+};
+  // showRTab defined below with full tab support
+window.showInvTab = (name, btn) => {
+  document.querySelectorAll('.i-tab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('#sec-inventory .tb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('it-'+name).style.display='block';
+  btn.classList.add('on');
+  if(name==='log') renderInvLog();
+  if(name==='transfer') renderTransferList();
+};
+window.openModal = id => document.getElementById(id).classList.add('open');
+window.closeModal = id => document.getElementById(id).classList.remove('open');
+
+// ─── SELECTS ─────────────────────────────────────────────────────────────────
+function populateSels(){
+  const co='<option value="">-- Сонгох --</option>'+customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  const lo='<option value="">-- Сонгох --</option>'+locations.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  const po='<option value="">-- Сонгох --</option>'+products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  ['s-cust'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=co;el.value=v;}});
+  ['s-loc','in-loc','out-loc','out-to-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=lo;el.value=v;}});
+  document.querySelectorAll('.row-prod-sel').forEach(sel=>{ const v=sel.value;sel.innerHTML=po;sel.value=v;});
+  document.querySelectorAll('.row-loc-sel').forEach(sel=>{ const v=sel.value;sel.innerHTML=lo;sel.value=v;});
+  ['s-loc','in-loc','out-loc','out-to-loc','tr-from-loc','tr-to-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=lo;el.value=v;}});
+  const custOpts='<option value="">Бүх харилцагч</option>'+customers.map(c=>`<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');
+  ['s-filter-cust','rv-cust-filter','ph-cust','lnk-cust','ldg-cust','rec-cust'].forEach(id=>{const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=custOpts;el.value=v;}});
+  const lcSel=document.getElementById('link-cust-sel');if(lcSel){const v=lcSel.value;lcSel.innerHTML='<option value="">-- Харилцагч сонгох --</option>'+customers.map(c=>`<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');lcSel.value=v;}
+  if(typeof bankAccounts!=='undefined'&&bankAccounts.length>=0){
+    const baOpts='<option value="">-- Данс сонгох --</option>'+bankAccounts.filter(a=>a.active!==false).map(a=>`<option value="${a.id}">${a.bankName} — ${a.accountNumber}</option>`).join('');
+    const baAll='<option value="">Бүх данс</option>'+bankAccounts.map(a=>`<option value="${a.id}">${a.bankName} — ${a.accountNumber}</option>`).join('');
+    ['imp-account','paste-account'].forEach(id=>{const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=baOpts;el.value=v;}});
+    ['txn-acc-filter','lnk-acc'].forEach(id=>{const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=baAll;el.value=v;}});
+  }
+}
+
+// ─── SALE ROWS ────────────────────────────────────────────────────────────────
+let saleRowIdx = 0;
+function saleRowHtml(idx){
+  const po = products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row sale-row" id="sr-${idx}">
+    <div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="onSaleProdChange(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="fl"><label>Нэгж үнэ (₮)</label><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()"></div>
+    <div class="fl"><label>Тоо (ш)</label><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()"></div>
+    <div class="fl"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
+    <div class="row-total" id="rt-${idx}">0₮</div>
+    <button class="btn bd2 bxs" onclick="removeSaleRow(${idx})" style="align-self:flex-end;margin-bottom:1px"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+window.addSaleRow = () => { document.getElementById('s-rows').insertAdjacentHTML('beforeend',saleRowHtml(saleRowIdx++)); populateSels(); refreshSaleRows(); };
+window.removeSaleRow = idx => { document.getElementById('sr-'+idx)?.remove(); calcSaleTotal(); };
+window.onSaleProdChange = idx => {
+  const row = document.getElementById('sr-'+idx); if(!row) return;
+  const pid = row.querySelector('.row-prod-sel').value;
+  const p = products.find(x=>x.id===pid);
+  if(p) row.querySelector('.row-price').value = p.price;
+  refreshSaleRows(); calcSaleTotal();
+};
+window.refreshSaleRows = () => {
+  const lid = document.getElementById('s-loc').value;
+  document.querySelectorAll('#s-rows .item-row').forEach(row=>{
+    const pid = row.querySelector('.row-prod-sel').value;
+    const avail = row.querySelector('.row-avail');
+    avail.value = (pid&&lid) ? gst(pid,lid)+'ш' : '—';
+  });
+  calcSaleTotal();
+};
+window.calcSaleTotal = () => {
+  let totQ=0, totA=0; const warns=[];
+  const lid = document.getElementById('s-loc').value;
+  document.querySelectorAll('#s-rows .item-row').forEach(row=>{
+    const pid=row.querySelector('.row-prod-sel').value;
+    const price=parseInt(row.querySelector('.row-price').value)||0;
+    const qty=parseInt(row.querySelector('.row-qty').value)||0;
+    const sub=price*qty;
+    const rt=row.querySelector('.row-total'); if(rt) rt.textContent=sub.toLocaleString()+'₮';
+    totQ+=qty; totA+=sub;
+    if(pid&&lid&&qty>0){ const avail=gst(pid,lid); if(avail<qty){ const p=products.find(x=>x.id===pid); warns.push(`${p?.variant||'Бараa'}: ${avail}ш байна`); }}
+  });
+  const method=document.getElementById('s-pay-type')?.value||'cash';
+  const advance=parseInt(document.getElementById('s-advance')?.value)||0;
+  const paid=(method==='credit')?0:(method==='mixed')?Math.min(advance,totA):totA;
+  const recv=totA-paid;
+  if(totA>0){
+    document.getElementById('s-prev').style.display='block';
+    document.getElementById('pv-qty').textContent=totQ+'ш';
+    document.getElementById('pv-tot').textContent=fmt(totA);
+    document.getElementById('pv-paid').textContent=fmt(paid);
+    document.getElementById('pv-recv').textContent=fmt(recv);
+  } else { document.getElementById('s-prev').style.display='none'; }
+  const wEl=document.getElementById('s-warn');
+  if(warns.length>0){ wEl.style.display='flex'; document.getElementById('s-warn-txt').textContent=warns.join(' · '); }
+  else { wEl.style.display='none'; }
+};
+window.onPayTypeChange = () => {
+  const pt = document.getElementById('s-pay-type').value;
+  const totalEl = document.getElementById('s-total');
+  const paidEl = document.getElementById('s-paid');
+  if(!totalEl || !paidEl) return;
+  const total = parseFloat(totalEl.value)||0;
+  if(pt === 'cash' || pt === 'transfer' || pt === 'online') {
+    paidEl.value = total;
+  } else if(pt === 'credit') {
+    paidEl.value = 0;
+  }
+};
+window.onSaleMethodChange = () => {
+  // paymentType-тай нэгтгэсэн - s-pay-type ашиглана
+  onPayTypeChange();
+};
+window.submitSale = async () => {
+  if(!canEdit()){ alert('Таны эрх хүрэхгүй байна'); return; }
+  const cid=document.getElementById('s-cust').value;
+  const lid=document.getElementById('s-loc').value;
+  const method=document.getElementById('s-pay-type')?.value||'cash';
+  const advance=parseInt(document.getElementById('s-advance')?.value)||0;
+  const note=(document.getElementById('s-note').value||document.getElementById('s-note2').value||'').trim();
+  const sDate=document.getElementById('s-date').value||today();
+  if(!cid){alert('Харилцагч сонгоно уу');return;}
+  if(!lid){alert('Байршил сонгоно уу');return;}
+  const rows=[]; let valid=true;
+  document.querySelectorAll('#s-rows .item-row').forEach(row=>{
+    const pid=row.querySelector('.row-prod-sel').value;
+    const price=parseInt(row.querySelector('.row-price').value)||0;
+    const qty=parseInt(row.querySelector('.row-qty').value)||0;
+    if(!pid||qty<=0||price<=0){valid=false;return;}
+    rows.push({pid,price,qty});
+  });
+  if(!valid||rows.length===0){alert('Бараa, үнэ, тоог бүрэн оруулна уу');return;}
+  const cust=customers.find(c=>c.id===cid);
+  const loc=locations.find(l=>l.id===lid);
+  const totalAmt=rows.reduce((a,r)=>a+r.price*r.qty,0);
+  const paid=(method==='credit'||method==='mixed')?Math.min(advance,totalAmt):totalAmt;
+  const recv=totalAmt-paid;
+  const items=rows.map(r=>{ const p=products.find(x=>x.id===r.pid); const unitCost=p?.cost||0; return {pid:r.pid,label:`${p?.name}·${p?.variant}`,price:r.price,qty:r.qty,sub:r.price*r.qty,unitCost,costAmount:unitCost*r.qty}; });
+  try {
+    const docNum = await getNextDocNum('sale');
+    const payType = document.getElementById('s-pay-type')?.value||'cash';
+    const saleRef = await addDoc(collection(db,'sales'),{
+      docNumber:docNum,
+      date:sDate, customerId:cid, customerName:cust?.name||'',
+      customerCode:cust?.customerCode||'',
+      customerReg:cust?.reg||'', customerPhone:cust?.phone||'',
+      customerAddress:cust?.address||'', customerEmail:cust?.email||'',
+      locationId:lid, locationName:loc?.name||'',
+      items, total:totalAmt, paid, recv, paymentType:method, method, payType:method, note,
+      totalCost: items.reduce((a,it)=>a+(it.costAmount||0),0),
+      status:recv===0?'paid':paid>0?'partial':'unpaid',
+      payments:paid>0?[{date:sDate,amount:paid,method,note:'Анхны төлбөр'}]:[],
+      createdBy:currentUser.email, createdAt:serverTimestamp()
+    });
+    // Update stock
+    const stockChanges = rows.map(r=>({pid:r.pid,lid,delta:-r.qty}));
+    await updateStock(stockChanges);
+    // Log
+    for(const r of rows){
+      const p=products.find(x=>x.id===r.pid);
+      await addDoc(collection(db,'invLogs'),{date:sDate,type:'sale',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,note:`Борлуулалт — ${cust?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+    }
+    // Reset form
+    document.getElementById('s-rows').innerHTML=''; saleRowIdx=0; addSaleRow();
+    document.getElementById('s-cust').value=''; document.getElementById('s-loc').value='';
+    if(document.getElementById('s-pay-type'))document.getElementById('s-pay-type').value='cash';
+    if(document.getElementById('s-advance'))document.getElementById('s-advance').value='';
+    document.getElementById('s-note').value=''; document.getElementById('s-note2').value='';
+    document.getElementById('s-advance-row').style.display='none';
+    document.getElementById('s-note-row').style.display='grid';
+    document.getElementById('s-prev').style.display='none';
+    document.getElementById('s-warn').style.display='none';
+    document.getElementById('s-date').value=today();
+    alert('Борлуулалт амжилттай бүртгэгдлээ!');
+  } catch(e){ alert('Алдаа: '+e.message); }
+};
+window.deleteSale = async id => {
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!confirm('Устгах уу?')) return;
+  const sale=sales.find(s=>s.id===id); if(!sale) return;
+  const stockChanges=sale.items.map(it=>({pid:it.pid,lid:sale.locationId,delta:it.qty}));
+  await deleteDoc(doc(db,'sales',id));
+  await updateStock(stockChanges);
+};
+
+// ─── PAYMENT ─────────────────────────────────────────────────────────────────
+window.openPay = saleId => {
+  const sale=sales.find(s=>s.id===saleId); if(!sale) return;
+  document.getElementById('pm-sale-id').value=saleId;
+  document.getElementById('pm-amt').value='';
+  document.getElementById('pm-note').value='';
+  document.getElementById('pm-date').value=today();
+  document.getElementById('pm-sale-info').innerHTML=`<b>${sale.customerName}</b><br><span style="color:var(--tx2)">Нийт: <b>${fmt(sale.total)}</b> · Авлага: <b style="color:var(--am)">${fmt(sale.recv)}</b></span>`;
+  openModal('pay-modal');
+};
+window.submitPayment = async () => {
+  const id=document.getElementById('pm-sale-id').value;
+  const amt=parseInt(document.getElementById('pm-amt').value)||0;
+  const method=document.getElementById('pm-method').value;
+  const note=document.getElementById('pm-note').value.trim();
+  const pDate=document.getElementById('pm-date').value||today();
+  const sale=sales.find(s=>s.id===id);
+  if(!sale||amt<=0){alert('Дүн оруулна уу');return;}
+  const actual=Math.min(amt,sale.recv);
+  const newPaid=sale.paid+actual, newRecv=sale.recv-actual;
+  const newStatus=newRecv===0?'paid':'partial';
+  const newPayments=[...(sale.payments||[]),{date:pDate,amount:actual,method,note}];
+  const tpDocNum = await getNextDocNum('payment');
+  newPayments[newPayments.length-1].docNumber = tpDocNum;
+  await updateDoc(doc(db,'sales',id),{paid:newPaid,recv:newRecv,status:newStatus,payments:newPayments});
+  closeModal('pay-modal');
+};
+window.inlinePayment = async saleId => {
+  const amt=parseInt(document.getElementById('rp-amt-'+saleId)?.value)||0;
+  const method=document.getElementById('rp-met-'+saleId)?.value||'cash';
+  const note=document.getElementById('rp-note-'+saleId)?.value||'';
+  const pDate=document.getElementById('rp-dt-'+saleId)?.value||today();
+  const sale=sales.find(s=>s.id===saleId);
+  if(!sale||amt<=0){alert('Дүн оруулна уу');return;}
+  const actual=Math.min(amt,sale.recv);
+  const tpNum = await getNextDocNum('payment');
+  await updateDoc(doc(db,'sales',saleId),{
+    paid:sale.paid+actual,recv:sale.recv-actual,
+    status:(sale.recv-actual)===0?'paid':'partial',
+    payments:[...(sale.payments||[]),{date:pDate,amount:actual,method,note,docNumber:tpNum}]
+  });
+};
+
+// ─── INVENTORY ───────────────────────────────────────────────────────────────
+function inRowHtml(){
+  const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row inv-row"><div class="fl"><label>Бараa</label><select class="row-prod-sel"><option value="">-- Сонгох --</option>${po}</select></div><div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1"></div><div class="fl"><label>Нэгж өртөг (₮)</label><input type="number" class="ir-cost" placeholder="0"></div><button class="btn bd2 bxs" onclick="this.closest('.item-row').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button></div>`;
+}
+window.addInRow = () => { document.getElementById('in-rows').insertAdjacentHTML('beforeend',inRowHtml()); populateSels(); };
+window.submitIn = async () => {
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  const lid=document.getElementById('in-loc').value;
+  const note=document.getElementById('in-note').value.trim();
+  const iDate=document.getElementById('in-date').value||today();
+  if(!lid){alert('Байршил сонгоно уу');return;}
+  const loc=locations.find(l=>l.id===lid);
+  const rows=[]; let added=0;
+  document.querySelectorAll('#in-rows .item-row').forEach(row=>{
+    const pid=row.querySelector('.row-prod-sel').value;
+    const qty=parseInt(row.querySelector('.ir-qty').value)||0;
+    if(!pid||qty<=0)return;
+    rows.push({pid,qty}); added++;
+  });
+  if(!added){alert('Бараa болон тоо оруулна уу');return;}
+  const docNum = await getNextDocNum('stockIn');
+  const stockChanges=rows.map(r=>({pid:r.pid,lid,delta:r.qty}));
+  await updateStock(stockChanges);
+  for(const r of rows){
+    const p=products.find(x=>x.id===r.pid);
+    await addDoc(collection(db,'invLogs'),{docNumber:docNum,date:iDate,type:'in',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:r.qty,note:`${docNum} — ${note||'Орлого'}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+  }
+  document.getElementById('in-rows').innerHTML=''; document.getElementById('in-note').value='';
+  addInRow(); document.getElementById('in-date').value=today();
+  alert('Орлого амжилттай бүртгэгдлээ!');
+};
+
+function outRowHtml(){
+  const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row inv-row"><div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="refreshOutRows()"><option value="">-- Сонгох --</option>${po}</select></div><div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1"></div><div class="fl"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div><button class="btn bd2 bxs" onclick="this.closest('.item-row').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button></div>`;
+}
+window.addOutRow = () => { document.getElementById('out-rows').insertAdjacentHTML('beforeend',outRowHtml()); populateSels(); };
+window.refreshOutRows = () => {
+  const lid=document.getElementById('out-loc').value;
+  document.querySelectorAll('#out-rows .item-row').forEach(row=>{
+    const pid=row.querySelector('.row-prod-sel').value;
+    row.querySelector('.row-avail').value=(pid&&lid)?gst(pid,lid)+'ш':'—';
+  });
+};
+window.onOutReasonChange = () => {
+  document.getElementById('out-to-wrap').style.display=document.getElementById('out-reason').value==='transfer'?'block':'none';
+};
+window.submitOut = async () => {
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  const lid=document.getElementById('out-loc').value;
+  const reason=document.getElementById('out-reason').value;
+  const toLid=document.getElementById('out-to-loc').value;
+  const note=document.getElementById('out-note').value.trim();
+  const oDate=document.getElementById('out-date').value||today();
+  if(!lid){alert('Байршил сонгоно уу');return;}
+  if(reason==='transfer'&&!toLid){alert('Шилжих байршил сонгоно уу');return;}
+  const loc=locations.find(l=>l.id===lid);
+  const tLoc=locations.find(l=>l.id===toLid);
+  const rLabels={damage:'Гэмтэл/хорогдол',transfer:'Шилжүүлэлт',return:'Буцаалт',other:'Бусад'};
+  const rows=[]; let done=0;
+  document.querySelectorAll('#out-rows .item-row').forEach(row=>{
+    const pid=row.querySelector('.row-prod-sel').value;
+    const qty=parseInt(row.querySelector('.ir-qty').value)||0;
+    if(!pid||qty<=0)return;
+    rows.push({pid,qty}); done++;
+  });
+  if(!done){alert('Бараa болон тоо оруулна уу');return;}
+  const stockChanges=[];
+  for(const r of rows){
+    const p=products.find(x=>x.id===r.pid);
+    stockChanges.push({pid:r.pid,lid,delta:-r.qty});
+    if(reason==='transfer'){
+      stockChanges.push({pid:r.pid,lid:toLid,delta:r.qty});
+      await addDoc(collection(db,'invLogs'),{date:oDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,note:`→ ${tLoc?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      await addDoc(collection(db,'invLogs'),{date:oDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:toLid,locationName:tLoc?.name||'',qty:r.qty,note:`← ${loc?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+    } else {
+      if(!outDocNum) outDocNum = await getNextDocNum('stockOut');
+      await addDoc(collection(db,'invLogs'),{docNumber:outDocNum,date:oDate,type:'out',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,note:`${outDocNum} — ${rLabels[reason]+(note?' — '+note:'')}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+    }
+  }
+  await updateStock(stockChanges);
+  document.getElementById('out-rows').innerHTML=''; document.getElementById('out-note').value='';
+  addOutRow(); document.getElementById('out-date').value=today();
+  alert('Зарлага бүртгэгдлээ!');
+};
+
+// ─── CUSTOMERS ───────────────────────────────────────────────────────────────
+window.addCustomer = async () => {
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  const name=document.getElementById('c-name').value.trim();
+  const reg=document.getElementById('c-reg').value.trim();
+  if(!name){alert('Нэр оруулна уу');return;}
+  const ctype=document.getElementById('c-type').value;
+  if(ctype==='org'&&!reg){alert('Байгууллагын регистрийн дугаар заавал оруулна уу');return;}
+  if(reg&&customers.some(c=>c.reg&&c.reg===reg)){alert('Тэр регистрийн дугаар аль хэдийн бүртгэгдсэн байна');return;}
+  // Generate CUS-000001 code
+  let customerCode = 'CUS-000001';
+  try {
+    const countRef = doc(db, 'docCounters', 'customer_global');
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(countRef);
+      const num = (snap.exists() ? snap.data().count : 0) + 1;
+      tx.set(countRef, { count: num, updatedAt: serverTimestamp() }, { merge: true });
+      customerCode = 'CUS-' + String(num).padStart(6,'0');
+    });
+  } catch(e) { console.warn('Customer code generation failed', e); }
+  await addDoc(collection(db,'customers'),{
+    customerCode,
+    name,reg,
+    phone:document.getElementById('c-phone').value.trim(),
+    phone2:document.getElementById('c-phone2').value.trim(),
+    type:ctype,
+    channel:document.getElementById('c-chan').value,
+    address:document.getElementById('c-addr').value.trim(),
+    email:document.getElementById('c-email').value.trim(),
+    note:document.getElementById('c-note').value.trim(),
+    createdBy:currentUser.email,createdAt:serverTimestamp()
+  });
+  ['c-name','c-reg','c-phone','c-phone2','c-addr','c-email','c-note'].forEach(id=>document.getElementById(id).value='');
+};
+window.delCustomer = async id => { if(!confirm('Устгах уу?'))return; await deleteDoc(doc(db,'customers',id)); };
+
+// ─── PRODUCTS ────────────────────────────────────────────────────────────────
+window.addProduct = async () => {
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  const name=document.getElementById('p-name').value.trim(), variant=document.getElementById('p-var').value.trim();
+  if(!name||!variant){alert('Нэр болон хувилбар оруулна уу');return;}
+  await addDoc(collection(db,'products'),{name,variant,sku:document.getElementById('p-sku').value.trim(),price:parseInt(document.getElementById('p-price').value)||0,cost:parseInt(document.getElementById('p-cost').value)||0,color:document.getElementById('p-color').value,note:document.getElementById('p-note').value.trim(),createdAt:serverTimestamp()});
+  ['p-name','p-var','p-sku','p-price','p-cost','p-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('p-color').value='#D2A679';
+};
+window.delProduct = async id => { if(!confirm('Устгах уу?'))return; await deleteDoc(doc(db,'products',id)); };
+
+// ─── LOCATIONS ───────────────────────────────────────────────────────────────
+window.addLocation = async () => {
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  const name=document.getElementById('l-name').value.trim();
+  if(!name){alert('Нэр оруулна уу');return;}
+  await addDoc(collection(db,'locations'),{name,type:document.getElementById('l-type').value,address:document.getElementById('l-addr').value.trim(),contact:document.getElementById('l-contact').value.trim(),minStock:parseInt(document.getElementById('l-min').value)||10,note:document.getElementById('l-note').value.trim(),createdAt:serverTimestamp()});
+  ['l-name','l-addr','l-contact','l-note'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('l-min').value='10';
+};
+window.delLocation = async id => { if(!confirm('Устгах уу?'))return; await deleteDoc(doc(db,'locations',id)); };
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+function statusBadge(s){
+  return {paid:'<span class="ba bgr"><i class="ti ti-check" style="font-size:10px"></i>Төлөгдсөн</span>',partial:'<span class="ba bam2">Хэсэгчилсэн</span>',unpaid:'<span class="ba bre">Авлагатай</span>'}[s]||s;
+}
+
+window.renderDashboard = () => {
+  const from = document.getElementById('d-from')?.value||'';
+  const to = document.getElementById('d-to')?.value||'';
+
+  // Filter sales by period for revenue KPIs
+  let filtered = sales;
+  if(from) filtered = filtered.filter(s=>s.date>=from);
+  if(to) filtered = filtered.filter(s=>s.date<=to);
+
+  // KPI calculations
+  const totalSales = filtered.reduce((a,s)=>a+s.total,0);
+  const totalCost = filtered.reduce((a,s)=>a+(s.totalCost||s.items?.reduce((b,it)=>b+(it.costAmount||0),0)||0),0);
+  const totalProfit = totalSales - totalCost;
+  const totalRecv = sales.reduce((a,s)=>a+s.recv,0); // always current
+  const totalStockQty = products.reduce((a,p)=>a+locations.reduce((b,l)=>b+gst(p.id,l.id),0),0);
+
+  document.getElementById('d-metrics').innerHTML=`
+    <div class="mc"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalSales)}</div><div class="ms">${filtered.length} гүйлгээ</div></div>
+    <div class="mc"><div class="ml">Борлуулсан барааны өртөг</div><div class="mv">${fmt(totalCost)}</div></div>
+    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div><div class="ms">${totalSales>0?Math.round(totalProfit/totalSales*100):0}%</div></div>
+    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalRecv)}</div><div class="ms">${sales.filter(s=>s.recv>0).length} харилцагч</div></div>
+    <div class="mc"><div class="ml">Барааны үлдэгдэл</div><div class="mv">${totalStockQty.toLocaleString()}ш</div></div>
+  `;
+
+  // Top 10 receivable customers
+  const custRecv = {};
+  sales.forEach(s=>{
+    if(s.recv>0){
+      if(!custRecv[s.customerId]) custRecv[s.customerId]={name:s.customerName,reg:s.customerReg||customers.find(c=>c.id===s.customerId)?.reg||'',recv:0};
+      custRecv[s.customerId].recv+=s.recv;
+    }
+  });
+  const top10 = Object.entries(custRecv)
+    .filter(([,v])=>v.recv>0)
+    .sort((a,b)=>b[1].recv-a[1].recv)
+    .slice(0,10);
+
+  const topTbody = document.getElementById('d-top-recv');
+  if(topTbody){
+    if(top10.length===0){
+      topTbody.innerHTML='<tr><td colspan="4"><div class="empty"><i class="ti ti-check"></i>Авлага байхгүй</div></td></tr>';
+    } else {
+      topTbody.innerHTML=top10.map(([cid,v],i)=>`<tr style="cursor:pointer" onclick="goToRecvDetail('${cid}')">
+        <td style="text-align:center;color:var(--tx3)">${i+1}</td>
+        <td style="font-weight:500;color:var(--pu)">${v.name}</td>
+        <td style="font-size:11px;color:var(--tx2)">${v.reg||'—'}</td>
+        <td style="text-align:right;font-weight:700;color:var(--am)">${fmt(v.recv)}</td>
+      </tr>`).join('');
+    }
+  }
+
+  // Stock display
+  const dls = document.getElementById('d-stock');
+  if(locations.length===0){dls.innerHTML='<div class="empty"><i class="ti ti-map-pin"></i>Байршил байхгүй</div>';return;}
+  dls.innerHTML=locations.map(l=>`<div style="margin-bottom:12px"><p style="font-size:12px;font-weight:600;margin-bottom:6px">${l.name}</p>${
+    products.map(p=>{const q=gst(p.id,l.id);const bar=q<=5?'#A32020':q<=(l.minStock||10)?'#B86E0C':'#2E6B0A';
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="dot" style="background:${p.color}"></span><span style="font-size:12px;flex:1;color:var(--tx2)">${p.variant}</span><div style="width:80px;background:var(--sur3);border-radius:3px;height:5px;overflow:hidden"><div style="width:${Math.min(100,q)}%;height:100%;background:${bar}"></div></div><span style="font-size:12px;font-weight:600;min-width:24px;text-align:right;color:${bar}">${q}</span></div>`;
+    }).join('')}</div>`).join('');
+};
+
+window.renderSalesTable = () => {
+  const from=document.getElementById('s-from')?.value;
+  const to=document.getElementById('s-to')?.value;
+  const custId=document.getElementById('s-filter-cust')?.value||'';
+  let list=sales;
+  if(from) list=list.filter(s=>s.date>=from);
+  if(to) list=list.filter(s=>s.date<=to);
+  if(custId) list=list.filter(s=>s.customerId===custId);
+  const tbody=document.getElementById('s-tbody'); if(!tbody) return;
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="10"><div class="empty"><i class="ti ti-shopping-cart"></i>Борлуулалт байхгүй</div></td></tr>';return;}
+  tbody.innerHTML=list.map(s=>`<tr>
+    <td style="font-size:11px;color:var(--tx3)">${s.date}</td>
+    <td style="font-weight:500">${s.customerName}</td>
+    <td style="font-size:11px">${s.locationName}</td>
+    <td style="font-size:11px">${s.items?.map(it=>`${it.label?.split('·')[1]} ${it.qty}ш`).join('<br>')}</td>
+    <td style="font-weight:600">${fmt(s.total)}</td>
+    <td style="color:${s.recv>0?'var(--am)':'var(--gr)'};font-weight:500">${fmt(s.recv)}</td>
+    <td><span class="ba ${MBADGE[s.method]||'bgr2'}">${MLABELS[s.method]||s.method}</span></td>
+    <td>${statusBadge(s.status)}</td>
+    <td style="font-size:11px;color:var(--tx3)">${s.createdBy||''}</td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="openInvoice('${s.id}')" title="Нэхэмжлэх"><i class="ti ti-file-invoice"></i></button>
+      ${canEdit()?`<button class="btn bg bxs" onclick="openEditSale('${s.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+      ${canEdit()?`<button class="btn bd2 bxs" onclick="deleteSale('${s.id}')" title="Устгах"><i class="ti ti-trash"></i></button>`:''}
+    </td>
+  </tr>`).join('');
+};
+window.clearSalesFilter = () => { clearToLastMonth('s-from','s-to'); const cf=document.getElementById('s-filter-cust');if(cf)cf.value=''; renderSalesTable(); };
+
+window.renderRecvSummary = () => {
+  const totalR=sales.reduce((a,s)=>a+s.recv,0), totalP=sales.reduce((a,s)=>a+s.paid,0), totalS=sales.reduce((a,s)=>a+s.total,0);
+  document.getElementById('rv-metrics').innerHTML=`
+    <div class="mc"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalS)}</div></div>
+    <div class="mc"><div class="ml">Нийт орлого</div><div class="mv gr">${fmt(totalP)}</div></div>
+    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalR)}</div></div>
+    <div class="mc"><div class="ml">Авлагын хувь</div><div class="mv ${totalS>0&&totalR/totalS>0.3?'re':'am'}">${totalS>0?Math.round(totalR/totalS*100):0}%</div></div>
+  `;
+  const byM={};
+  sales.forEach(s=>{ if(!byM[s.method])byM[s.method]={total:0,paid:0,recv:0,count:0}; byM[s.method].total+=s.total;byM[s.method].paid+=s.paid;byM[s.method].recv+=s.recv;byM[s.method].count++; });
+  document.getElementById('rv-by-method').innerHTML=Object.entries(byM).map(([m,v])=>`<div class="mc"><div class="ml">${MLABELS[m]||m} <span class="ba ${MBADGE[m]||'bgr2'}">${v.count}</span></div><div style="font-size:14px;font-weight:700">${fmt(v.total)}</div><div class="ms gr">Орлого: ${fmt(v.paid)}</div><div class="ms am">Авлага: ${fmt(v.recv)}</div></div>`).join('');
+  const byC={};
+  sales.forEach(s=>{ if(!byC[s.customerId])byC[s.customerId]={name:s.customerName,total:0,paid:0,recv:0,lastDate:''}; byC[s.customerId].total+=s.total;byC[s.customerId].paid+=s.paid;byC[s.customerId].recv+=s.recv; if(s.date>byC[s.customerId].lastDate)byC[s.customerId].lastDate=s.date; });
+  const tbody=document.getElementById('rv-by-cust'); if(!tbody) return;
+  const rows=Object.values(byC).sort((a,b)=>b.recv-a.recv);
+  tbody.innerHTML=rows.length===0?'<tr><td colspan="5"><div class="empty">Мэдээлэл байхгүй</div></td></tr>':
+    rows.map(r=>`<tr><td style="font-weight:500">${r.name}</td><td>${fmt(r.total)}</td><td style="color:var(--gr);font-weight:500">${fmt(r.paid)}</td><td style="color:${r.recv>0?'var(--am)':'var(--gr)'};font-weight:600">${fmt(r.recv)}</td><td style="font-size:11px;color:var(--tx3)">${r.lastDate}</td></tr>`).join('');
+};
+
+window.renderRecvDetail = () => {
+  const custId=document.getElementById('rv-cust-filter')?.value||'';
+  const df=document.getElementById('rv-date-from')?.value||'';
+  const dt=document.getElementById('rv-date-to')?.value||'';
+  const sf=document.getElementById('rv-sf')?.value||'';
+  let list=sales;
+  if(custId) list=list.filter(s=>s.customerId===custId);
+  if(df) list=list.filter(s=>s.date>=df);
+  if(dt) list=list.filter(s=>s.date<=dt);
+  if(sf) list=list.filter(s=>s.status===sf);
+  const el=document.getElementById('rv-cards'); if(!el) return;
+  if(list.length===0){el.innerHTML='<div class="empty"><i class="ti ti-file-invoice"></i>Борлуулалт олдсонгүй</div>';return;}
+  el.innerHTML=list.map(s=>`
+    <div class="recv-card">
+      <div class="recv-header" onclick="toggleRecvCard('${s.id}')">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-weight:600">${s.customerName}</span>
+          <span style="font-size:11px;color:var(--tx3)">${s.date}</span>
+          <span style="font-size:11px;color:var(--tx2)">${s.locationName}</span>
+          ${statusBadge(s.status)}
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <div style="text-align:right">
+            <div style="font-size:13px;font-weight:600">${fmt(s.total)}</div>
+            ${s.recv>0?`<div style="font-size:11px;color:var(--am)">Авлага: ${fmt(s.recv)}</div>`:`<div style="font-size:11px;color:var(--gr)">Бүрэн төлөгдсөн</div>`}
+          </div>
+          ${s.recv>0&&canEdit()?`<button class="btn bs bxs" onclick="event.stopPropagation();openPay('${s.id}')"><i class="ti ti-cash"></i>Төлөлт</button>`:''}
+          <button class="btn bg bxs" onclick="event.stopPropagation();openInvoice('${s.id}')"><i class="ti ti-file-invoice"></i></button>
+          <i class="ti ti-chevron-down" style="color:var(--tx3);font-size:16px" id="rv-ch-${s.id}"></i>
+        </div>
+      </div>
+      <div class="recv-body" id="rv-b-${s.id}">
+        <div style="margin:10px 0">
+          <table style="font-size:12px"><thead><tr><th>Бараa</th><th style="text-align:right">Нэгж үнэ</th><th style="text-align:center">Тоо</th><th style="text-align:right">Нийт</th></tr></thead>
+          <tbody>${(s.items||[]).map(it=>`<tr><td>${it.label}</td><td style="text-align:right">${fmt(it.price)}</td><td style="text-align:center">${it.qty}ш</td><td style="text-align:right;font-weight:600">${fmt(it.sub)}</td></tr>`).join('')}</tbody></table>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px;margin-bottom:10px">
+          <div style="background:var(--sur2);border-radius:var(--r);padding:8px 10px"><div style="font-size:10px;color:var(--tx3)">Нийт дүн</div><div style="font-weight:700">${fmt(s.total)}</div></div>
+          <div style="background:var(--grl);border-radius:var(--r);padding:8px 10px"><div style="font-size:10px;color:var(--gr)">Төлсөн</div><div style="font-weight:700;color:var(--gr)">${fmt(s.paid)}</div></div>
+          <div style="background:${s.recv>0?'var(--aml)':'var(--grl)'};border-radius:var(--r);padding:8px 10px"><div style="font-size:10px;color:${s.recv>0?'var(--am)':'var(--gr)'}">Авлага</div><div style="font-weight:700;color:${s.recv>0?'var(--am)':'var(--gr)'}">${fmt(s.recv)}</div></div>
+          <div style="background:var(--sur2);border-radius:var(--r);padding:8px 10px"><div style="font-size:10px;color:var(--tx3)">Хэрэгсэл</div><div><span class="ba ${MBADGE[s.method]||'bgr2'}" style="font-size:11px">${MLABELS[s.method]||s.method}</span></div></div>
+        </div>
+        ${(s.payments||[]).length>0?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Төлөлтийн түүх</div><div>${(s.payments||[]).map((pm,i)=>`<div class="pay-hist-row"><span style="color:var(--tx3)">${i+1}. ${pm.date}</span><span class="ba ${MBADGE[pm.method]||'bgr2'}">${MLABELS[pm.method]||pm.method}</span><span style="color:var(--gr);font-weight:600">+${fmt(pm.amount)}</span>${pm.note?`<span style="color:var(--tx3)">${pm.note}</span>`:''}</div>`).join('')}</div></div>`:''}
+        ${s.recv>0&&canEdit()?`<div style="background:var(--grl);border:1px solid #B8DCA0;border-radius:var(--r);padding:10px 12px">
+          <div style="font-size:11px;font-weight:600;color:var(--gr);margin-bottom:8px">Шинэ төлөлт нэмэх</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
+            <div class="fl"><label>Огноо</label><input type="date" id="rp-dt-${s.id}" value="${today()}" style="font-size:12px"></div>
+            <div class="fl"><label>Дүн (₮)</label><input type="number" id="rp-amt-${s.id}" placeholder="0" style="font-size:12px"></div>
+            <div class="fl"><label>Хэрэгсэл</label><select id="rp-met-${s.id}" style="font-size:12px"><option value="cash">Бэлнээр</option><option value="card">Картаар</option><option value="transfer">Дансаар</option><option value="online">Онлайн</option></select></div>
+            <div class="fl"><label>Тэмдэглэл</label><input type="text" id="rp-note-${s.id}" style="font-size:12px"></div>
+            <button class="btn bs bxs" onclick="inlinePayment('${s.id}')"><i class="ti ti-check"></i>Бүртгэх</button>
+          </div>
+        </div>`:''}
+        ${s.createdBy?`<div style="margin-top:8px;font-size:11px;color:var(--tx3)">Бүртгэсэн: ${s.createdBy}</div>`:''}
+      </div>
+    </div>`).join('');
+};
+
+window.toggleRecvCard = id => {
+  const body=document.getElementById('rv-b-'+id);
+  const chev=document.getElementById('rv-ch-'+id);
+  if(!body) return;
+  const isOpen=body.classList.contains('open');
+  body.classList.toggle('open',!isOpen);
+  if(chev) chev.style.transform=isOpen?'':'rotate(180deg)';
+};
+
+window.renderRecvHistory = () => {
+  const from=document.getElementById('ph-from')?.value;
+  const to=document.getElementById('ph-to')?.value;
+  const custId=document.getElementById('ph-cust')?.value||'';
+  const allPays=[];
+  sales.forEach(s=>(s.payments||[]).forEach(pm=>{ if(from&&pm.date<from)return; if(to&&pm.date>to)return; if(custId&&s.customerId!==custId)return; allPays.push({...pm,customerName:s.customerName,saleId:s.id,items:s.items}); }));
+  allPays.sort((a,b)=>b.date.localeCompare(a.date));
+  const tbody=document.getElementById('rv-hist-tbody'); if(!tbody) return;
+  tbody.innerHTML=allPays.length===0?'<tr><td colspan="7"><div class="empty">Төлөлтийн бүртгэл байхгүй</div></td></tr>':
+    allPays.map(p=>`<tr><td style="font-size:11px;color:var(--tx3)">${p.date}</td><td style="font-weight:500">${p.customerName}</td><td style="font-size:11px;color:var(--tx3)">${p.saleId?.slice(-6)}</td><td style="font-size:11px">${(p.items||[]).map(it=>it.label?.split('·')[1]).join(', ')}</td><td style="color:var(--gr);font-weight:700">+${fmt(p.amount)}</td><td><span class="ba ${MBADGE[p.method]||'bgr2'}">${MLABELS[p.method]||p.method}</span></td><td style="font-size:11px;color:var(--tx2)">${p.note||''}</td></tr>`).join('');
+};
+
+window.renderInvLog = () => {
+  const from=document.getElementById('il-from')?.value;
+  const to=document.getElementById('il-to')?.value;
+  let list=invLogs;
+  if(from) list=list.filter(l=>l.date>=from);
+  if(to) list=list.filter(l=>l.date<=to);
+  const tbody=document.getElementById('inv-log-tbody'); if(!tbody) return;
+  const tb={in:'<span class="ba bgr">Орлого</span>',out:'<span class="ba bre">Зарлага</span>',sale:'<span class="ba bpu">Борлуулалт</span>',transfer:'<span class="ba bbl">Шилжүүлэлт</span>'};
+  tbody.innerHTML=list.length===0?'<tr><td colspan="7"><div class="empty">Гүйлгээ байхгүй</div></td></tr>':
+    list.map(l=>`<tr><td style="font-size:11px;color:var(--tx3)">${l.date}</td><td>${tb[l.type]||l.type}</td><td style="font-size:11px">${l.productLabel}</td><td style="font-size:11px">${l.locationName}</td><td style="font-weight:600;color:${l.qty>0?'var(--gr)':'var(--re)'}">${l.qty>0?'+':''}${l.qty}ш</td><td style="font-size:11px;color:var(--tx2)">${l.note||''}</td><td style="font-size:11px;color:var(--tx3)">${l.createdBy||''}</td></tr>`).join('');
+};
+
+window.renderCustomers = () => {
+  const q=(document.getElementById('c-search')?.value||'').toLowerCase();
+  const list=q?customers.filter(c=>c.name.toLowerCase().includes(q)||c.phone?.includes(q)||c.reg?.includes(q)):customers;
+  const el=document.getElementById('c-count'); if(el) el.textContent=list.length;
+  const tbody=document.getElementById('c-tbody'); if(!tbody) return;
+  tbody.innerHTML=list.length===0?'<tr><td colspan="8"><div class="empty"><i class="ti ti-users"></i>Харилцагч байхгүй</div></td></tr>':
+    list.map(c=>`<tr><td style="font-weight:500">${c.name}</td><td style="font-size:11px;font-family:monospace">${c.reg||'—'}</td><td style="font-size:12px">${c.phone||'—'}${c.phone2?`<br><span style="color:var(--tx3)">${c.phone2}</span>`:''}</td><td>${c.type==='org'?'<span class="ba bpu">Байгууллага</span>':'<span class="ba bte">Хувь хүн</span>'}</td><td>${c.channel==='online'?'<span class="ba bbl">Онлайн</span>':c.channel==='both'?'<span class="ba bgr2">Хоёулаа</span>':'Шууд'}</td><td style="font-size:11px;color:var(--tx2)">${c.address||'—'}</td><td style="font-size:11px;color:var(--tx2)">${c.note||'—'}</td><td>${canEdit()?`<button class="btn bd2 bxs" onclick="delCustomer('${c.id}')"><i class="ti ti-trash"></i></button>`:''}</td></tr>`).join('');
+};
+
+window.renderProducts = () => {
+  const tbody=document.getElementById('p-tbody'); if(!tbody) return;
+  tbody.innerHTML=products.length===0?'<tr><td colspan="8"><div class="empty"><i class="ti ti-box"></i>Бараa байхгүй</div></td></tr>':
+    products.map(p=>`<tr><td><span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${p.color};border:1px solid var(--bd)"></span></td><td style="font-weight:500">${p.name}</td><td>${p.variant}</td><td style="font-size:11px;color:var(--tx3);font-family:monospace">${p.sku||'—'}</td><td style="font-weight:500">${fmt(p.price)}</td><td style="color:var(--tx2)">${p.cost?fmt(p.cost):'—'}</td><td><span class="ba ${totByProd(p.id)<=5?'bre':totByProd(p.id)<=20?'bam2':'bgr'}">${totByProd(p.id)}ш</span></td><td>${canEdit()?`<button class="btn bd2 bxs" onclick="delProduct('${p.id}')"><i class="ti ti-trash"></i></button>`:''}</td></tr>`).join('');
+};
+
+window.renderLocations = () => {
+  const el=document.getElementById('l-list'); if(!el) return;
+  if(locations.length===0){el.innerHTML='<div class="empty"><i class="ti ti-map-pin"></i>Байршил байхгүй</div>';return;}
+  el.innerHTML=locations.map(l=>{
+    const tot=totByLoc(l.id);
+    const rows=products.map(p=>{const q=gst(p.id,l.id);const bar=q<=5?'#A32020':q<=(l.minStock||10)?'#B86E0C':'#2E6B0A';
+      return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span class="dot" style="background:${p.color}"></span><span style="font-size:12px;flex:1">${p.variant}</span><div style="width:100px;background:var(--sur3);border-radius:3px;height:6px;overflow:hidden"><div style="width:${Math.min(100,q)}%;height:100%;background:${bar}"></div></div><span style="font-size:12px;font-weight:600;min-width:26px;text-align:right;color:${bar}">${q}ш</span></div>`;
+    }).join('');
+    return `<div style="border:1px solid var(--bd);border-radius:var(--r);margin-bottom:10px;overflow:hidden"><div style="background:var(--sur2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center"><div><b>${l.name}</b> <span class="ba bgr2" style="margin-left:4px">${LTYPES[l.type]||l.type}</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--tx2)">Нийт <b>${tot}ш</b></span>${canEdit()?`<button class="btn bd2 bxs" onclick="delLocation('${l.id}')"><i class="ti ti-trash"></i></button>`:''}</div></div><div style="padding:10px 14px">${rows}</div></div>`;
+  }).join('');
+};
+
+window.renderReport = () => {
+  const from=document.getElementById('rp-from').value, to=document.getElementById('rp-to').value;
+  let list=sales;
+  if(from) list=list.filter(s=>s.date>=from);
+  if(to) list=list.filter(s=>s.date<=to);
+  const totS=list.reduce((a,s)=>a+s.total,0),totP=list.reduce((a,s)=>a+s.paid,0),totR=list.reduce((a,s)=>a+s.recv,0);
+  const totQ=list.reduce((a,s)=>a+(s.items||[]).reduce((b,it)=>b+it.qty,0),0);
+  document.getElementById('rp-metrics').innerHTML=`
+    <div class="mc"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totS)}</div><div class="ms">${list.length} гүйлгээ · ${totQ}ш</div></div>
+    <div class="mc"><div class="ml">Нийт орлого</div><div class="mv gr">${fmt(totP)}</div></div>
+    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totR)}</div></div>
+    <div class="mc"><div class="ml">Борлуулсан ш</div><div class="mv">${totQ}</div></div>
+  `;
+  const byM={};list.forEach(s=>{byM[s.method]=(byM[s.method]||0)+s.total;});
+  document.getElementById('rp-method').innerHTML=Object.keys(byM).length===0?'<div class="empty">Мэдээлэл байхгүй</div>':
+    Object.entries(byM).sort((a,b)=>b[1]-a[1]).map(([m,v])=>{const pct=totS>0?Math.round(v/totS*100):0;return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span class="ba ${MBADGE[m]||'bgr2'}">${MLABELS[m]||m}</span><span style="font-size:13px;font-weight:600">${fmt(v)} <span style="color:var(--tx3)">${pct}%</span></span></div><div style="background:var(--sur2);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:var(--pu);border-radius:3px"></div></div></div>`;}).join('');
+  const byP={};list.forEach(s=>(s.items||[]).forEach(it=>{if(!byP[it.pid])byP[it.pid]={label:it.label,pid:it.pid,total:0,qty:0};byP[it.pid].total+=it.sub;byP[it.pid].qty+=it.qty;}));
+  document.getElementById('rp-prod').innerHTML=Object.keys(byP).length===0?'<div class="empty">Мэдээлэл байхгүй</div>':
+    Object.values(byP).sort((a,b)=>b.total-a.total).map(v=>{const p=products.find(x=>x.id===v.pid);const pct=totS>0?Math.round(v.total/totS*100):0;return `<div style="margin-bottom:10px"><div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="font-size:12px;display:flex;align-items:center;gap:5px"><span class="dot" style="background:${p?.color||'#888'}"></span>${v.label?.split('·')[1]||v.label}</span><span style="font-size:13px;font-weight:600">${fmt(v.total)} · ${v.qty}ш</span></div><div style="background:var(--sur2);border-radius:3px;height:6px;overflow:hidden"><div style="width:${pct}%;height:100%;background:${p?.color||'var(--pu)'};border-radius:3px"></div></div></div>`;}).join('');
+  const locEl=document.getElementById('rp-loc');
+  locEl.innerHTML=locations.length===0?'<div class="empty">Байршил байхгүй</div>':locations.map(loc=>{
+    const ls=list.filter(s=>s.locationId===loc.id);
+    const lt=ls.reduce((a,s)=>a+s.total,0),lp=ls.reduce((a,s)=>a+s.paid,0),lr=ls.reduce((a,s)=>a+s.recv,0),lq=ls.reduce((a,s)=>a+(s.items||[]).reduce((b,it)=>b+it.qty,0),0);
+    return `<div style="border:1px solid var(--bd);border-radius:var(--r);margin-bottom:10px;overflow:hidden"><div style="background:var(--sur2);padding:10px 14px;display:flex;justify-content:space-between"><span><b>${loc.name}</b></span><span style="font-weight:700;color:var(--pu)">${fmt(lt)}</span></div><div style="padding:10px 14px"><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(100px,1fr));gap:8px;margin-bottom:10px"><div><div style="font-size:10px;color:var(--tx3)">Гүйлгээ</div><div style="font-weight:700">${ls.length} · ${lq}ш</div></div><div><div style="font-size:10px;color:var(--tx3)">Орлого</div><div style="font-weight:700;color:var(--gr)">${fmt(lp)}</div></div><div><div style="font-size:10px;color:var(--tx3)">Авлага</div><div style="font-weight:700;color:var(--am)">${fmt(lr)}</div></div></div></div></div>`;
+  }).join('');
+  const stEl=document.getElementById('rp-stock');
+  if(locations.length===0||products.length===0){stEl.innerHTML='<div class="empty">Мэдээлэл байхгүй</div>';return;}
+  let h=`<div class="tw"><table><thead><tr><th>Бараa</th>${locations.map(l=>`<th>${l.name}</th>`).join('')}<th>Нийт</th></tr></thead><tbody>`;
+  products.forEach(p=>{h+=`<tr><td><span class="dot" style="background:${p.color}"></span> ${p.variant}</td>`;locations.forEach(l=>{const q=gst(p.id,l.id);const c=q<=5?'var(--re)':q<=(l.minStock||10)?'var(--am)':'var(--tx)';h+=`<td style="font-weight:600;color:${c}">${q}ш</td>`;});h+=`<td style="font-weight:700">${totByProd(p.id)}ш</td></tr>`;});
+  h+=`<tr style="background:var(--sur2)"><td style="font-weight:700">Нийт</td>${locations.map(l=>`<td style="font-weight:700">${totByLoc(l.id)}ш</td>`).join('')}<td style="font-weight:700">${products.reduce((a,p)=>a+totByProd(p.id),0)}ш</td></tr>`;
+  stEl.innerHTML=h+'</tbody></table></div>';
+};
+
+// ─── INVOICE ─────────────────────────────────────────────────────────────────
+window.openInvoice = id => {
+  const sale=sales.find(s=>s.id===id); if(!sale) return;
+  const cust=customers.find(c=>c.id===sale.customerId)||{};
+  const loc=locations.find(l=>l.id===sale.locationId)||{};
+  const dn=new Date(sale.date).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const printDate=new Date().toLocaleDateString('mn-MN');
+  const PTYPES={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
+  const docNum=getDocNumDisplay(sale);
+  const payLabel=PTYPES[sale.paymentType]||PTYPES[sale.payType]||PTYPES[sale.method]||'—';
+  const defBank=getDefaultBank('MNT')||{};
+  const rows=(sale.items||[]).map((it,i)=>{
+    const p=products.find(x=>x.id===it.pid)||{};
+    return `<tr>
+      <td class="c" style="width:5%">${i+1}</td>
+      <td style="width:36%">${(it.label||'').replace('·',' ')}</td>
+      <td class="c" style="width:12%">${p.sku||p.code||'—'}</td>
+      <td class="r" style="width:14%">${it.price.toLocaleString()}</td>
+      <td class="c" style="width:10%">${it.qty}</td>
+      <td class="r" style="width:23%;font-weight:700">${it.sub.toLocaleString()} ₮</td>
+    </tr>`;
+  }).join('');
+  const win=window.open('','_blank'); if(!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="mn"><head>
+  <meta charset="UTF-8"><title>Борлуулалтын баримт</title>
+  <style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      html{margin:0;padding:0;background:#fff}
+      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
+      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
+      /* femmora лого — өнгө өөрчлөхгүй, Georgia serif */
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
+      /* Баримтын гарчиг */
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
+      /* Хоёр баганатай header */
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
+      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
+      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
+      /* Мэдээллийн мөр */
+      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
+      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
+      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
+      /* Хүснэгт */
+      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
+      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      .r{text-align:right!important}.c{text-align:center!important}
+      /* Нийт дүн — хүснэгтийн хамгийн сүүлийн мөрт */
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
+      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
+      /* Дүн үсгээр */
+      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
+      /* Гарын үсэг */
+      .sign-row{display:grid;gap:4mm;margin-top:3mm}
+      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
+      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
+      /* Footer */
+      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
+      /* A5 Landscape хэвлэх — margin 5mm, browser header/footer-гүй */
+      @media print{
+        @page{size:200mm 140mm;margin:5mm}
+        html,body{margin:0;padding:0;width:210mm;background:#fff}
+        .page{padding:0;width:auto}
+        .no-print,button,.print-btn,.print-guide{display:none!important}
+        .page{width:200mm!important;box-shadow:none!important}
+      }
+      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;letter-spacing:0.5px}
+</style></head><body>
+  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
+    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
+  <div class="page">
+    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+      <div class="logo" style="flex-shrink:0">femmora</div>
+      <div style="flex:1;text-align:center"><div class="doc-title">БОРЛУУЛАЛТЫН БАРИМТ № ${docNum}</div></div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+    </div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div class="two-col">
+      <div class="col-box">
+        <div class="col-title">Худалдагч</div>
+        <div class="info-row"><span class="info-lbl">Компани:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
+        <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
+        <div class="info-row"><span class="info-lbl">Банк:</span><span class="info-val">${defBank.bankName||'Хаан банк'}</span></div>
+        <div class="info-row"><span class="info-lbl">Данс:</span><span class="info-val">${defBank.accountNumber||'5020001234'}</span></div>
+      </div>
+      <div class="col-box">
+        <div class="col-title">Худалдан авагч</div>
+        ${sale.customerCode||cust.customerCode?`<div class="info-row"><span class="info-lbl">Код:</span><span class="info-val">${sale.customerCode||cust.customerCode}</span></div>`:''}
+        <div class="info-row"><span class="info-lbl">Нэр:</span><span class="info-val">${sale.customerName||cust.name||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">${sale.customerReg||cust.reg||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Утас:</span><span class="info-val">${sale.customerPhone||cust.phone||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Огноо:</span><span class="info-val">${dn}</span></div>
+      </div>
+    </div>
+    <table class="doc-table">
+      <colgroup><col style="width:5%"><col style="width:36%"><col style="width:12%"><col style="width:14%"><col style="width:10%"><col style="width:23%"></colgroup>
+      <thead><tr>
+        <th class="c">№</th><th>Барааны нэр</th><th class="c">Барааны код</th>
+        <th class="r">Нэгж үнэ</th><th class="c">Тоо ш</th><th class="r">Нийт дүн</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot>
+        <tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Нийт дүн:</td><td class="r" style="font-size:9.5pt">${sale.total.toLocaleString()} ₮</td></tr>
+        <tr class="meta-row"><td colspan="5" class="r">Төлбөрийн төрөл:</td><td style="font-weight:700">${payLabel}</td></tr>
+        <tr class="meta-row"><td colspan="5" class="r">Төлсөн дүн:</td><td class="r" style="font-weight:700">${sale.paid.toLocaleString()} ₮</td></tr>
+        <tr class="meta-row"><td colspan="5" class="r">Үлдэгдэл:</td><td class="r" style="font-weight:700">${sale.recv.toLocaleString()} ₮</td></tr>
+      </tfoot>
+    </table>
+    <div class="amount-words">Дүн үсгээр: ${numToWords(sale.total)}</div>
+    <div class="sign-row" style="grid-template-columns:1fr 1fr 1fr">
+      <div><div class="sign-title">Хүлээлгэн өгсөн</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+      <div><div class="sign-title">Хүлээн авсан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+      <div><div class="sign-title">Шалгасан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+    </div>
+    <div class="doc-footer">
+      <span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span>
+    </div>
+  </div></body></html>`);
+  win.document.close();
+};
+
+window.setThisMonth = () => {
+  const now=new Date(),y=now.getFullYear(),m=now.getMonth();
+  document.getElementById('rp-from').value=`${y}-${String(m+1).padStart(2,'0')}-01`;
+  document.getElementById('rp-to').value=`${y}-${String(m+1).padStart(2,'0')}-${new Date(y,m+1,0).getDate()}`;
+};
+window.setThisYear = () => {
+  const y=new Date().getFullYear();
+  document.getElementById('rp-from').value=`${y}-01-01`;
+  document.getElementById('rp-to').value=`${y}-12-31`;
+};
+
+
+// ─── CLEAR FILTERS ────────────────────────────────────────────────────────────
+window.clearRecvFilter = () => {
+  clearToLastMonth('rv-date-from','rv-date-to');
+  const c=document.getElementById('rv-cust-filter');if(c)c.value='';
+  document.getElementById('rv-sf').value=''; renderRecvDetail();
+};
+window.clearHistoryFilter = () => {
+  clearToLastMonth('ph-from','ph-to');
+  const c=document.getElementById('ph-cust');if(c)c.value='';
+  renderRecvHistory();
+};
+
+// ─── STATE (bank & transfer) ──────────────────────────────────────────────────
+let bankAccounts=[],bankTxns=[],bankLinks=[],transfers=[];
+let trCounter={};
+let trIdx=0;
+let importData=[],importMapped=[],pasteData=[],pasteMapped=[];
+let currentLinkTxn=null;
+
+async function transferNum(date) {
+  return await getNextDocNum('transfer');
+}
+
+// ─── TRANSFER ─────────────────────────────────────────────────────────────────
+function transferRowHtml(idx){
+  const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row inv-row" id="trr-${idx}">
+    <div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="refreshTransferStock(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="fl"><label>Тоо (ш)</label><input type="number" class="tr-qty" value="1" min="1"></div>
+    <div class="fl"><label>Үлдэгдэл</label><input type="text" class="tr-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
+    <button class="btn bd2 bxs" onclick="document.getElementById('trr-${idx}').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+window.addTransferRow=()=>{document.getElementById('tr-rows').insertAdjacentHTML('beforeend',transferRowHtml(trIdx++));populateSels();};
+window.refreshTransferRows=()=>{
+  const lid=document.getElementById('tr-from-loc').value;
+  document.querySelectorAll('#tr-rows .item-row').forEach(row=>{
+    const pid=row.querySelector('.row-prod-sel')?.value;
+    const avail=row.querySelector('.tr-avail');
+    if(avail)avail.value=(pid&&lid)?gst(pid,lid)+'ш':'—';
+  });
+};
+window.refreshTransferStock=(idx)=>{
+  const row=document.getElementById('trr-'+idx);if(!row)return;
+  const pid=row.querySelector('.row-prod-sel')?.value;
+  const lid=document.getElementById('tr-from-loc').value;
+  const avail=row.querySelector('.tr-avail');
+  if(avail)avail.value=(pid&&lid)?gst(pid,lid)+'ш':'—';
+};
+window.submitTransfer=async()=>{
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  const fromLid=document.getElementById('tr-from-loc').value;
+  const toLid=document.getElementById('tr-to-loc').value;
+  const trDate=document.getElementById('tr-date').value||today();
+  const note=document.getElementById('tr-note').value.trim();
+  if(!fromLid||!toLid){alert('Байршил сонгоно уу');return;}
+  if(fromLid===toLid){alert('Шилжүүлэх болон хүлээн авах байршил ижил байж болохгүй');return;}
+  const rows=[];
+  let ok=true;
+  document.querySelectorAll('#tr-rows .item-row').forEach(row=>{
+    const pid=row.querySelector('.row-prod-sel')?.value;
+    const qty=parseInt(row.querySelector('.tr-qty')?.value)||0;
+    if(!pid||qty<=0)return;
+    const avail=gst(pid,fromLid);
+    if(avail<qty){const p=products.find(x=>x.id===pid);alert(`Үлдэгдэл хүрэлцэхгүй! ${p?.variant}: ${avail}ш байна`);ok=false;return;}
+    rows.push({pid,qty});
+  });
+  if(!ok||rows.length===0){if(rows.length===0)alert('Бараа нэмнэ үү');return;}
+  const fromLoc=locations.find(l=>l.id===fromLid);
+  const toLoc=locations.find(l=>l.id===toLid);
+  const trNum=await transferNum(trDate);
+  try{
+    const stockChanges=[];
+    for(const r of rows){
+      const p=products.find(x=>x.id===r.pid);
+      stockChanges.push({pid:r.pid,lid:fromLid,delta:-r.qty});
+      stockChanges.push({pid:r.pid,lid:toLid,delta:r.qty});
+      await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:fromLid,locationName:fromLoc?.name||'',qty:-r.qty,note:`${trNum} → ${toLoc?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:toLid,locationName:toLoc?.name||'',qty:r.qty,note:`${trNum} ← ${fromLoc?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+    }
+    await updateStock(stockChanges);
+    await addDoc(collection(db,'transfers'),{trNum,date:trDate,fromLocId:fromLid,fromLocName:fromLoc?.name||'',toLocId:toLid,toLocName:toLoc?.name||'',items:rows.map(r=>{const p=products.find(x=>x.id===r.pid);return{pid:r.pid,label:p?.variant||'',qty:r.qty};}),note,createdBy:currentUser.email,createdAt:serverTimestamp()});
+    document.getElementById('tr-rows').innerHTML='';trIdx=0;addTransferRow();
+    document.getElementById('tr-note').value='';
+    document.getElementById('tr-date').value=today();
+    alert(`Шилжүүлэлт ${trNum} амжилттай бүртгэгдлээ!`);
+  }catch(e){alert('Алдаа: '+e.message);}
+};
+window.renderTransferList=()=>{
+  const tbody=document.getElementById('tr-tbody');if(!tbody)return;
+  if(transfers.length===0){tbody.innerHTML='<tr><td colspan="6"><div class="empty">Шилжүүлэлт байхгүй</div></td></tr>';return;}
+  tbody.innerHTML=transfers.map(t=>`<tr>
+    <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
+    <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--pu)">${t.trNum}</td>
+    <td>${t.fromLocName}</td><td>${t.toLocName}</td>
+    <td>${(t.items||[]).reduce((a,it)=>a+it.qty,0)}ш</td>
+    <td style="font-size:11px;color:var(--tx2)">${t.note||''}</td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="openTransferReceipt('${t.id}')" title="Хэвлэх"><i class="ti ti-printer"></i></button>
+    </td>
+  </tr>`).join('');
+};
+
+// ─── BANK TABS ────────────────────────────────────────────────────────────────
+window.showBankTab=(name,btn)=>{
+  document.querySelectorAll('.b-tab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('#sec-bank .tb').forEach(b=>b.classList.remove('on'));
+  document.getElementById('bt-'+name).style.display='block';
+  btn.classList.add('on');
+  if(name==='transactions'){initDateRange('txn-from','txn-to');renderTransactions();}
+  if(name==='links'){initDateRange('lnk-from','lnk-to');renderLinks();}
+};
+
+// ─── BANK ACCOUNTS ────────────────────────────────────────────────────────────
+window.addBankAccount=async()=>{
+  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  const bankName=document.getElementById('ba-bank').value.trim();
+  const accountNumber=document.getElementById('ba-number').value.trim();
+  if(!bankName||!accountNumber){alert('Банкны нэр болон дансны дугаар оруулна уу');return;}
+  if(bankAccounts.some(a=>a.accountNumber===accountNumber)){alert('Тэр дансны дугаар аль хэдийн бүртгэгдсэн байна');return;}
+  await addDoc(collection(db,'bankAccounts'),{bankName,accountNumber,accountName:document.getElementById('ba-name').value.trim(),currency:document.getElementById('ba-currency').value,initialBalance:parseInt(document.getElementById('ba-balance').value)||0,note:document.getElementById('ba-note').value.trim(),active:true,createdAt:serverTimestamp()});
+  ['ba-bank','ba-number','ba-name','ba-balance','ba-note'].forEach(id=>document.getElementById(id).value='');
+};
+window.renderBankAccounts=()=>{
+  const tbody=document.getElementById('ba-tbody');if(!tbody)return;
+  if(bankAccounts.length===0){tbody.innerHTML='<tr><td colspan="7"><div class="empty">Банкны данс байхгүй</div></td></tr>';return;}
+  tbody.innerHTML=bankAccounts.map(a=>`<tr>
+    <td style="font-weight:500">${a.bankName}${a.isDefault?'<span class="ba bp2 bxs" style="margin-left:4px;font-size:10px">Үндсэн</span>':''}</td>
+    <td style="font-family:monospace">${a.accountNumber}</td>
+    <td>${a.accountName||'—'}</td><td>${a.currency||'MNT'}</td><td>${fmt(a.initialBalance||0)}</td>
+    <td>${a.active!==false?'<span class="ba bgr">Идэвхтэй</span>':'<span class="ba bgr2">Идэвхгүй</span>'}</td>
+    <td style="white-space:nowrap">
+      ${!a.isDefault&&a.active!==false?`<button class="btn bp bxs" onclick="setDefaultBank('${a.id}')"><i class="ti ti-star"></i>Үндсэн</button>`:''}
+      <button class="btn bg bxs" onclick="toggleBankAcc('${a.id}',${a.active!==false})">${a.active!==false?'<i class="ti ti-eye-off"></i>':'<i class="ti ti-eye"></i>'}</button>
+      ${bankTxns.filter(t=>t.accountId===a.id).length===0?`<button class="btn bd2 bxs" onclick="delBankAcc('${a.id}')"><i class="ti ti-trash"></i></button>`:''}
+    </td>
+  </tr>`).join('');
+};
+window.toggleBankAcc=async(id,isActive)=>await updateDoc(doc(db,'bankAccounts',id),{active:!isActive});
+window.delBankAcc=async(id)=>{if(!confirm('Устгах уу?'))return;await deleteDoc(doc(db,'bankAccounts',id));};
+
+// ─── IMPORT ───────────────────────────────────────────────────────────────────
+window.handleImportFile=async(input)=>{
+  const file=input.files[0];if(!file)return;
+  const XLSX=await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      importData=XLSX.utils.sheet_to_json(ws,{header:1});
+      if(importData.length<2){alert('Хоосон файл байна');return;}
+      showImpMapper(importData[0],'imp');
+    }catch(err){alert('Файл уншихад алдаа: '+err.message);}
+  };
+  reader.readAsBinaryString(file);
+};
+function showImpMapper(headers,prefix){
+  const fields=[{key:'date',label:'Огноо',req:true},{key:'desc',label:'Гүйлгээний утга',req:true},{key:'income',label:'Орлого',req:false},{key:'expense',label:'Зарлага',req:false},{key:'balance',label:'Үлдэгдэл',req:false},{key:'txnNum',label:'Гүйлгээний дугаар',req:false}];
+  const mfEl=document.getElementById(prefix+'-map-fields');if(!mfEl)return;
+  mfEl.innerHTML=fields.map(f=>`<div class="fl"><label>${f.label}${f.req?' *':''}</label><select id="${prefix}-col-${f.key}" style="font-size:12px"><option value="">-- Сонгоогүй --</option>${headers.map((h,i)=>`<option value="${i}">${h}</option>`).join('')}</select></div>`).join('');
+  document.getElementById(prefix+'-column-map').style.display='block';
+}
+window.previewImport=()=>{
+  const accountId=document.getElementById('imp-account').value;
+  if(!accountId){alert('Данс сонгоно уу');return;}
+  const gc=key=>parseInt(document.getElementById('imp-col-'+key)?.value);
+  const rows=importData.slice(1).map((row,i)=>{
+    const dateRaw=row[gc('date')];
+    const dateStr=dateRaw instanceof Date?dateRaw.toISOString().slice(0,10):String(dateRaw||'').slice(0,10);
+    const income=parseFloat(String(row[gc('income')]||'').replace(/,/g,''))||0;
+    const expense=parseFloat(String(row[gc('expense')]||'').replace(/,/g,''))||0;
+    const desc=String(row[gc('desc')]||'');
+    const isDup=bankTxns.some(t=>t.accountId===accountId&&t.date===dateStr&&t.income===income&&t.expense===expense&&t.description===desc);
+    return{idx:i+1,date:dateStr,description:desc,income,expense,balance:parseFloat(String(row[gc('balance')]||'').replace(/,/g,''))||0,txnNum:String(row[gc('txnNum')]||''),isDup,accountId};
+  }).filter(r=>r.date&&r.date.length>=8);
+  importMapped=rows;
+  const dupCount=rows.filter(r=>r.isDup).length;
+  document.getElementById('imp-count').textContent=rows.length;
+  document.getElementById('imp-dup-warn').textContent=dupCount>0?`⚠ ${dupCount} давхардсан мөр`:'';
+  document.getElementById('imp-preview-tbody').innerHTML=rows.map(r=>`<tr style="${r.isDup?'background:var(--aml)':''}"><td>${r.idx}</td><td>${r.date}</td><td style="font-size:11px">${r.description.slice(0,40)}</td><td style="color:var(--gr)">${r.income?fmt(r.income):''}</td><td style="color:var(--re)">${r.expense?fmt(r.expense):''}</td><td>${r.isDup?'<span class="ba bam2">Давхардсан</span>':'<span class="ba bgr">Шинэ</span>'}</td></tr>`).join('');
+  document.getElementById('imp-preview').style.display='block';
+};
+window.submitImport=async()=>{
+  const newRows=importMapped.filter(r=>!r.isDup);
+  if(!newRows.length){alert('Хадгалах шинэ мөр байхгүй');return;}
+  try{
+    const impDocNum = await getNextDocNum('bankImport');
+    for(const r of newRows)await addDoc(collection(db,'bankTxns'),{docNumber:impDocNum,accountId:r.accountId,date:r.date,description:r.description,income:r.income,expense:r.expense,balance:r.balance,txnNum:r.txnNum,source:'excel',linkedAmount:0,unlinkedAmount:r.income,status:r.income>0?'unlinked':'expense',createdBy:currentUser.email,createdAt:serverTimestamp()});
+    document.getElementById('imp-preview').style.display='none';
+    document.getElementById('imp-column-map').style.display='none';
+    importData=[];importMapped=[];document.getElementById('imp-file').value='';
+    alert(`${newRows.length} мөр амжилттай импортлогдлоо!`);
+  }catch(e){alert('Алдаа: '+e.message);}
+};
+window.cancelImport=()=>{document.getElementById('imp-preview').style.display='none';importData=[];importMapped=[];};
+
+// ─── PASTE ────────────────────────────────────────────────────────────────────
+window.parsePasteData=()=>{
+  const raw=document.getElementById('paste-data').value.trim();
+  if(!raw){alert('Мэдээлэл оруулна уу');return;}
+  const lines=raw.split(/\r?\n/).filter(l=>l.trim());
+  pasteData=lines.map(l=>l.split(l.includes('\t')?'\t':',')).map(r=>r.map(c=>String(c).replace(/^"|"$/g,'').trim()));
+  if(pasteData.length<2){alert('Хамгийн багадаа 2 мөр шаардлагатай');return;}
+  showImpMapper(pasteData[0],'paste');
+  document.getElementById('paste-map').style.display='block';
+};
+window.previewPaste=()=>{
+  const accountId=document.getElementById('paste-account').value;
+  if(!accountId){alert('Данс сонгоно уу');return;}
+  const gc=key=>parseInt(document.getElementById('paste-col-'+key)?.value);
+  const rows=pasteData.slice(1).map((row,i)=>{
+    const income=parseFloat(String(row[gc('income')]||'').replace(/,/g,''))||0;
+    const expense=parseFloat(String(row[gc('expense')]||'').replace(/,/g,''))||0;
+    const dateRaw=String(row[gc('date')]||'').trim();
+    const date=dateRaw.length>=8?dateRaw.slice(0,10).replace(/\//g,'-'):'';
+    const description=String(row[gc('desc')]||'');
+    const isDup=bankTxns.some(t=>t.accountId===accountId&&t.date===date&&t.income===income&&t.expense===expense&&t.description===description);
+    return{idx:i+1,date,description,income,expense,isDup,accountId};
+  }).filter(r=>r.date);
+  pasteMapped=rows;
+  document.getElementById('paste-count').textContent=rows.length;
+  document.getElementById('paste-preview-tbody').innerHTML=rows.map(r=>`<tr style="${r.isDup?'background:var(--aml)':''}"><td>${r.idx}</td><td>${r.date}</td><td style="font-size:11px">${r.description.slice(0,40)}</td><td style="color:var(--gr)">${r.income?fmt(r.income):''}</td><td style="color:var(--re)">${r.expense?fmt(r.expense):''}</td><td>${r.isDup?'<span class="ba bam2">Давхардсан</span>':'<span class="ba bgr">Шинэ</span>'}</td></tr>`).join('');
+  document.getElementById('paste-preview').style.display='block';
+};
+window.submitPaste=async()=>{
+  const newRows=pasteMapped.filter(r=>!r.isDup);
+  if(!newRows.length){alert('Хадгалах шинэ мөр байхгүй');return;}
+  try{
+    for(const r of newRows)await addDoc(collection(db,'bankTxns'),{accountId:r.accountId,date:r.date,description:r.description,income:r.income,expense:r.expense,balance:0,txnNum:'',source:'paste',linkedAmount:0,unlinkedAmount:r.income,status:r.income>0?'unlinked':'expense',createdBy:currentUser.email,createdAt:serverTimestamp()});
+    document.getElementById('paste-preview').style.display='none';
+    document.getElementById('paste-data').value='';pasteMapped=[];
+    alert(`${newRows.length} мөр амжилттай хадгалагдлаа!`);
+  }catch(e){alert('Алдаа: '+e.message);}
+};
+
+// ─── TRANSACTIONS ─────────────────────────────────────────────────────────────
+window.renderTransactions=()=>{
+  const accId=document.getElementById('txn-acc-filter')?.value||'';
+  const from=document.getElementById('txn-from')?.value||'';
+  const to=document.getElementById('txn-to')?.value||'';
+  const type=document.getElementById('txn-type-filter')?.value||'';
+  const status=document.getElementById('txn-status-filter')?.value||'';
+  const search=(document.getElementById('txn-search')?.value||'').toLowerCase();
+  let list=bankTxns;
+  if(accId)list=list.filter(t=>t.accountId===accId);
+  if(from)list=list.filter(t=>t.date>=from);
+  if(to)list=list.filter(t=>t.date<=to);
+  if(type==='income')list=list.filter(t=>t.income>0);
+  if(type==='expense')list=list.filter(t=>t.expense>0);
+  if(status)list=list.filter(t=>t.status===status);
+  if(search)list=list.filter(t=>t.description.toLowerCase().includes(search));
+  const tbody=document.getElementById('txn-tbody');if(!tbody)return;
+  const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=a.bankName+' '+a.accountNumber;});
+  const stBadge={unlinked:'<span class="ba bre">Холбоогүй</span>',partial:'<span class="ba bam2">Хэсэгчлэн</span>',linked:'<span class="ba bgr">Бүрэн холбосон</span>',other:'<span class="ba bgr2">Бусад орлого</span>',expense:'<span class="ba bgr2">Зарлага</span>'};
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="9"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
+  tbody.innerHTML=list.map(t=>`<tr>
+    <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
+    <td style="font-size:11px">${accMap[t.accountId]||'—'}</td>
+    <td style="font-size:12px">${t.description}</td>
+    <td style="color:var(--gr);font-weight:500">${t.income?fmt(t.income):''}</td>
+    <td style="color:var(--re)">${t.expense?fmt(t.expense):''}</td>
+    <td style="color:var(--gr)">${t.linkedAmount?fmt(t.linkedAmount):'—'}</td>
+    <td style="color:${(t.unlinkedAmount||0)>0?'var(--am)':'var(--tx3)'}">${fmt(t.unlinkedAmount||0)}</td>
+    <td>${stBadge[t.status]||t.status}</td>
+    <td style="white-space:nowrap">
+      ${t.income>0&&t.status!=='linked'&&t.status!=='other'?`<button class="btn bs bxs" onclick="openLinkModal('${t.id}')"><i class="ti ti-link"></i>Холбох</button>`:''}
+      ${t.income>0&&t.status!=='linked'?`<button class="btn bg bxs" onclick="markAsOther('${t.id}')"><i class="ti ti-tag"></i>Бусад</button>`:''}
+    </td>
+  </tr>`).join('');
+};
+window.clearTxnFilter=()=>{clearToLastMonth('txn-from','txn-to');['txn-acc-filter','txn-type-filter','txn-status-filter','txn-search'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderTransactions();};
+window.markAsOther=async(txnId)=>{const reason=prompt('Орлогын төрөл / тайлбар:');if(!reason)return;await updateDoc(doc(db,'bankTxns',txnId),{status:'other',otherNote:reason});};
+
+// ─── LINK MODAL ───────────────────────────────────────────────────────────────
+window.openLinkModal=(txnId)=>{
+  currentLinkTxn=bankTxns.find(t=>t.id===txnId);if(!currentLinkTxn)return;
+  const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=`${a.bankName} — ${a.accountNumber}`;});
+  document.getElementById('link-txn-info').innerHTML=`
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
+      <div><div style="font-size:10px;color:var(--tx3)">Банкны данс</div><div style="font-weight:500">${accMap[currentLinkTxn.accountId]||'—'}</div></div>
+      <div><div style="font-size:10px;color:var(--tx3)">Огноо</div><div style="font-weight:500">${currentLinkTxn.date}</div></div>
+      <div><div style="font-size:10px;color:var(--tx3)">Нийт орлого</div><div style="font-weight:700;color:var(--gr)">${fmt(currentLinkTxn.income)}</div></div>
+      <div><div style="font-size:10px;color:var(--tx3)">Холбоогүй үлдэгдэл</div><div style="font-weight:700;color:var(--am)">${fmt(currentLinkTxn.unlinkedAmount||currentLinkTxn.income)}</div></div>
+    </div>
+    <div style="margin-top:8px;font-size:12px;color:var(--tx2)">${currentLinkTxn.description}</div>`;
+  const custSel=document.getElementById('link-cust-sel');
+  custSel.innerHTML='<option value="">-- Харилцагч сонгох --</option>'+customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  document.getElementById('link-recv-list').style.display='none';
+  openModal('link-modal');
+};
+window.loadCustReceivables=()=>{
+  const custId=document.getElementById('link-cust-sel').value;
+  if(!custId){document.getElementById('link-recv-list').style.display='none';return;}
+  const custSales=sales.filter(s=>s.customerId===custId&&s.recv>0);
+  document.getElementById('link-recv-list').style.display='block';
+  if(custSales.length===0){document.getElementById('link-recv-tbody').innerHTML='<tr><td colspan="6"><div class="empty">Нээлттэй авлага байхгүй</div></td></tr>';return;}
+  const maxAlloc=currentLinkTxn?.unlinkedAmount||currentLinkTxn?.income||0;
+  document.getElementById('link-recv-tbody').innerHTML=custSales.map(s=>`<tr>
+    <td>${s.date}</td><td style="font-family:monospace;font-size:11px">${s.id.slice(-6).toUpperCase()}</td>
+    <td>${fmt(s.total)}</td><td style="color:var(--gr)">${fmt(s.paid)}</td><td style="color:var(--am);font-weight:600">${fmt(s.recv)}</td>
+    <td><input type="number" id="lk-amt-${s.id}" placeholder="0" max="${Math.min(s.recv,maxAlloc)}" style="width:100px;font-size:12px;padding:4px 8px;border:1px solid var(--bd);border-radius:var(--r)" oninput="calcLinkTotal()"></td>
+  </tr>`).join('');
+  calcLinkTotal();
+};
+window.calcLinkTotal=()=>{
+  const custId=document.getElementById('link-cust-sel').value;
+  const custSales=sales.filter(s=>s.customerId===custId&&s.recv>0);
+  let total=0;custSales.forEach(s=>{total+=parseFloat(document.getElementById('lk-amt-'+s.id)?.value||0);});
+  const el=document.getElementById('link-total-alloc');if(el){el.textContent=fmt(total);el.style.color=total>(currentLinkTxn?.unlinkedAmount||0)?'var(--re)':'var(--pu)';}
+};
+window.saveLinkage=async()=>{
+  if(!currentLinkTxn)return;
+  const custId=document.getElementById('link-cust-sel').value;
+  if(!custId){alert('Харилцагч сонгоно уу');return;}
+  const custSales=sales.filter(s=>s.customerId===custId&&s.recv>0);
+  const allocs=custSales.map(s=>({saleId:s.id,amount:parseFloat(document.getElementById('lk-amt-'+s.id)?.value||0)})).filter(a=>a.amount>0);
+  if(!allocs.length){alert('Дүн оруулна уу');return;}
+  const totalAlloc=allocs.reduce((a,x)=>a+x.amount,0);
+  const unlinked=currentLinkTxn.unlinkedAmount||currentLinkTxn.income;
+  if(totalAlloc>unlinked){alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) нь холбоогүй үлдэгдлээс (${fmt(unlinked)}) их байна`);return;}
+  try{
+    const cust=customers.find(c=>c.id===custId);
+    for(const alloc of allocs){
+      const sale=sales.find(s=>s.id===alloc.saleId);
+      const actual=Math.min(alloc.amount,sale.recv);
+      const pm={date:currentLinkTxn.date,amount:actual,method:'transfer',note:currentLinkTxn.description,source:'bank',bankTxnId:currentLinkTxn.id};
+      await updateDoc(doc(db,'sales',alloc.saleId),{paid:sale.paid+actual,recv:sale.recv-actual,status:(sale.recv-actual)===0?'paid':'partial',payments:[...(sale.payments||[]),pm]});
+      await addDoc(collection(db,'bankLinks'),{txnId:currentLinkTxn.id,accountId:currentLinkTxn.accountId,saleId:alloc.saleId,customerId:custId,customerName:cust?.name||'',amount:actual,date:currentLinkTxn.date,description:currentLinkTxn.description,linkedAt:serverTimestamp(),linkedBy:currentUser.email});
+    }
+    const newLinked=(currentLinkTxn.linkedAmount||0)+totalAlloc;
+    const newUnlinked=unlinked-totalAlloc;
+    await updateDoc(doc(db,'bankTxns',currentLinkTxn.id),{linkedAmount:newLinked,unlinkedAmount:newUnlinked,status:newUnlinked<=0?'linked':'partial'});
+    closeModal('link-modal');alert('Авлагатай холбоос амжилттай хадгалагдлаа!');
+  }catch(e){alert('Алдаа: '+e.message);}
+};
+
+// ─── LINKS LIST ───────────────────────────────────────────────────────────────
+window.renderLinks=()=>{
+  const accId=document.getElementById('lnk-acc')?.value||'';
+  const custId=document.getElementById('lnk-cust')?.value||'';
+  const from=document.getElementById('lnk-from')?.value||'';
+  const to=document.getElementById('lnk-to')?.value||'';
+  let list=bankLinks;
+  if(accId)list=list.filter(l=>l.accountId===accId);
+  if(custId)list=list.filter(l=>l.customerId===custId);
+  if(from)list=list.filter(l=>l.date>=from);
+  if(to)list=list.filter(l=>l.date<=to);
+  const tbody=document.getElementById('lnk-tbody');if(!tbody)return;
+  const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=a.bankName+' '+a.accountNumber;});
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Холболт байхгүй</div></td></tr>';return;}
+  tbody.innerHTML=list.map(l=>`<tr>
+    <td style="font-size:11px;color:var(--tx3)">${l.date}</td>
+    <td style="font-size:11px">${accMap[l.accountId]||'—'}</td>
+    <td style="font-size:11px">${(l.description||'').slice(0,30)}</td>
+    <td style="font-weight:500">${l.customerName}</td>
+    <td style="font-family:monospace;font-size:11px">${l.saleId?.slice(-6).toUpperCase()}</td>
+    <td style="color:var(--gr);font-weight:600">${fmt(l.amount)}</td>
+    <td style="font-size:11px;color:var(--tx3)">${l.linkedAt?.toDate?l.linkedAt.toDate().toLocaleDateString('mn-MN'):'—'}</td>
+    <td><button class="btn bd2 bxs" onclick="reverseLink('${l.id}')"><i class="ti ti-arrow-back"></i>Буцаах</button></td>
+  </tr>`).join('');
+};
+window.clearLinkFilter=()=>{clearToLastMonth('lnk-from','lnk-to');['lnk-acc','lnk-cust'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderLinks();};
+window.reverseLink=async(linkId)=>{
+  if(!confirm('Энэ холболтыг буцаах уу?'))return;
+  const lnk=bankLinks.find(l=>l.id===linkId);if(!lnk)return;
+  try{
+    const sale=sales.find(s=>s.id===lnk.saleId);
+    if(sale){
+      const newPaid=Math.max(0,sale.paid-lnk.amount);
+      const newRecv=sale.recv+lnk.amount;
+      const newPms=(sale.payments||[]).filter(p=>!(p.bankTxnId===lnk.txnId&&p.amount===lnk.amount));
+      await updateDoc(doc(db,'sales',lnk.saleId),{paid:newPaid,recv:newRecv,status:newRecv>0?(newPaid>0?'partial':'unpaid'):'paid',payments:newPms});
+    }
+    const txn=bankTxns.find(t=>t.id===lnk.txnId);
+    if(txn){
+      const newLinked=Math.max(0,(txn.linkedAmount||0)-lnk.amount);
+      const newUnlinked=(txn.unlinkedAmount||0)+lnk.amount;
+      await updateDoc(doc(db,'bankTxns',lnk.txnId),{linkedAmount:newLinked,unlinkedAmount:newUnlinked,status:newLinked<=0?'unlinked':'partial'});
+    }
+    await updateDoc(doc(db,'bankLinks',linkId),{reversed:true,reversedAt:serverTimestamp(),reversedBy:currentUser.email});
+    alert('Холболт амжилттай буцааллаа!');
+  }catch(e){alert('Алдаа: '+e.message);}
+};
+
+
+// ─── ТООГ ҮСГЭЭР ─────────────────────────────────────────────────────────────
+function numToWords(n) {
+  if (!n || n === 0) return 'Тэг төгрөг';
+  const ones = ['','Нэг','Хоёр','Гурав','Дөрөв','Тав','Зургаа','Долоо','Найм','Ес'];
+  const tens = ['','Арав','Хорь','Гуч','Дөч','Тавь','Жар','Дал','Наян','Ер'];
+  const scales = ['','Мянга','Сая','Тэрбум'];
+  function below1000(num) {
+    let r = '';
+    if (num >= 100) { r += ones[Math.floor(num/100)] + ' зуу '; num %= 100; }
+    if (num >= 10) { r += tens[Math.floor(num/10)] + (num%10?' ':' '); num %= 10; }
+    else if (num > 0) {}
+    if (num > 0) r += ones[num] + ' ';
+    return r.trim();
+  }
+  n = Math.round(n);
+  if (n < 0) return 'Хасах ' + numToWords(-n);
+  let parts = [], i = 0;
+  while (n > 0) {
+    const chunk = n % 1000;
+    if (chunk) parts.unshift(below1000(chunk) + (scales[i] ? ' ' + scales[i] : ''));
+    n = Math.floor(n / 1000); i++;
+  }
+  return parts.join(' ') + ' төгрөг';
+}
+
+// ─── БАРИМТЫН ДУГААРЛАЛТ ─────────────────────────────────────────────────────
+const DOC_PREFIXES = { sale:'BB', payment:'TP', invoice:'NH', reconcile:'TN', transfer:'TR', stockIn:'BR', stockOut:'BZ', bankImport:'BK' };
+
+async function getNextDocNum(type) {
+  const now = new Date();
+  const yy = String(now.getFullYear()).slice(2); // "26"
+  const mm = String(now.getMonth()+1).padStart(2,'0'); // "07"
+  const period = yy + mm; // "2607"
+  const countKey = `${type}_${period}`;
+  const countRef = doc(db, 'docCounters', countKey);
+  let num;
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(countRef);
+    num = (snap.exists() ? snap.data().count : 0) + 1;
+    tx.set(countRef, { count: num, period, type, updatedAt: serverTimestamp() }, { merge: true });
+  });
+  const prefix = DOC_PREFIXES[type] || type.toUpperCase();
+  return `${prefix}-${period}-${String(num).padStart(6,'0')}`;
+}
+
+window.setDashPeriod = (period) => {
+  const now = new Date(); const y=now.getFullYear(),m=now.getMonth();
+  const fromEl=document.getElementById('d-from'),toEl=document.getElementById('d-to');
+  if(period==='today'){fromEl.value=today();toEl.value=today();}
+  else if(period==='month'){ const {from,to}=getLastMonthRange(); fromEl.value=from; toEl.value=to; }
+  else if(period==='year'){fromEl.value=`${y}-01-01`;toEl.value=`${y}-12-31`;}
+  renderDashboard();
+};
+window.goToRecvDetail = (custId) => {
+  const btn = document.querySelector('.ni[onclick*="receivable"]');
+  goSec('receivable', btn||document.querySelector('.ni'));
+  setTimeout(()=>{
+    const tab=document.querySelector('#sec-receivable .tb:nth-child(2)');
+    if(tab){showRTab('detail',tab);}
+    const sel=document.getElementById('rv-cust-filter');
+    if(sel){sel.value=custId;renderRecvDetail();}
+  },200);
+};
+
+// ─── LEDGER (Авлагын дэлгэрэнгүй тайлан) ────────────────────────────────────
+window.renderLedger = () => {
+  const custId = document.getElementById('ldg-cust')?.value||'';
+  const from = document.getElementById('ldg-from')?.value||'';
+  const to = document.getElementById('ldg-to')?.value||'';
+  if(!custId){alert('Харилцагч сонгоно уу');return;}
+  const cust = customers.find(c=>c.id===custId);
+  const tbody = document.getElementById('ldg-tbody');
+  if(!tbody) return;
+
+  // Get all movements for this customer
+  const movements = [];
+  // Sales
+  sales.filter(s=>s.customerId===custId).forEach(s=>{
+    if(from&&s.date<from)return;
+    if(to&&s.date>to)return;
+    const PTYPES={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
+    movements.push({date:s.date,docNum:s.docNumber||s.id.slice(-6).toUpperCase(),desc:`Борлуулалт: ${(s.items||[]).map(it=>it.label?.split('·')[1]).join(', ')}`,type:PTYPES[s.payType]||PTYPES[s.method]||'',debit:s.total,credit:0,saleId:s.id});
+    // Payments
+    (s.payments||[]).forEach(pm=>{
+      if(from&&pm.date<from)return;
+      if(to&&pm.date>to)return;
+      movements.push({date:pm.date,docNum:s.docNumber||s.id.slice(-6).toUpperCase(),desc:`Төлөлт${pm.source==='bank'?' (Банкны хуулга)':''}`,type:MLABELS[pm.method]||pm.method,debit:0,credit:pm.amount,paymentId:pm.date+pm.amount});
+    });
+  });
+  movements.sort((a,b)=>a.date.localeCompare(b.date));
+
+  let balance = 0;
+  let rows = `<tr style="background:var(--sur2)"><td colspan="5" style="padding:8px 10px;font-weight:600">Эхний үлдэгдэл</td><td></td><td></td><td style="text-align:right;font-weight:700">${fmt(0)}</td></tr>`;
+  let totalDebit=0, totalCredit=0;
+
+  movements.forEach((m,i)=>{
+    balance += m.debit - m.credit;
+    totalDebit += m.debit; totalCredit += m.credit;
+    rows += `<tr>
+      <td style="padding:7px 10px;text-align:center;color:var(--tx3)">${i+1}</td>
+      <td style="padding:7px 10px;font-size:11px;color:var(--tx3)">${m.date}</td>
+      <td style="padding:7px 10px;font-family:monospace;font-size:11px;cursor:pointer;color:var(--pu)" ${m.saleId?`onclick="openInvoice('${m.saleId}')"`:''}>${m.docNum}</td>
+      <td style="padding:7px 10px;font-size:12px">${m.desc}</td>
+      <td style="padding:7px 10px;font-size:12px">${m.type}</td>
+      <td style="padding:7px 10px;text-align:right;color:var(--re)">${m.debit?fmt(m.debit):''}</td>
+      <td style="padding:7px 10px;text-align:right;color:var(--gr)">${m.credit?fmt(m.credit):''}</td>
+      <td style="padding:7px 10px;text-align:right;font-weight:600;color:${balance>0?'var(--am)':'var(--gr)'}">${fmt(balance)}</td>
+    </tr>`;
+  });
+
+  // Summary rows inside table
+  rows += `<tr style="background:var(--sur2);border-top:2px solid var(--bd)">
+    <td colspan="5" style="padding:8px 10px;font-weight:600">Нийт борлуулалт</td>
+    <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--re)">${fmt(totalDebit)}</td><td></td><td></td></tr>
+  <tr style="background:var(--sur2)">
+    <td colspan="5" style="padding:8px 10px;font-weight:600">Нийт төлөлт</td>
+    <td></td><td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--gr)">${fmt(totalCredit)}</td><td></td></tr>
+  <tr style="background:var(--pul)">
+    <td colspan="7" style="padding:10px;font-weight:800;font-size:14px;color:var(--pu)">Эцсийн үлдэгдэл</td>
+    <td style="padding:10px;text-align:right;font-weight:800;font-size:14px;color:var(--am)">${fmt(balance)}</td></tr>`;
+
+  tbody.innerHTML = rows || '<tr><td colspan="8"><div class="empty">Мэдээлэл байхгүй</div></td></tr>';
+};
+
+window.printLedger = () => {
+  const custId=document.getElementById('ldg-cust')?.value;
+  if(!custId){alert('Харилцагч сонгоно уу');return;}
+  const from=document.getElementById('ldg-from')?.value||'';
+  const to=document.getElementById('ldg-to')?.value||'';
+  const cust=customers.find(c=>c.id===custId)||{};
+  const printDate=new Date().toLocaleString('mn-MN');
+  const dn=new Date().toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const MLBL={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
+  const PTYPES={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
+  const movements=[];
+  sales.filter(s=>s.customerId===custId).forEach(s=>{
+    if(from&&s.date<from)return; if(to&&s.date>to)return;
+    movements.push({date:s.date,docNum:getDocNumDisplay(s),desc:'Бараа борлуулалт',type:PTYPES[s.paymentType]||PTYPES[s.payType]||PTYPES[s.method]||'',debit:s.total,credit:0,saleId:s.id});
+    (s.payments||[]).forEach(pm=>{
+      if(from&&pm.date<from)return; if(to&&pm.date>to)return;
+      movements.push({date:pm.date,docNum:pm.docNumber||'',desc:'Төлөлт'+(pm.source==='bank'?' (Банкны хуулга)':''),type:MLBL[pm.method]||pm.method,debit:0,credit:pm.amount});
+    });
+  });
+  movements.sort((a,b)=>a.date.localeCompare(b.date));
+  let balance=0,totalDebit=0,totalCredit=0;
+  const rows=movements.map((m,i)=>{
+    balance+=m.debit-m.credit; totalDebit+=m.debit; totalCredit+=m.credit;
+    return `<tr>
+      <td style="text-align:center">${i+1}</td>
+      <td>${m.date}</td>
+      <td style="font-family:monospace;font-size:7pt">${m.docNum}</td>
+      <td>${m.desc}</td><td>${m.type}</td>
+      <td style="text-align:right">${m.debit?m.debit.toLocaleString():''}</td>
+      <td style="text-align:right">${m.credit?m.credit.toLocaleString():''}</td>
+      <td style="text-align:right;font-weight:bold">${balance.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+  const win=window.open('','_blank'); if(!win) return;
+  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Авлагын тайлан</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:8.5pt;color:#000;background:#fff;padding:10mm}
+    .logo{font-family:'Georgia',serif;font-size:13pt;font-weight:normal;color:#000;letter-spacing:1px}
+    .doc-title{font-size:11pt;font-weight:bold;text-align:center}
+    table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:3mm}
+    th{background:#000;color:#fff;padding:2mm 2.5mm;border:0.4pt solid #000;text-align:left}
+    td{border:0.4pt solid #888;padding:1.5mm 2.5mm}
+    .opening td,.closing td,.sumrow td{font-weight:bold}
+    .opening td{background:#f0f0f0}
+    .closing td{background:#000;color:#fff}
+    .sumrow td{background:#f5f5f5}
+    .footer{font-size:7pt;color:#555;margin-top:3mm;display:flex;justify-content:space-between;border-top:0.3pt solid #ccc;padding-top:1.5mm}
+    @media print{@page{size:A4 portrait;margin:10mm}button{display:none!important}}
+    .print-btn{position:fixed;top:4mm;right:4mm;background:#000;color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:10px;z-index:99}
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()">🖨 Хэвлэх</button>
+    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3mm">
+    <div class="logo">femmora</div>
+    <div style="text-align:center;flex:1;margin:0 4mm"><div class="doc-title">АВЛАГЫН ДЭЛГЭРЭНГҮЙ ТАЙЛАН</div></div>
+    <div style="font-size:7.5pt;color:#333">Огноо: ${dn}</div>
+  </div>
+  <div style="border-top:1.5pt solid #000;margin-bottom:3mm"></div>
+  <div style="display:flex;justify-content:space-between;font-size:8.5pt;margin-bottom:2mm">
+    <span>Харилцагч: <b>${cust.name||'—'}</b>${cust.reg?' ('+cust.reg+')':''}</span>
+    <span>Тайлант хугацаа: <b>${from||'—'}</b> — <b>${to||'—'}</b></span>
+  </div>
+  <table>
+    <thead><tr>
+      <th style="width:4%;text-align:center">№</th>
+      <th style="width:9%">Огноо</th>
+      <th style="width:16%">Баримт №</th>
+      <th>Гүйлгээний утга</th>
+      <th style="width:9%">Төлбөрийн төрөл</th>
+      <th style="width:12%;text-align:right">Дебет</th>
+      <th style="width:12%;text-align:right">Кредит</th>
+      <th style="width:12%;text-align:right">Үлдэгдэл</th>
+    </tr></thead>
+    <tbody>
+      <tr class="opening"><td style="text-align:center">—</td><td>${from||'—'}</td><td>—</td><td>Эхний үлдэгдэл</td><td>—</td><td>—</td><td>—</td><td style="text-align:right">0</td></tr>
+      ${rows}
+    </tbody>
+    <tfoot>
+      <tr class="sumrow"><td colspan="5">Нийт борлуулалт</td><td style="text-align:right">${totalDebit.toLocaleString()}</td><td></td><td></td></tr>
+      <tr class="sumrow"><td colspan="5">Нийт төлөлт</td><td></td><td style="text-align:right">${totalCredit.toLocaleString()}</td><td></td></tr>
+      <tr class="closing"><td colspan="7" style="text-align:right;padding:2mm">Эцсийн үлдэгдэл:</td><td style="text-align:right">${balance.toLocaleString()} ₮</td></tr>
+    </tfoot>
+  </table>
+  <div style="font-size:7.5pt;font-style:italic;margin-bottom:3mm">Эцсийн үлдэгдэл үсгээр: ${numToWords(balance)}</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6mm;margin-top:3mm">
+    <div><div style="font-size:7.5pt;font-weight:bold;margin-bottom:8mm">Нэхэмжлэгчийн төлөөлөл</div><div style="border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt">Нэр:<br>Гарын үсэг:</div></div>
+    <div><div style="font-size:7.5pt;font-weight:bold;margin-bottom:8mm">Төлөгчийн төлөөлөл</div><div style="border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt">Нэр:<br>Гарын үсэг:</div></div>
+  </div>
+  <div class="footer">
+    <span>Хэвлэсэн огноо: ${printDate}</span>
+    <span>Хэвлэсэн хариуцагч: Алтансувд</span>
+    <span>System: Femmora Cusion</span>
+  </div>
+  </body></html>`);
+  win.document.close();
+  setTimeout(()=>win.print(),400);
+};
+
+// ─── RECONCILE (Тооцоо нийлэлт) ──────────────────────────────────────────────
+let reconcileData = {};
+window.updateRecWords = () => {
+  const v = parseInt(document.getElementById('rec-manual-sale')?.value)||0;
+  const el = document.getElementById('rec-words');
+  if(el) el.textContent = v > 0 ? numToWords(v) : '';
+};
+
+window.loadReconcileData = () => {
+  const custId = document.getElementById('rec-cust')?.value;
+  const from = document.getElementById('rec-from')?.value;
+  const to = document.getElementById('rec-to')?.value;
+  if(!custId) return;
+  const custSales = sales.filter(s=>s.customerId===custId&&(!from||s.date>=from)&&(!to||s.date<=to));
+  const totalSale = custSales.reduce((a,s)=>a+s.total,0);
+  const totalPaid = custSales.reduce((a,s)=>a+s.paid,0);
+  const totalRecv = custSales.reduce((a,s)=>a+s.recv,0);
+  reconcileData = {custId,from,to,totalSale,totalPaid,totalRecv,custSales};
+  const sumEl = document.getElementById('rec-summary');
+  if(sumEl){
+    sumEl.style.display='block';
+    sumEl.innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+      <div><div style="font-size:10px;color:var(--tx3)">Нийт борлуулалт</div><div style="font-weight:700">${fmt(totalSale)}</div></div>
+      <div><div style="font-size:10px;color:var(--tx3)">Нийт төлөлт</div><div style="font-weight:700;color:var(--gr)">${fmt(totalPaid)}</div></div>
+      <div><div style="font-size:10px;color:var(--tx3)">Авлагын үлдэгдэл</div><div style="font-weight:700;color:var(--am)">${fmt(totalRecv)}</div></div>
+    </div>`;
+  }
+};
+
+window.previewReconcile = () => {
+  const custId = document.getElementById('rec-cust')?.value;
+  if(!custId){alert('Харилцагч сонгоно уу');return;}
+  generateReconcileDoc(false);
+};
+window.printReconcile = () => {
+  const custId = document.getElementById('rec-cust')?.value;
+  if(!custId){alert('Харилцагч сонгоно уу');return;}
+  generateReconcileDoc(true);
+};
+
+function generateReconcileDoc(doPrint=false) {
+  const custId=document.getElementById('rec-cust')?.value;
+  const from=document.getElementById('rec-from')?.value||'';
+  const to=document.getElementById('rec-to')?.value||'';
+  const recDate=document.getElementById('rec-date')?.value||today();
+  const bankAccId=document.getElementById('rec-bank')?.value||'';
+  const manualSale=parseInt(document.getElementById('rec-manual-sale')?.value)||0;
+  const note=document.getElementById('rec-note')?.value||'';
+  if(!custId){alert('Харилцагч сонгоно уу');return;}
+  loadReconcileData();
+  const cust=customers.find(c=>c.id===custId)||{};
+  const bank=bankAccounts.find(b=>b.id===bankAccId)||getDefaultBank('MNT')||{};
+  const {totalSale=0,totalPaid=0,totalRecv=0}=reconcileData;
+  const saleAmt=manualSale||totalSale;
+  const fmtD=d=>d?new Date(d).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'}):'—';
+  const printDate=new Date().toLocaleDateString('mn-MN');
+  getNextDocNum('reconcile').then(tnNum=>{
+    const win=window.open('','_blank');
+    if(!win){alert('Popup блоклогдсон');return;}
+    win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>${tnNum}</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html{margin:0;padding:0;background:#fff}
+    body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
+    .page{width:210mm;min-height:148mm;padding:5mm;position:relative}
+    .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
+    .doc-title{font-size:10pt;font-weight:bold;color:#000;text-align:center}
+    table.tn{width:100%;border-collapse:collapse;font-size:8.5pt;margin:2mm 0}
+    table.tn th{border:0.5pt solid #333;padding:1.8mm 2mm;background:#f0f0f0;font-weight:bold;text-align:left}
+    table.tn td{border:0.5pt solid #333;padding:1.8mm 2mm}
+    .tn-total td{font-weight:bold;background:#f5f5f5;border-top:1pt solid #333}
+    .info-lbl{color:#555;font-size:8pt;min-width:28mm;display:inline-block}
+    .info-val{font-weight:600}
+    .sign-table{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:3mm}
+    .sign-line{border-top:0.5pt solid #555;margin-top:8mm;padding-top:1mm;font-size:7.5pt}
+    .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
+    @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
+    .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+    .r{text-align:right!important}
+</style></head><body>
+    <button class="print-btn" onclick="window.print()">Хэвлэх</button>
+    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
+    <div class="page">
+      <div style="display:flex;align-items:center;gap:4mm;margin-bottom:1.5mm">
+        <div class="logo" style="flex-shrink:0">femmora</div>
+        <div style="flex:1;text-align:center">
+          <div style="font-size:7pt;color:#666">НХМаягт ТМ-З</div>
+          <div class="doc-title">ТООЦООНЫ ҮЛДЭГДЛИЙН БАТАЛГАА № ${tnNum}</div>
+        </div>
+        <div style="font-size:7.5pt;color:#444;flex-shrink:0">${fmtD(recDate)}</div>
+      </div>
+      <div style="border-top:1.5pt solid #000;margin-bottom:2mm"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2mm">
+        <div style="border:0.4pt solid #888;padding:2mm 2.5mm">
+          <div style="font-weight:bold;font-size:8pt;margin-bottom:1mm">Нэхэмжлэгч:</div>
+          <div><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
+          <div><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
+          <div><span class="info-lbl">Банкны нэр:</span><span class="info-val">${bank.bankName||'Хаан банк'}</span></div>
+          <div><span class="info-lbl">Дансны дугаар:</span><span class="info-val">${bank.accountNumber||'5020001234'}</span></div>
+        </div>
+        <div style="border:0.4pt solid #888;padding:2mm 2.5mm">
+          <div style="font-weight:bold;font-size:8pt;margin-bottom:1mm">Төлөгч:</div>
+          <div><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">${cust.name||'—'}</span></div>
+          <div><span class="info-lbl">Утас:</span><span class="info-val">${cust.phone||'—'}</span></div>
+          ${cust.reg?`<div><span class="info-lbl">Регистр:</span><span class="info-val">${cust.reg}</span></div>`:''}
+        </div>
+      </div>
+      <div style="font-size:8pt;margin-bottom:1.5mm;line-height:1.5">
+        Нэхэмжлэгчийн нэрийн өмнөөс нягтлан бодогч ажилтай Ганцэцэг овогтой <b>Алтансувд</b> нь
+        төлөгчийн нэрийн өмнөөс ______ажилтай______овогтой______-тай
+        тус хоёр байгууллага хооронд <b>${fmtD(from)}</b> өдрөөс <b>${fmtD(to)}</b> өдрийг дуустал нийлж үзэхэд
+      </div>
+      <div style="font-size:8.5pt;font-weight:bold;margin-bottom:1mm">
+        Тооцоо нийлсэн хугацаа: ${fmtD(from)} – ${fmtD(to)} &nbsp;&nbsp; Тооцоо нийлсэн огноо: ${fmtD(recDate)}
+      </div>
+      <div style="font-size:8.5pt;font-weight:bold;margin-bottom:1mm">I. Тооцооны үлдэгдэл (${fmtD(to)}-ны өдрийн байдлаар)</div>
+      <table class="tn">
+        <thead><tr><th style="width:5%;text-align:center">№</th><th>Үзүүлэлт</th><th style="width:22%;text-align:right">Дүн (₮)</th></tr></thead>
+        <tbody>
+          <tr><td class="r">1</td><td>Эхний үлдэгдэл</td><td class="r">0 ₮</td></tr>
+          <tr><td class="r">2</td><td>Тухайн хугацааны зээлийн борлуулалт</td><td class="r">${totalSale.toLocaleString()} ₮</td></tr>
+          <tr><td class="r">3</td><td>Тухайн хугацааны төлөлт</td><td class="r">(${totalPaid.toLocaleString()} ₮)</td></tr>
+          <tr><td class="r">4</td><td>Буцаалт, хөнгөлөлт</td><td class="r">0 ₮</td></tr>
+        </tbody>
+        <tfoot><tr class="tn-total"><td colspan="2">Тооцооны үлдэгдэл (1+2-3-4)</td><td class="r">${totalRecv.toLocaleString()} ₮</td></tr></tfoot>
+      </table>
+      <div style="font-size:8pt;margin-bottom:1.5mm">
+        Төлөгч байгуулга нь дээрх дүнгээр <b>${totalRecv.toLocaleString()} ₮</b>-ийн өртэй гарсныг харилцан батлав.
+      </div>
+      <div style="font-size:8.5pt;font-weight:bold;margin-bottom:1mm">II. Тухайн сарын борлуулалтын нэхэмжлэх дүн</div>
+      <table class="tn">
+        <thead><tr><th>Үзүүлэлт</th><th style="width:28%;text-align:right">Дүн (₮)</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Тухайн хугацааны борлуулалтын орлого (гараар оруулсан)</td>
+            <td class="r" style="font-weight:700;font-size:10pt">${saleAmt>0?saleAmt.toLocaleString()+' ₮':'<span style=\"color:red\">— дүн оруулаагүй —</span>'}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="font-size:8pt;font-style:italic;margin:1.5mm 0;color:#333">${saleAmt>0?numToWords(saleAmt):''}</div>
+      ${saleAmt<=0?'<div style="color:red;font-size:8pt;margin-bottom:1mm">⚠ Тухайн сарын борлуулалтын дүнг тооцоо нийлэлт хийхийн өмнө оруулна уу.</div>':''}
+
+      ${note?`<div style="font-size:8pt;color:#444;margin-bottom:1mm">Тайлбар: ${note}</div>`:''}
+      <div class="sign-table">
+        <div><div style="font-size:7.5pt;font-weight:700;margin-bottom:8mm">Нэхэмжлэгчийн төлөөлөл</div><div class="sign-line">Нэр: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / Г.Алтансувд /<br>Гарын үсэг:</div></div>
+        <div><div style="font-size:7.5pt;font-weight:700;margin-bottom:8mm">Төлөгчийн төлөөлөл</div><div class="sign-line">Нэр:<br>Гарын үсэг:</div></div>
+      </div>
+      <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
+    </div></body></html>`);
+    win.document.close();
+    if(doPrint) setTimeout(()=>win.print(),500);
+  });
+
+}
+// ─── UPDATE showRTab for new tabs ────────────────────────────────────────────
+const _origShowRTab = window.showRTab;
+window.showRTab = (name, btn) => {
+  document.querySelectorAll('.r-tab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('#sec-receivable .tb').forEach(b=>b.classList.remove('on'));
+  const el = document.getElementById('rt-'+name);
+  if(el) el.style.display='block';
+  btn.classList.add('on');
+  if(name==='summary') renderRecvSummary();
+  if(name==='detail'){initDateRange('rv-date-from','rv-date-to');renderRecvDetail();}
+  if(name==='history'){initDateRange('ph-from','ph-to');renderRecvHistory();}
+  if(name==='ledger') {
+    // Populate customer select for ledger
+    const sel=document.getElementById('ldg-cust');
+    if(sel){sel.innerHTML='<option value="">-- Харилцагч сонгох --</option>'+customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');}
+  }
+  if(name==='reconcile') {
+    const sel=document.getElementById('rec-cust');
+    if(sel){sel.innerHTML='<option value="">-- Харилцагч сонгох --</option>'+customers.map(c=>`<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');}
+    const bankSel=document.getElementById('rec-bank');
+    if(bankSel){
+      const defBank=getDefaultBank('MNT');
+      bankSel.innerHTML='<option value="">-- Данс сонгох --</option>'+bankAccounts.filter(a=>a.active!==false).map(b=>`<option value="${b.id}">${b.bankName} — ${b.accountNumber}${b.isDefault?' (Үндсэн)':''}</option>`).join('');
+      if(defBank&&!bankSel.value)bankSel.value=defBank.id;
+    }
+    if(!document.getElementById('rec-date').value)document.getElementById('rec-date').value=today();
+    initDateRange('rec-from','rec-to');
+    renderReconcileList();
+  }
+};
+
+// ─── ALSO POPULATE ldg-cust in populateSels ─────────────────────────────────
+
+// ─── ТӨЛӨЛТИЙН БАРИМТ (TP) ───────────────────────────────────────────────────
+window.openPaymentReceipt = (saleId, pmIdx) => {
+  const sale=sales.find(s=>s.id===saleId); if(!sale) return;
+  const pm=pmIdx>=0?sale.payments[pmIdx]:sale.payments[sale.payments.length-1];
+  if(!pm) return;
+  const cust=customers.find(c=>c.id===sale.customerId)||{};
+  const defBank=getDefaultBank('MNT')||{};
+  const dn=new Date(pm.date).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const printDate=new Date().toLocaleDateString('mn-MN');
+  const MLBL={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
+  const tpNum=pm.docNumber||pm.number||'Дугааргүй хуучин баримт';
+  const win=window.open('','_blank'); if(!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Төлөлтийн баримт</title><style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      html{margin:0;padding:0;background:#fff}
+      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
+      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
+      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
+      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
+      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
+      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
+      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
+      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      .r{text-align:right!important}.c{text-align:center!important}
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
+      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
+      .sign-row{display:grid;gap:4mm;margin-top:3mm}
+      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
+      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
+      @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
+      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+</style></head><body>
+  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
+    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
+  <div class="page">
+    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+      <div class="logo" style="flex-shrink:0">femmora</div>
+      <div style="flex:1;text-align:center"><div class="doc-title">ТӨЛӨЛТИЙН БАРИМТ № ${tpNum}</div></div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+    </div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div class="two-col">
+      <div class="col-box">
+        <div class="col-title">Төлөгч</div>
+        ${sale.customerCode||cust.customerCode?`<div class="info-row"><span class="info-lbl">Код:</span><span class="info-val">${sale.customerCode||cust.customerCode}</span></div>`:''}
+        <div class="info-row"><span class="info-lbl">Нэр:</span><span class="info-val">${sale.customerName||cust.name||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">${sale.customerReg||cust.reg||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Утас:</span><span class="info-val">${sale.customerPhone||cust.phone||'—'}</span></div>
+      </div>
+      <div class="col-box">
+        <div class="col-title">Хүлээн авагч</div>
+        <div class="info-row"><span class="info-lbl">Компани:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
+        <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
+        <div class="info-row"><span class="info-lbl">Банк:</span><span class="info-val">${defBank.bankName||'Хаан банк'}</span></div>
+        <div class="info-row"><span class="info-lbl">Данс:</span><span class="info-val">${defBank.accountNumber||'5020001234'}</span></div>
+      </div>
+    </div>
+    <div style="border:0.5pt solid #888;padding:3mm 3.5mm;margin-bottom:3mm">
+      <div class="info-row"><span class="info-lbl">Огноо:</span><span class="info-val">${dn}</span></div>
+      <div class="info-row"><span class="info-lbl">Төлбөрийн төрөл:</span><span class="info-val">${MLBL[pm.method]||pm.method}</span></div>
+      <div class="info-row"><span class="info-lbl">Гүйлгээний утга:</span><span class="info-val">${pm.note||'Нэхэмжлэл '+getDocNumDisplay(sale)+'-ийн төлөлт'}</span></div>
+      <div style="margin-top:3mm;padding-top:2.5mm;border-top:0.5pt solid #ccc;display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:9.5pt;font-weight:700">Төлсөн дүн:</span>
+        <span style="font-size:18pt;font-weight:700;color:#000">${pm.amount.toLocaleString()} ₮</span>
+      </div>
+    </div>
+    <div class="amount-words">Дүн үсгээр: ${numToWords(pm.amount)}</div>
+    <div class="sign-row" style="grid-template-columns:1fr 1fr">
+      <div><div class="sign-title">Төлөгчийн гарын үсэг</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+      <div><div class="sign-title">Хүлээн авсан гарын үсэг</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+    </div>
+    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
+  </div></body></html>`);
+  win.document.close();
+};
+
+// ─── НЭХЭМЖЛЭЛ (NH) ──────────────────────────────────────────────────────────
+window.openNHInvoice = id => {
+  const sale=sales.find(s=>s.id===id); if(!sale) return;
+  const cust=customers.find(c=>c.id===sale.customerId)||{};
+  const dn=new Date(sale.date).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const printDate=new Date().toLocaleDateString('mn-MN');
+  const nhNum=sale.nhDocNumber||getDocNumDisplay(sale).replace(/^BB/,'NH');
+  const defBank=getDefaultBank('MNT')||{};
+  const rows=(sale.items||[]).map((it,i)=>`<tr>
+    <td class="c" style="width:5%">${i+1}</td>
+    <td style="width:38%">${(it.label||'').replace('·',' ')}</td>
+    <td class="c" style="width:11%">${it.qty}</td>
+    <td class="r" style="width:15%">${it.price.toLocaleString()}</td>
+    <td class="c" style="width:8%">—</td>
+    <td class="r" style="width:23%;font-weight:700">${it.sub.toLocaleString()} ₮</td>
+  </tr>`).join('');
+  const win=window.open('','_blank'); if(!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Нэхэмжлэл</title><style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      html{margin:0;padding:0;background:#fff}
+      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
+      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
+      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
+      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
+      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
+      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
+      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
+      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      .r{text-align:right!important}.c{text-align:center!important}
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
+      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
+      .sign-row{display:grid;gap:4mm;margin-top:3mm}
+      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
+      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
+      @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
+      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+</style></head><body>
+  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
+    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
+  <div class="page">
+    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+      <div class="logo" style="flex-shrink:0">femmora</div>
+      <div style="flex:1;text-align:center"><div class="doc-title">НЭХЭМЖЛЭЛ № ${nhNum}</div></div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+    </div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div class="two-col">
+      <div class="col-box">
+        <div class="col-title">Нэхэмжлэгч</div>
+        <div class="info-row"><span class="info-lbl">Компани:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
+        <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
+        <div class="info-row"><span class="info-lbl">Банк:</span><span class="info-val">${defBank.bankName||'Хаан банк'}</span></div>
+        <div class="info-row"><span class="info-lbl">Данс:</span><span class="info-val">${defBank.accountNumber||'5020001234'}</span></div>
+      </div>
+      <div class="col-box">
+        <div class="col-title">Төлөгч</div>
+        ${sale.customerCode||cust.customerCode?`<div class="info-row"><span class="info-lbl">Код:</span><span class="info-val">${sale.customerCode||cust.customerCode}</span></div>`:''}
+        <div class="info-row"><span class="info-lbl">Нэр:</span><span class="info-val">${sale.customerName||cust.name||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">${sale.customerReg||cust.reg||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Утас:</span><span class="info-val">${sale.customerPhone||cust.phone||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Огноо:</span><span class="info-val">${dn}</span></div>
+      </div>
+    </div>
+    <table class="doc-table">
+      <colgroup><col style="width:5%"><col style="width:38%"><col style="width:11%"><col style="width:15%"><col style="width:8%"><col style="width:23%"></colgroup>
+      <thead><tr><th class="c">№</th><th>Гүйлгээний утга</th><th class="c">Тоо ш</th><th class="r">Нэгж үнэ</th><th class="c">Хорогдол</th><th class="r">Нийт дүн</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Нийт нэхэмжлэх дүн:</td><td class="r" style="font-size:9.5pt">${sale.total.toLocaleString()} ₮</td></tr></tfoot>
+    </table>
+    <div class="amount-words">Дүн үсгээр: ${numToWords(sale.total)}</div>
+    <div style="font-size:7.5pt;color:#444;margin-bottom:2.5mm">Нэхэмжлэлийн нөхцөл: Нэхэмжлэл хүлээн авснаас хойш 14 хоногт төлнө үү.</div>
+    <div class="sign-row" style="grid-template-columns:1fr 1fr 1fr">
+      <div><div class="sign-title">Хүлээлгэн өгсөн</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+      <div><div class="sign-title">Хүлээн авсан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+      <div><div class="sign-title">Шалгасан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+    </div>
+    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
+  </div></body></html>`);
+  win.document.close();
+};
+
+// ─── БАРАА ШИЛЖҮҮЛЭЛТИЙН БАРИМТ (TR) ────────────────────────────────────────
+window.openTransferReceipt = id => {
+  const tr=transfers.find(t=>t.id===id); if(!tr) return;
+  const fromLoc=locations.find(l=>l.id===tr.fromLocId)||{name:tr.fromLocName||'—'};
+  const toLoc=locations.find(l=>l.id===tr.toLocId)||{name:tr.toLocName||'—'};
+  const dn=new Date(tr.date).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const printDate=new Date().toLocaleDateString('mn-MN');
+  const trDocNum=tr.trNum||tr.docNumber||tr.number||(tr.id?'Дугааргүй хуучин баримт':'—');
+  const rows=(tr.items||[]).map((it,i)=>{
+    const prod=products.find(p=>p.id===it.pid)||{};
+    return `<tr><td class="c">${i+1}</td><td>${it.label||prod.variant||'—'}</td><td class="c">${prod.sku||prod.code||'—'}</td><td class="c"><b>${it.qty}</b></td><td class="c">ш</td><td>—</td></tr>`;
+  }).join('');
+  const totalQty=(tr.items||[]).reduce((a,it)=>a+it.qty,0);
+  const win=window.open('','_blank'); if(!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Бараа шилжүүлэлт</title><style>
+      *{box-sizing:border-box;margin:0;padding:0}
+      html{margin:0;padding:0;background:#fff}
+      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
+      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
+      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
+      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
+      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
+      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
+      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
+      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      .r{text-align:right!important}.c{text-align:center!important}
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
+      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
+      .sign-row{display:grid;gap:4mm;margin-top:3mm}
+      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
+      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
+      @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
+      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+</style></head><body>
+  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
+    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
+  <div class="page">
+    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+      <div class="logo" style="flex-shrink:0">femmora</div>
+      <div style="flex:1;text-align:center"><div class="doc-title">БАРАА ШИЛЖҮҮЛЭЛТИЙН БАРИМТ № ${trDocNum}</div></div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+    </div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div class="two-col">
+      <div class="col-box">
+        <div class="col-title">Шилжүүлэгч</div>
+        <div class="info-row"><span class="info-lbl">Байршил:</span><span class="info-val">${fromLoc.name}</span></div>
+        <div class="info-row"><span class="info-lbl">Огноо:</span><span class="info-val">${dn}</span></div>
+      </div>
+      <div class="col-box">
+        <div class="col-title">Хүлээн авагч</div>
+        <div class="info-row"><span class="info-lbl">Байршил:</span><span class="info-val">${toLoc.name}</span></div>
+      </div>
+    </div>
+    <table class="doc-table">
+      <colgroup><col style="width:5%"><col style="width:38%"><col style="width:15%"><col style="width:13%"><col style="width:8%"><col style="width:21%"></colgroup>
+      <thead><tr><th class="c">№</th><th>Барааны нэр</th><th class="c">Барааны код</th><th class="c">Тоо ш</th><th class="c">Нэгж</th><th>Тайлбар</th></tr></thead>
+      <tbody>${rows}</tbody>
+      <tfoot><tr class="total-row"><td colspan="3" class="r">Нийт:</td><td class="c"><b>${totalQty} ш</b></td><td colspan="2"></td></tr></tfoot>
+    </table>
+    ${tr.note?`<div style="font-size:7.5pt;color:#444;margin-bottom:2.5mm">Тэмдэглэл: ${tr.note}</div>`:''}
+    <div class="sign-row" style="grid-template-columns:1fr 1fr">
+      <div><div class="sign-title">Шилжүүлэгч</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+      <div><div class="sign-title">Хүлээн авсан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
+    </div>
+    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
+  </div></body></html>`);
+  win.document.close();
+};
+
+// ─── НЭГДСЭН HELPER ФУНКЦУУД ─────────────────────────────────────────────────
+
+// Сүүлийн дууссан сарын огноо
+function getLastMonthRange() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(); // m = 0-based
+  const lastM = m === 0 ? 12 : m;
+  const lastY = m === 0 ? y - 1 : y;
+  const from = `${lastY}-${String(lastM).padStart(2,'0')}-01`;
+  const lastDay = new Date(lastY, lastM, 0).getDate();
+  const to = `${lastY}-${String(lastM).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
+  return { from, to };
+}
+
+// Огнооны шүүлт эхлүүлэх
+function initDateRange(fromId, toId) {
+  const { from, to } = getLastMonthRange();
+  const fEl = document.getElementById(fromId);
+  const tEl = document.getElementById(toId);
+  if(fEl && !fEl.value) fEl.value = from;
+  if(tEl && !tEl.value) tEl.value = to;
+}
+
+// Огнооны шүүлтийг сүүлийн саруудад буцаах
+function clearToLastMonth(fromId, toId) {
+  const { from, to } = getLastMonthRange();
+  const fEl = document.getElementById(fromId);
+  const tEl = document.getElementById(toId);
+  if(fEl) fEl.value = from;
+  if(tEl) tEl.value = to;
+}
+
+// Баримтын дугаар унших helper
+function getDocNumDisplay(doc) {
+  if(!doc) return '—';
+  const num = doc.docNumber || doc.number || doc.legacyNumber || doc.trNum;
+  if(num && !String(num).includes('?') && num !== 'null' && num !== 'undefined') return num;
+  return doc.id ? 'Дугааргүй хуучин баримт' : '—';
+}
+
+// Үндсэн банкны данс авах
+function getDefaultBank(currency) {
+  currency = currency || 'MNT';
+  return bankAccounts.find(a => a.active !== false && a.isDefault && (a.currency || 'MNT') === currency)
+      || bankAccounts.find(a => a.active !== false && (a.currency || 'MNT') === currency)
+      || null;
+}
+
+// Банкны данс үндсэн болгох
+window.setDefaultBank = async (id) => {
+  if(!canEdit()) { alert('Таны эрх хүрэхгүй байна'); return; }
+  const target = bankAccounts.find(a => a.id === id);
+  if(!target) return;
+  if(target.active === false) { alert('Идэвхгүй дансыг үндсэн данс болгож болохгүй'); return; }
+  try {
+    for(const acc of bankAccounts.filter(a => a.isDefault && a.currency === target.currency && a.id !== id)) {
+      await updateDoc(doc(db, 'bankAccounts', acc.id), { isDefault: false });
+    }
+    await updateDoc(doc(db, 'bankAccounts', id), { isDefault: true });
+    alert('Үндсэн данс тохируулагдлаа!');
+  } catch(e) { alert('Алдаа: ' + e.message); }
+};
+
+
+window.openEditSale = (id) => {
+  const sale = sales.find(s => s.id === id);
+  if(!sale) return;
+  openInvoice(id);
+};
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+addSaleRow();
+addInRow();
+addOutRow();
+addTransferRow();
+if(document.getElementById('tr-date')) document.getElementById('tr-date').value=today();
+(function(){
+  const lr=getLastMonthRange();
+  [['d-from','d-to'],['s-from','s-to'],['ph-from','ph-to'],
+   ['txn-from','txn-to'],['lnk-from','lnk-to']].forEach(([f,t])=>{
+    const fe=document.getElementById(f),te=document.getElementById(t);
+    if(fe&&!fe.value)fe.value=lr.from;
+    if(te&&!te.value)te.value=lr.to;
+  });
+})();
+</script>
+</body>
+</html>
