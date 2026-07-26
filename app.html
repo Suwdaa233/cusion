@@ -1754,83 +1754,75 @@ window.openInvoice = id => {
   const docNum=getDocNumDisplay(sale);
   const payLabel=PTYPES[sale.paymentType]||PTYPES[sale.payType]||PTYPES[sale.method]||'—';
   const defBank=getDefaultBank('MNT')||{};
-  const rows=(sale.items||[]).map((it,i)=>{
+  const userLabel=currentUser?.email||'—';
+  // Барааны мөр
+  const rows=(sale.items||[]).map(it=>{
     const p=products.find(x=>x.id===it.pid)||{};
-    const discDisplay = it.discountType==='percent'&&it.discountValue
-      ? it.discountValue+'%'
-      : it.discountType==='amount'&&it.discountAmount
-      ? it.discountAmount.toLocaleString()+'₮'
-      : (it.discType==='percent'&&it.discVal ? it.discVal+'%'
-         : it.discType==='amount'&&it.discVal ? it.discVal.toLocaleString()+'₮' : '—');
-    const lineTotal = it.lineTotal||it.sub||0;
-    const lineSubtotal = it.lineSubtotal||(it.price*it.qty)||0;
+    const lineTotal=it.lineTotal||it.sub||0;
+    const lineSubtotal=it.lineSubtotal||(it.price*(it.qty||1))||0;
+    let discDisplay='—';
+    if(it.discountType==='percent'&&it.discountValue) discDisplay=it.discountValue+'%';
+    else if(it.discountType==='amount'&&it.discountAmount) discDisplay=it.discountAmount.toLocaleString()+'₮';
+    else if(it.discType==='percent'&&it.discVal) discDisplay=it.discVal+'%';
+    else if(it.discType==='amount'&&it.discVal) discDisplay=it.discVal.toLocaleString()+'₮';
     return `<tr>
-      <td style="width:32%">${(it.label||'').replace('·',' ')}</td>
-      <td class="c" style="width:11%">${p.sku||p.code||'—'}</td>
-      <td class="c" style="width:8%">${it.qty}</td>
-      <td class="r" style="width:14%">${(it.price||0).toLocaleString()}</td>
-      <td class="c" style="width:12%;color:${discDisplay!=='—'?'#080':'#999'}">${discDisplay}</td>
-      <td class="r" style="width:23%;font-weight:700">${lineTotal.toLocaleString()} ₮</td>
+      <td style="width:30%">${(it.label||'').replace('·',' ')}</td>
+      <td class="c" style="width:11%">${p.sku||'—'}</td>
+      <td class="c" style="width:7%">${it.qty||1}</td>
+      <td class="r" style="width:13%">${(it.price||0).toLocaleString()}</td>
+      <td class="c" style="width:11%;color:${discDisplay!=='—'?'#080':'#aaa'}">${discDisplay}</td>
+      <td class="r" style="width:28%;font-weight:700">${lineTotal.toLocaleString()} ₮</td>
     </tr>`;
   }).join('');
-  const totSubtotal = (sale.items||[]).reduce((a,it)=>a+(it.lineSubtotal||it.price*it.qty||0),0);
-  const totDiscount = (sale.items||[]).reduce((a,it)=>a+(it.discountAmount||0),0);
-  const totFinal = sale.total||0;
+  const totSubtotal=(sale.items||[]).reduce((a,it)=>a+(it.lineSubtotal||(it.price*(it.qty||1))||0),0);
+  const totDiscount=(sale.items||[]).reduce((a,it)=>a+(it.discountAmount||0),0);
+  const totFinal=sale.total||0;
   const win=window.open('','_blank'); if(!win) return;
-  win.document.write(`<!DOCTYPE html><html lang="mn"><head>
-  <meta charset="UTF-8"><title>Борлуулалтын баримт</title>
-  <style>
+  win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Борлуулалтын баримт</title><style>
       *{box-sizing:border-box;margin:0;padding:0}
-      html{margin:0;padding:0;background:#fff}
-      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
-      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
-      /* femmora лого — өнгө өөрчлөхгүй, Georgia serif */
-      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
-      /* Баримтын гарчиг */
-      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
-      /* Хоёр баганатай header */
-      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
-      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
-      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
-      /* Мэдээллийн мөр */
-      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
-      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
-      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
-      /* Хүснэгт */
-      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
-      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
-      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      html,body{margin:0;padding:0;font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#d8d8d8}
+      .a4-wrap{width:210mm;min-height:297mm;background:#fff;margin:8mm auto;box-shadow:0 3px 16px rgba(0,0,0,.25)}
+      .page{width:210mm;height:148mm;max-height:148mm;overflow:hidden;padding:5mm 6mm 4mm;background:#fff;position:relative}
+      .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2.5mm}
+      .col-box{border:0.4pt solid #999;padding:1.8mm 2.5mm}
+      .col-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm;color:#333}
+      .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
+      .info-lbl{font-size:7.5pt;color:#555;min-width:20mm;flex-shrink:0}
+      .info-val{font-size:7.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:1.5mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.5mm 2mm;border:0.4pt solid #1a1a1a;font-size:7pt;font-weight:700;text-align:left;white-space:nowrap}
+      table.doc-table td{border:0.4pt solid #bbb;padding:1.2mm 2mm;vertical-align:middle}
       .r{text-align:right!important}.c{text-align:center!important}
-      /* Нийт дүн — хүснэгтийн хамгийн сүүлийн мөрт */
-      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
-      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
-      /* Дүн үсгээр */
-      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
-      /* Гарын үсэг */
-      .sign-row{display:grid;gap:4mm;margin-top:3mm}
-      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
-      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
-      /* Footer */
-      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
-      /* A5 Landscape хэвлэх — margin 5mm, browser header/footer-гүй */
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1pt solid #333}
+      .meta-row td{font-size:7.5pt;padding:1mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7pt;font-style:italic;color:#444;margin-bottom:1.5mm;line-height:1.3}
+      .sign-row{display:grid;gap:3mm;margin-top:2mm}
+      .sign-title{font-size:7pt;color:#222;margin-bottom:4mm;font-weight:700}
+      .sign-line{border-top:0.4pt solid #555;padding-top:0.8mm;font-size:7pt;color:#333;line-height:1.5}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
       @media print{
-        @page{size:200mm 140mm;margin:5mm}
-        html,body{margin:0;padding:0;width:210mm;background:#fff}
-        .page{padding:0;width:auto}
-        .no-print,button,.print-btn,.print-guide{display:none!important}
-        .page{width:200mm!important;box-shadow:none!important}
+        @page{size:A4 portrait;margin:0}
+        html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}
+        .a4-wrap{box-shadow:none!important;margin:0!important;width:210mm!important;min-height:auto!important}
+        .page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}
+        .a4-bottom{display:none!important}
+        .no-print,.print-btn,.print-guide{display:none!important}
       }
-      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;letter-spacing:0.5px}
+      .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+      .print-guide{position:fixed;top:12mm;right:4mm;background:#fff8dc;border:1px solid #cca030;padding:5px 8px;border-radius:4px;font-size:8px;color:#664400;line-height:1.6;z-index:98}
 </style></head><body>
-  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
-    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
-  <div class="page">
-    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+  <button class="print-btn no-print" onclick="window.print()">🖨 Хэвлэх (A4)</button>
+  <div class="print-guide no-print">📄 A4 · Portrait<br>Margins: None</div>
+  <div class="a4-wrap"><div class="page">
+    <div style="display:flex;align-items:center;gap:3mm;margin-bottom:2mm">
       <div class="logo" style="flex-shrink:0">femmora</div>
       <div style="flex:1;text-align:center"><div class="doc-title">БОРЛУУЛАЛТЫН БАРИМТ № ${docNum}</div></div>
-      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0">${dn}</div>
     </div>
-    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2mm"></div>
     <div class="two-col">
       <div class="col-box">
         <div class="col-title">Худалдагч</div>
@@ -1849,19 +1841,15 @@ window.openInvoice = id => {
       </div>
     </div>
     <table class="doc-table">
-      <colgroup><col style="width:5%"><col style="width:36%"><col style="width:12%"><col style="width:14%"><col style="width:10%"><col style="width:23%"></colgroup>
-      <colgroup>
-        <col style="width:30%"><col style="width:11%"><col style="width:8%">
-        <col style="width:14%"><col style="width:12%"><col style="width:25%">
-      </colgroup>
+      <colgroup><col style="width:30%"><col style="width:11%"><col style="width:7%"><col style="width:13%"><col style="width:11%"><col style="width:28%"></colgroup>
       <thead><tr>
         <th>Барааны нэр</th><th class="c">Барааны код</th><th class="c">Тоо ш</th>
         <th class="r">Нэгж үнэ</th><th class="c">Хөнгөлөлт</th><th class="r">Нийт дүн</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        ${totDiscount>0?`<tr style="font-size:8pt;background:#fafafa"><td colspan="5" class="r" style="color:#666;padding:1.5mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1.5mm 2mm">${totSubtotal.toLocaleString()} ₮</td></tr><tr style="font-size:8pt;background:#f0fff0"><td colspan="5" class="r" style="color:#080;padding:1.5mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1.5mm 2mm">-${totDiscount.toLocaleString()} ₮</td></tr>`:''}
-        <tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Төлөх нийт дүн:</td><td class="r" style="font-size:9.5pt">${totFinal.toLocaleString()} ₮</td></tr>
+        ${totDiscount>0?`<tr style="font-size:7pt;background:#fafafa"><td colspan="5" class="r" style="color:#666;padding:1mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1mm 2mm">${totSubtotal.toLocaleString()} ₮</td></tr><tr style="font-size:7pt;background:#f0fff0"><td colspan="5" class="r" style="color:#080;padding:1mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1mm 2mm">-${totDiscount.toLocaleString()} ₮</td></tr>`:''}
+        <tr class="total-row"><td colspan="5" class="r" style="font-size:8.5pt">Төлөх нийт дүн:</td><td class="r" style="font-size:8.5pt">${totFinal.toLocaleString()} ₮</td></tr>
         <tr class="meta-row"><td colspan="5" class="r">Төлбөрийн төрөл:</td><td style="font-weight:700">${payLabel}</td></tr>
         <tr class="meta-row"><td colspan="5" class="r">Төлсөн дүн:</td><td class="r" style="font-weight:700">${sale.paid.toLocaleString()} ₮</td></tr>
         <tr class="meta-row"><td colspan="5" class="r">Үлдэгдэл:</td><td class="r" style="font-weight:700">${sale.recv.toLocaleString()} ₮</td></tr>
@@ -1873,10 +1861,8 @@ window.openInvoice = id => {
       <div><div class="sign-title">Хүлээн авсан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
       <div><div class="sign-title">Шалгасан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
     </div>
-    <div class="doc-footer">
-      <span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span>
-    </div>
-  </div></body></html>`);
+    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: ${userLabel}</span><span>Femmora Cusion</span></div>
+  </div><div class="a4-bottom"></div></div></body></html>`);
   win.document.close();
 };
 
@@ -2556,98 +2542,118 @@ function generateReconcileDoc(doPrint=false) {
   const saleAmt=manualSale||totalSale;
   const fmtD=d=>d?new Date(d).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'}):'—';
   const printDate=new Date().toLocaleDateString('mn-MN');
+  const userLabel=currentUser?.email||'—';
   getNextDocNum('reconcile').then(tnNum=>{
     const win=window.open('','_blank');
     if(!win){alert('Popup блоклогдсон');return;}
     win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>${tnNum}</title><style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    html{margin:0;padding:0;background:#fff}
-    body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
-    .page{width:210mm;min-height:148mm;padding:5mm;position:relative}
-    .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
-    .doc-title{font-size:10pt;font-weight:bold;color:#000;text-align:center}
-    table.tn{width:100%;border-collapse:collapse;font-size:8.5pt;margin:2mm 0}
-    table.tn th{border:0.5pt solid #333;padding:1.8mm 2mm;background:#f0f0f0;font-weight:bold;text-align:left}
-    table.tn td{border:0.5pt solid #333;padding:1.8mm 2mm}
-    .tn-total td{font-weight:bold;background:#f5f5f5;border-top:1pt solid #333}
-    .info-lbl{color:#555;font-size:8pt;min-width:28mm;display:inline-block}
-    .info-val{font-weight:600}
-    .sign-table{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:3mm}
-    .sign-line{border-top:0.5pt solid #555;margin-top:8mm;padding-top:1mm;font-size:7.5pt}
-    .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
-    @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
-    .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
-    .r{text-align:right!important}
+      *{box-sizing:border-box;margin:0;padding:0}
+      html,body{margin:0;padding:0;font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#d8d8d8}
+      .a4-wrap{width:210mm;min-height:297mm;background:#fff;margin:8mm auto;box-shadow:0 3px 16px rgba(0,0,0,.25)}
+      .page{width:210mm;height:148mm;max-height:148mm;overflow:hidden;padding:5mm 6mm 4mm;background:#fff;position:relative}
+      .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2.5mm}
+      .col-box{border:0.4pt solid #999;padding:1.8mm 2.5mm}
+      .col-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm;color:#333}
+      .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
+      .info-lbl{font-size:7.5pt;color:#555;min-width:20mm;flex-shrink:0}
+      .info-val{font-size:7.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:1.5mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.5mm 2mm;border:0.4pt solid #1a1a1a;font-size:7pt;font-weight:700;text-align:left;white-space:nowrap}
+      table.doc-table td{border:0.4pt solid #bbb;padding:1.2mm 2mm;vertical-align:middle}
+      .r{text-align:right!important}.c{text-align:center!important}
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1pt solid #333}
+      .meta-row td{font-size:7.5pt;padding:1mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7pt;font-style:italic;color:#444;margin-bottom:1.5mm;line-height:1.3}
+      .sign-row{display:grid;gap:3mm;margin-top:2mm}
+      .sign-title{font-size:7pt;color:#222;margin-bottom:4mm;font-weight:700}
+      .sign-line{border-top:0.4pt solid #555;padding-top:0.8mm;font-size:7pt;color:#333;line-height:1.5}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
+      @media print{
+        @page{size:A4 portrait;margin:0}
+        html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}
+        .a4-wrap{box-shadow:none!important;margin:0!important;width:210mm!important;min-height:auto!important}
+        .page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}
+        .a4-bottom{display:none!important}
+        .no-print,.print-btn,.print-guide{display:none!important}
+      }
+      .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+      .print-guide{position:fixed;top:12mm;right:4mm;background:#fff8dc;border:1px solid #cca030;padding:5px 8px;border-radius:4px;font-size:8px;color:#664400;line-height:1.6;z-index:98}
+
+      table.tn{width:100%;border-collapse:collapse;font-size:8pt;margin:1.5mm 0}
+      table.tn th{border:0.4pt solid #444;padding:1.5mm 2mm;background:#f0f0f0;font-weight:bold;text-align:left;font-size:7.5pt}
+      table.tn td{border:0.4pt solid #444;padding:1.5mm 2mm}
+      .tn-total td{font-weight:bold;background:#f5f5f5;border-top:1pt solid #333}
+      table.info{width:100%;border-collapse:collapse;margin-bottom:2mm}
+      table.info td{padding:1mm 1.5mm;vertical-align:top;font-size:7.5pt}
+      .sign-table{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:2mm}
+      .sign-line2{border-top:0.4pt solid #555;margin-top:8mm;padding-top:1mm;font-size:7pt}
 </style></head><body>
-    <button class="print-btn" onclick="window.print()">Хэвлэх</button>
-    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
-    <div class="page">
-      <div style="display:flex;align-items:center;gap:4mm;margin-bottom:1.5mm">
+    <button class="print-btn" onclick="window.print()">🖨 Хэвлэх (A4)</button>
+    <div class="print-guide no-print">📄 A4 · Portrait · Margins: None</div>
+    <div class="a4-wrap"><div class="page">
+      <div style="display:flex;align-items:center;gap:3mm;margin-bottom:1.5mm">
         <div class="logo" style="flex-shrink:0">femmora</div>
         <div style="flex:1;text-align:center">
-          <div style="font-size:7pt;color:#666">НХМаягт ТМ-З</div>
+          <div style="font-size:6.5pt;color:#666">НХМаягт ТМ-З</div>
           <div class="doc-title">ТООЦООНЫ ҮЛДЭГДЛИЙН БАТАЛГАА № ${tnNum}</div>
         </div>
         <div style="font-size:7.5pt;color:#444;flex-shrink:0">${fmtD(recDate)}</div>
       </div>
-      <div style="border-top:1.5pt solid #000;margin-bottom:2mm"></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2mm">
-        <div style="border:0.4pt solid #888;padding:2mm 2.5mm">
-          <div style="font-weight:bold;font-size:8pt;margin-bottom:1mm">Нэхэмжлэгч:</div>
-          <div><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
-          <div><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
-          <div><span class="info-lbl">Банкны нэр:</span><span class="info-val">${bank.bankName||'Хаан банк'}</span></div>
-          <div><span class="info-lbl">Дансны дугаар:</span><span class="info-val">${bank.accountNumber||'5020001234'}</span></div>
-        </div>
-        <div style="border:0.4pt solid #888;padding:2mm 2.5mm">
-          <div style="font-weight:bold;font-size:8pt;margin-bottom:1mm">Төлөгч:</div>
-          <div><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">${cust.name||'—'}</span></div>
-          <div><span class="info-lbl">Утас:</span><span class="info-val">${cust.phone||'—'}</span></div>
-          ${cust.reg?`<div><span class="info-lbl">Регистр:</span><span class="info-val">${cust.reg}</span></div>`:''}
-        </div>
-      </div>
-      <div style="font-size:8pt;margin-bottom:1.5mm;line-height:1.5">
-        Нэхэмжлэгчийн нэрийн өмнөөс нягтлан бодогч ажилтай Ганцэцэг овогтой <b>Алтансувд</b> нь
-        төлөгчийн нэрийн өмнөөс ______ажилтай______овогтой______-тай
-        тус хоёр байгууллага хооронд <b>${fmtD(from)}</b> өдрөөс <b>${fmtD(to)}</b> өдрийг дуустал нийлж үзэхэд
-      </div>
-      <div style="font-size:8.5pt;font-weight:bold;margin-bottom:1mm">
+      <div style="border-top:1.5pt solid #000;margin-bottom:1.5mm"></div>
+      <table class="info">
+        <tr>
+          <td style="width:50%;border-right:0.4pt solid #ccc;padding-right:3mm">
+            <div style="font-weight:700;font-size:7.5pt;margin-bottom:1mm">Нэхэмжлэгч:</div>
+            <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
+            <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
+            <div class="info-row"><span class="info-lbl">Банкны нэр:</span><span class="info-val">${bank.bankName||'Хаан банк'}</span></div>
+            <div class="info-row"><span class="info-lbl">Дансны дугаар:</span><span class="info-val">${bank.accountNumber||'5020001234'}</span></div>
+          </td>
+          <td style="width:50%;padding-left:3mm">
+            <div style="font-weight:700;font-size:7.5pt;margin-bottom:1mm">Төлөгч:</div>
+            <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">${cust.name||'—'}</span></div>
+            <div class="info-row"><span class="info-lbl">Утас:</span><span class="info-val">${cust.phone||'—'}</span></div>
+            ${cust.reg?`<div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">${cust.reg}</span></div>`:''}
+          </td>
+        </tr>
+      </table>
+      <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">
         Тооцоо нийлсэн хугацаа: ${fmtD(from)} – ${fmtD(to)} &nbsp;&nbsp; Тооцоо нийлсэн огноо: ${fmtD(recDate)}
       </div>
-      <div style="font-size:8.5pt;font-weight:bold;margin-bottom:1mm">I. Тооцооны үлдэгдэл (${fmtD(to)}-ны өдрийн байдлаар)</div>
+      <div style="font-size:7pt;margin-bottom:1.5mm;line-height:1.5">
+        Нэхэмжлэгчийн нэрийн өмнөөс нягтлан бодогч ажилтай Ганцэцэг овогтой <b>Алтансувд</b> нь
+        төлөгчийн нэрийн өмнөөс ______ажилтай______овогтой______-тай
+        тус хоёр байгууллага хооронд нийлж үзэхэд
+      </div>
+      <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">I. Тооцооны үлдэгдэл (${fmtD(to)}-ны өдрийн байдлаар)</div>
       <table class="tn">
         <thead><tr><th style="width:5%;text-align:center">№</th><th>Үзүүлэлт</th><th style="width:22%;text-align:right">Дүн (₮)</th></tr></thead>
         <tbody>
-          <tr><td class="r">1</td><td>Эхний үлдэгдэл</td><td class="r">0 ₮</td></tr>
-          <tr><td class="r">2</td><td>Тухайн хугацааны зээлийн борлуулалт</td><td class="r">${totalSale.toLocaleString()} ₮</td></tr>
-          <tr><td class="r">3</td><td>Тухайн хугацааны төлөлт</td><td class="r">(${totalPaid.toLocaleString()} ₮)</td></tr>
-          <tr><td class="r">4</td><td>Буцаалт, хөнгөлөлт</td><td class="r">0 ₮</td></tr>
+          <tr><td class="c">1</td><td>Эхний үлдэгдэл</td><td class="r">0 ₮</td></tr>
+          <tr><td class="c">2</td><td>Тухайн хугацааны зээлийн борлуулалт</td><td class="r">${totalSale.toLocaleString()} ₮</td></tr>
+          <tr><td class="c">3</td><td>Тухайн хугацааны төлөлт</td><td class="r">(${totalPaid.toLocaleString()} ₮)</td></tr>
+          <tr><td class="c">4</td><td>Буцаалт, хөнгөлөлт</td><td class="r">0 ₮</td></tr>
         </tbody>
         <tfoot><tr class="tn-total"><td colspan="2">Тооцооны үлдэгдэл (1+2-3-4)</td><td class="r">${totalRecv.toLocaleString()} ₮</td></tr></tfoot>
       </table>
-      <div style="font-size:8pt;margin-bottom:1.5mm">
+      <div style="font-size:7pt;margin-bottom:1.5mm">
         Төлөгч байгуулга нь дээрх дүнгээр <b>${totalRecv.toLocaleString()} ₮</b>-ийн өртэй гарсныг харилцан батлав.
       </div>
-      <div style="font-size:8.5pt;font-weight:bold;margin-bottom:1mm">II. Тухайн сарын борлуулалтын нэхэмжлэх дүн</div>
+      <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">II. Тухайн сарын борлуулалтын нэхэмжлэх дүн</div>
       <table class="tn">
-        <thead><tr><th>Үзүүлэлт</th><th style="width:28%;text-align:right">Дүн (₮)</th></tr></thead>
-        <tbody>
-          <tr>
-            <td>Тухайн хугацааны борлуулалтын орлого (гараар оруулсан)</td>
-            <td class="r" style="font-weight:700;font-size:10pt">${saleAmt>0?saleAmt.toLocaleString()+' ₮':'<span style=\"color:red\">— дүн оруулаагүй —</span>'}</td>
-          </tr>
-        </tbody>
+        <tbody><tr><td>Тухайн хугацааны борлуулалтын орлого (гараар оруулсан)</td><td class="r" style="width:22%;font-weight:700">${saleAmt.toLocaleString()} ₮</td></tr></tbody>
       </table>
-      <div style="font-size:8pt;font-style:italic;margin:1.5mm 0;color:#333">${saleAmt>0?numToWords(saleAmt):''}</div>
-      ${saleAmt<=0?'<div style="color:red;font-size:8pt;margin-bottom:1mm">⚠ Тухайн сарын борлуулалтын дүнг тооцоо нийлэлт хийхийн өмнө оруулна уу.</div>':''}
-
-      ${note?`<div style="font-size:8pt;color:#444;margin-bottom:1mm">Тайлбар: ${note}</div>`:''}
+      <div style="font-size:7pt;font-style:italic;margin:1mm 0">${numToWords(saleAmt)}</div>
+      ${note?`<div style="font-size:7pt;color:#444;margin-bottom:1mm">Тайлбар: ${note}</div>`:''}
       <div class="sign-table">
-        <div><div style="font-size:7.5pt;font-weight:700;margin-bottom:8mm">Нэхэмжлэгчийн төлөөлөл</div><div class="sign-line">Нэр: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / Г.Алтансувд /<br>Гарын үсэг:</div></div>
-        <div><div style="font-size:7.5pt;font-weight:700;margin-bottom:8mm">Төлөгчийн төлөөлөл</div><div class="sign-line">Нэр:<br>Гарын үсэг:</div></div>
+        <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Нэхэмжлэгчийн төлөөлөл</div><div class="sign-line2">Нэр: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / Г.Алтансувд /<br>Гарын үсэг:</div></div>
+        <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Төлөгчийн төлөөлөл</div><div class="sign-line2">Нэр:<br>Гарын үсэг:</div></div>
       </div>
-      <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
-    </div></body></html>`);
+      <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: ${userLabel}</span><span>Femmora Cusion</span></div>
+    </div><div class="a4-bottom"></div></div></body></html>`);
     win.document.close();
     if(doPrint) setTimeout(()=>win.print(),500);
   });
@@ -2689,7 +2695,7 @@ window.showRTab = (name, btn) => {
 // ─── ТӨЛӨЛТИЙН БАРИМТ (TP) ───────────────────────────────────────────────────
 window.openPaymentReceipt = (saleId, pmIdx) => {
   const sale=sales.find(s=>s.id===saleId); if(!sale) return;
-  const pm=pmIdx>=0?sale.payments[pmIdx]:sale.payments[sale.payments.length-1];
+  const pm=pmIdx>=0?sale.payments[pmIdx]:(sale.payments||[]).slice(-1)[0];
   if(!pm) return;
   const cust=customers.find(c=>c.id===sale.customerId)||{};
   const defBank=getDefaultBank('MNT')||{};
@@ -2697,43 +2703,53 @@ window.openPaymentReceipt = (saleId, pmIdx) => {
   const printDate=new Date().toLocaleDateString('mn-MN');
   const MLBL={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
   const tpNum=pm.docNumber||pm.number||'Дугааргүй хуучин баримт';
+  const userLabel=currentUser?.email||'—';
   const win=window.open('','_blank'); if(!win) return;
   win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Төлөлтийн баримт</title><style>
       *{box-sizing:border-box;margin:0;padding:0}
-      html{margin:0;padding:0;background:#fff}
-      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
-      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
-      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
-      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
-      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
-      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
-      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
-      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
-      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
-      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
-      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
-      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
-      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      html,body{margin:0;padding:0;font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#d8d8d8}
+      .a4-wrap{width:210mm;min-height:297mm;background:#fff;margin:8mm auto;box-shadow:0 3px 16px rgba(0,0,0,.25)}
+      .page{width:210mm;height:148mm;max-height:148mm;overflow:hidden;padding:5mm 6mm 4mm;background:#fff;position:relative}
+      .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2.5mm}
+      .col-box{border:0.4pt solid #999;padding:1.8mm 2.5mm}
+      .col-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm;color:#333}
+      .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
+      .info-lbl{font-size:7.5pt;color:#555;min-width:20mm;flex-shrink:0}
+      .info-val{font-size:7.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:1.5mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.5mm 2mm;border:0.4pt solid #1a1a1a;font-size:7pt;font-weight:700;text-align:left;white-space:nowrap}
+      table.doc-table td{border:0.4pt solid #bbb;padding:1.2mm 2mm;vertical-align:middle}
       .r{text-align:right!important}.c{text-align:center!important}
-      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
-      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
-      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
-      .sign-row{display:grid;gap:4mm;margin-top:3mm}
-      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
-      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
-      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
-      @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
-      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1pt solid #333}
+      .meta-row td{font-size:7.5pt;padding:1mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7pt;font-style:italic;color:#444;margin-bottom:1.5mm;line-height:1.3}
+      .sign-row{display:grid;gap:3mm;margin-top:2mm}
+      .sign-title{font-size:7pt;color:#222;margin-bottom:4mm;font-weight:700}
+      .sign-line{border-top:0.4pt solid #555;padding-top:0.8mm;font-size:7pt;color:#333;line-height:1.5}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
+      @media print{
+        @page{size:A4 portrait;margin:0}
+        html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}
+        .a4-wrap{box-shadow:none!important;margin:0!important;width:210mm!important;min-height:auto!important}
+        .page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}
+        .a4-bottom{display:none!important}
+        .no-print,.print-btn,.print-guide{display:none!important}
+      }
+      .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+      .print-guide{position:fixed;top:12mm;right:4mm;background:#fff8dc;border:1px solid #cca030;padding:5px 8px;border-radius:4px;font-size:8px;color:#664400;line-height:1.6;z-index:98}
 </style></head><body>
-  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
-    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
-  <div class="page">
-    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+  <button class="print-btn no-print" onclick="window.print()">🖨 Хэвлэх (A4)</button>
+  <div class="print-guide no-print">📄 A4 · Portrait · Margins: None</div>
+  <div class="a4-wrap"><div class="page">
+    <div style="display:flex;align-items:center;gap:3mm;margin-bottom:2mm">
       <div class="logo" style="flex-shrink:0">femmora</div>
       <div style="flex:1;text-align:center"><div class="doc-title">ТӨЛӨЛТИЙН БАРИМТ № ${tpNum}</div></div>
-      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0">${dn}</div>
     </div>
-    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2mm"></div>
     <div class="two-col">
       <div class="col-box">
         <div class="col-title">Төлөгч</div>
@@ -2750,13 +2766,13 @@ window.openPaymentReceipt = (saleId, pmIdx) => {
         <div class="info-row"><span class="info-lbl">Данс:</span><span class="info-val">${defBank.accountNumber||'5020001234'}</span></div>
       </div>
     </div>
-    <div style="border:0.5pt solid #888;padding:3mm 3.5mm;margin-bottom:3mm">
+    <div style="border:0.4pt solid #999;padding:3mm;margin-bottom:2.5mm">
       <div class="info-row"><span class="info-lbl">Огноо:</span><span class="info-val">${dn}</span></div>
       <div class="info-row"><span class="info-lbl">Төлбөрийн төрөл:</span><span class="info-val">${MLBL[pm.method]||pm.method}</span></div>
       <div class="info-row"><span class="info-lbl">Гүйлгээний утга:</span><span class="info-val">${pm.note||'Нэхэмжлэл '+getDocNumDisplay(sale)+'-ийн төлөлт'}</span></div>
-      <div style="margin-top:3mm;padding-top:2.5mm;border-top:0.5pt solid #ccc;display:flex;justify-content:space-between;align-items:baseline">
-        <span style="font-size:9.5pt;font-weight:700">Төлсөн дүн:</span>
-        <span style="font-size:18pt;font-weight:700;color:#000">${pm.amount.toLocaleString()} ₮</span>
+      <div style="margin-top:2.5mm;padding-top:2mm;border-top:0.4pt solid #ccc;display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:9pt;font-weight:700">Төлсөн дүн:</span>
+        <span style="font-size:17pt;font-weight:700;color:#000">${pm.amount.toLocaleString()} ₮</span>
       </div>
     </div>
     <div class="amount-words">Дүн үсгээр: ${numToWords(pm.amount)}</div>
@@ -2764,8 +2780,8 @@ window.openPaymentReceipt = (saleId, pmIdx) => {
       <div><div class="sign-title">Төлөгчийн гарын үсэг</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
       <div><div class="sign-title">Хүлээн авсан гарын үсэг</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
     </div>
-    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
-  </div></body></html>`);
+    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: ${userLabel}</span><span>Femmora Cusion</span></div>
+  </div><div class="a4-bottom"></div></div></body></html>`);
   win.document.close();
 };
 
@@ -2777,64 +2793,71 @@ window.openNHInvoice = id => {
   const printDate=new Date().toLocaleDateString('mn-MN');
   const nhNum=sale.nhDocNumber||getDocNumDisplay(sale).replace(/^BB/,'NH');
   const defBank=getDefaultBank('MNT')||{};
-  const discDisplayFn = it => it.discountType==='percent'&&it.discountValue
-    ? it.discountValue+'%'
-    : it.discountType==='amount'&&it.discountAmount
-    ? it.discountAmount.toLocaleString()+'₮'
-    : (it.discType==='percent'&&it.discVal ? it.discVal+'%'
-       : it.discType==='amount'&&it.discVal ? it.discVal.toLocaleString()+'₮' : '—');
-  const rows=(sale.items||[]).map((it,i)=>{
+  const userLabel=currentUser?.email||'—';
+  const rows=(sale.items||[]).map(it=>{
     const lineTotal=it.lineTotal||it.sub||0;
-    const dd=discDisplayFn(it);
+    let dd='—';
+    if(it.discountType==='percent'&&it.discountValue) dd=it.discountValue+'%';
+    else if(it.discountType==='amount'&&it.discountAmount) dd=it.discountAmount.toLocaleString()+'₮';
+    else if(it.discType==='percent'&&it.discVal) dd=it.discVal+'%';
+    else if(it.discType==='amount'&&it.discVal) dd=it.discVal.toLocaleString()+'₮';
     return `<tr>
       <td style="width:30%">${(it.label||'').replace('·',' ')}</td>
-      <td class="c" style="width:11%">${it.qty}</td>
-      <td class="r" style="width:14%">${(it.price||0).toLocaleString()}</td>
-      <td class="c" style="width:12%;color:${dd!=='—'?'#080':'#999'}">${dd}</td>
-      <td class="c" style="width:8%">—</td>
-      <td class="r" style="width:25%;font-weight:700">${lineTotal.toLocaleString()} ₮</td>
+      <td class="c" style="width:8%">${it.qty||1}</td>
+      <td class="r" style="width:13%">${(it.price||0).toLocaleString()}</td>
+      <td class="c" style="width:11%;color:${dd!=='—'?'#080':'#aaa'}">${dd}</td>
+      <td class="r" style="width:28%;font-weight:700">${lineTotal.toLocaleString()} ₮</td>
     </tr>`;
   }).join('');
-  const nhTotSubtotal=(sale.items||[]).reduce((a,it)=>a+(it.lineSubtotal||it.price*it.qty||0),0);
-  const nhTotDiscount=(sale.items||[]).reduce((a,it)=>a+(it.discountAmount||0),0);
-  const nhTotFinal=sale.total||0;
+  const nhTot=sale.total||0;
+  const nhTotDisc=(sale.items||[]).reduce((a,it)=>a+(it.discountAmount||0),0);
+  const nhTotSub=(sale.items||[]).reduce((a,it)=>a+(it.lineSubtotal||(it.price*(it.qty||1))||0),0);
   const win=window.open('','_blank'); if(!win) return;
   win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Нэхэмжлэл</title><style>
       *{box-sizing:border-box;margin:0;padding:0}
-      html{margin:0;padding:0;background:#fff}
-      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
-      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
-      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
-      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
-      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
-      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
-      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
-      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
-      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
-      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
-      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
-      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
-      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      html,body{margin:0;padding:0;font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#d8d8d8}
+      .a4-wrap{width:210mm;min-height:297mm;background:#fff;margin:8mm auto;box-shadow:0 3px 16px rgba(0,0,0,.25)}
+      .page{width:210mm;height:148mm;max-height:148mm;overflow:hidden;padding:5mm 6mm 4mm;background:#fff;position:relative}
+      .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2.5mm}
+      .col-box{border:0.4pt solid #999;padding:1.8mm 2.5mm}
+      .col-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm;color:#333}
+      .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
+      .info-lbl{font-size:7.5pt;color:#555;min-width:20mm;flex-shrink:0}
+      .info-val{font-size:7.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:1.5mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.5mm 2mm;border:0.4pt solid #1a1a1a;font-size:7pt;font-weight:700;text-align:left;white-space:nowrap}
+      table.doc-table td{border:0.4pt solid #bbb;padding:1.2mm 2mm;vertical-align:middle}
       .r{text-align:right!important}.c{text-align:center!important}
-      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
-      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
-      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
-      .sign-row{display:grid;gap:4mm;margin-top:3mm}
-      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
-      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
-      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
-      @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
-      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1pt solid #333}
+      .meta-row td{font-size:7.5pt;padding:1mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7pt;font-style:italic;color:#444;margin-bottom:1.5mm;line-height:1.3}
+      .sign-row{display:grid;gap:3mm;margin-top:2mm}
+      .sign-title{font-size:7pt;color:#222;margin-bottom:4mm;font-weight:700}
+      .sign-line{border-top:0.4pt solid #555;padding-top:0.8mm;font-size:7pt;color:#333;line-height:1.5}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
+      @media print{
+        @page{size:A4 portrait;margin:0}
+        html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}
+        .a4-wrap{box-shadow:none!important;margin:0!important;width:210mm!important;min-height:auto!important}
+        .page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}
+        .a4-bottom{display:none!important}
+        .no-print,.print-btn,.print-guide{display:none!important}
+      }
+      .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+      .print-guide{position:fixed;top:12mm;right:4mm;background:#fff8dc;border:1px solid #cca030;padding:5px 8px;border-radius:4px;font-size:8px;color:#664400;line-height:1.6;z-index:98}
 </style></head><body>
-  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
-    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
-  <div class="page">
-    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+  <button class="print-btn no-print" onclick="window.print()">🖨 Хэвлэх (A4)</button>
+  <div class="print-guide no-print">📄 A4 · Portrait · Margins: None</div>
+  <div class="a4-wrap"><div class="page">
+    <div style="display:flex;align-items:center;gap:3mm;margin-bottom:2mm">
       <div class="logo" style="flex-shrink:0">femmora</div>
       <div style="flex:1;text-align:center"><div class="doc-title">НЭХЭМЖЛЭЛ № ${nhNum}</div></div>
-      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0">${dn}</div>
     </div>
-    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2mm"></div>
     <div class="two-col">
       <div class="col-box">
         <div class="col-title">Нэхэмжлэгч</div>
@@ -2853,30 +2876,26 @@ window.openNHInvoice = id => {
       </div>
     </div>
     <table class="doc-table">
-      <colgroup><col style="width:5%"><col style="width:38%"><col style="width:11%"><col style="width:15%"><col style="width:8%"><col style="width:23%"></colgroup>
-      <colgroup>
-        <col style="width:30%"><col style="width:11%"><col style="width:14%">
-        <col style="width:12%"><col style="width:8%"><col style="width:25%">
-      </colgroup>
+      <colgroup><col style="width:30%"><col style="width:8%"><col style="width:13%"><col style="width:11%"><col style="width:28%"></colgroup>
       <thead><tr>
         <th>Гүйлгээний утга</th><th class="c">Тоо ш</th><th class="r">Нэгж үнэ</th>
-        <th class="c">Хөнгөлөлт</th><th class="c">Хорогдол</th><th class="r">Нийт дүн</th>
+        <th class="c">Хөнгөлөлт</th><th class="r">Нийт дүн</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        ${nhTotDiscount>0?`<tr style="font-size:8pt;background:#fafafa"><td colspan="5" class="r" style="color:#666;padding:1.5mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1.5mm 2mm">${nhTotSubtotal.toLocaleString()} ₮</td></tr><tr style="font-size:8pt;background:#f0fff0"><td colspan="5" class="r" style="color:#080;padding:1.5mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1.5mm 2mm">-${nhTotDiscount.toLocaleString()} ₮</td></tr>`:''}
-        <tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Нийт нэхэмжлэх дүн:</td><td class="r" style="font-size:9.5pt">${nhTotFinal.toLocaleString()} ₮</td></tr>
+        ${nhTotDisc>0?`<tr style="font-size:7pt;background:#fafafa"><td colspan="4" class="r" style="color:#666;padding:1mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1mm 2mm">${nhTotSub.toLocaleString()} ₮</td></tr><tr style="font-size:7pt;background:#f0fff0"><td colspan="4" class="r" style="color:#080;padding:1mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1mm 2mm">-${nhTotDisc.toLocaleString()} ₮</td></tr>`:''}
+        <tr class="total-row"><td colspan="4" class="r" style="font-size:8.5pt">Нийт нэхэмжлэх дүн:</td><td class="r" style="font-size:8.5pt">${nhTot.toLocaleString()} ₮</td></tr>
       </tfoot>
     </table>
-    <div class="amount-words">Дүн үсгээр: ${numToWords(sale.total)}</div>
-    <div style="font-size:7.5pt;color:#444;margin-bottom:2.5mm">Нэхэмжлэлийн нөхцөл: Нэхэмжлэл хүлээн авснаас хойш 14 хоногт төлнө үү.</div>
+    <div class="amount-words">Дүн үсгээр: ${numToWords(nhTot)}</div>
+    <div style="font-size:7pt;color:#444;margin-bottom:2mm">Нэхэмжлэлийн нөхцөл: Нэхэмжлэл хүлээн авснаас хойш 14 хоногт төлнө үү.</div>
     <div class="sign-row" style="grid-template-columns:1fr 1fr 1fr">
       <div><div class="sign-title">Хүлээлгэн өгсөн</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
       <div><div class="sign-title">Хүлээн авсан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
       <div><div class="sign-title">Шалгасан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
     </div>
-    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
-  </div></body></html>`);
+    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: ${userLabel}</span><span>Femmora Cusion</span></div>
+  </div><div class="a4-bottom"></div></div></body></html>`);
   win.document.close();
 };
 
@@ -2887,49 +2906,66 @@ window.openTransferReceipt = id => {
   const toLoc=locations.find(l=>l.id===tr.toLocId)||{name:tr.toLocName||'—'};
   const dn=new Date(tr.date).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
   const printDate=new Date().toLocaleDateString('mn-MN');
+  const userLabel=currentUser?.email||'—';
   const trDocNum=tr.trNum||tr.docNumber||tr.number||(tr.id?'Дугааргүй хуучин баримт':'—');
   const rows=(tr.items||[]).map((it,i)=>{
     const prod=products.find(p=>p.id===it.pid)||{};
-    return `<tr><td class="c">${i+1}</td><td>${it.label||prod.variant||'—'}</td><td class="c">${prod.sku||prod.code||'—'}</td><td class="c"><b>${it.qty}</b></td><td class="c">ш</td><td>—</td></tr>`;
+    return `<tr>
+      <td>${it.label||prod.name||'—'}</td>
+      <td class="c">${prod.sku||'—'}</td>
+      <td class="c" style="font-family:monospace;font-size:7pt">${prod.barcode||'—'}</td>
+      <td class="c"><b>${it.qty}</b></td>
+      <td class="c">ш</td>
+      <td>—</td>
+    </tr>`;
   }).join('');
   const totalQty=(tr.items||[]).reduce((a,it)=>a+it.qty,0);
   const win=window.open('','_blank'); if(!win) return;
   win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Бараа шилжүүлэлт</title><style>
       *{box-sizing:border-box;margin:0;padding:0}
-      html{margin:0;padding:0;background:#fff}
-      body{margin:0;padding:8mm;background:#d0d0d0;font-family:Arial,sans-serif;font-size:9pt;color:#000;min-height:100vh;display:flex;justify-content:center;align-items:flex-start}
-      .page{width:200mm;min-height:138mm;padding:5mm;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,0.2);page-break-inside:avoid}
-      .logo{font-family:'Georgia','Times New Roman',serif;font-size:14pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1;font-style:normal}
-      .doc-title{font-size:10pt;font-weight:bold;color:#000;letter-spacing:0.2px;line-height:1.2;text-align:center}
-      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-bottom:3mm}
-      .col-box{border:0.4pt solid #888;padding:2mm 2.5mm}
-      .col-title{font-size:7.5pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1.2mm;padding-bottom:0.7mm}
-      .info-row{display:flex;margin-bottom:0.8mm;gap:1mm}
-      .info-lbl{font-size:8pt;color:#444;min-width:22mm;flex-shrink:0}
-      .info-val{font-size:8.5pt;font-weight:600;color:#000;word-break:break-word}
-      table.doc-table{width:100%;border-collapse:collapse;font-size:8.5pt;margin-bottom:2mm;table-layout:fixed}
-      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.8mm 2mm;border:0.4pt solid #1a1a1a;font-size:8pt;font-weight:700;text-align:left}
-      table.doc-table td{border:0.4pt solid #aaa;padding:1.5mm 2mm;vertical-align:middle}
+      html,body{margin:0;padding:0;font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#d8d8d8}
+      .a4-wrap{width:210mm;min-height:297mm;background:#fff;margin:8mm auto;box-shadow:0 3px 16px rgba(0,0,0,.25)}
+      .page{width:210mm;height:148mm;max-height:148mm;overflow:hidden;padding:5mm 6mm 4mm;background:#fff;position:relative}
+      .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
+      .logo{font-family:'Georgia','Times New Roman',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;line-height:1.2;text-align:center}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2.5mm}
+      .col-box{border:0.4pt solid #999;padding:1.8mm 2.5mm}
+      .col-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm;color:#333}
+      .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
+      .info-lbl{font-size:7.5pt;color:#555;min-width:20mm;flex-shrink:0}
+      .info-val{font-size:7.5pt;font-weight:600;color:#000;word-break:break-word}
+      table.doc-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:1.5mm;table-layout:fixed}
+      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.5mm 2mm;border:0.4pt solid #1a1a1a;font-size:7pt;font-weight:700;text-align:left;white-space:nowrap}
+      table.doc-table td{border:0.4pt solid #bbb;padding:1.2mm 2mm;vertical-align:middle}
       .r{text-align:right!important}.c{text-align:center!important}
-      .total-row td{font-weight:700;background:#f5f5f5;border-top:1.2pt solid #333}
-      .meta-row td{font-size:8.5pt;padding:1.2mm 2mm;border:0.4pt solid #ccc}
-      .amount-words{font-size:7.5pt;font-style:italic;color:#333;margin-bottom:2mm;line-height:1.4}
-      .sign-row{display:grid;gap:4mm;margin-top:3mm}
-      .sign-title{font-size:7.5pt;color:#222;margin-bottom:6mm;font-weight:700}
-      .sign-line{border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt;color:#333;line-height:1.6}
-      .doc-footer{display:flex;justify-content:space-between;font-size:6.5pt;color:#666;margin-top:3mm;padding-top:1.5mm;border-top:0.3pt solid #ddd}.print-guide{background:#fff8dc;border:1px solid #e0c060;padding:4px 8px;font-size:8px;color:#665500;margin:2mm 0;border-radius:3px;line-height:1.5}
-      @media print{@page{size:200mm 140mm;margin:5mm}html,body{width:200mm!important;height:140mm!important;margin:0!important;padding:0!important;background:#fff!important}*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.no-print,button,.print-btn,.print-guide{display:none!important}.page{width:200mm!important;box-shadow:none!important;padding:5mm!important}}
-      .print-btn{position:fixed;top:3mm;right:3mm;background:#1a1a1a;color:#fff;border:none;padding:5px 14px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+      .total-row td{font-weight:700;background:#f5f5f5;border-top:1pt solid #333}
+      .meta-row td{font-size:7.5pt;padding:1mm 2mm;border:0.4pt solid #ccc}
+      .amount-words{font-size:7pt;font-style:italic;color:#444;margin-bottom:1.5mm;line-height:1.3}
+      .sign-row{display:grid;gap:3mm;margin-top:2mm}
+      .sign-title{font-size:7pt;color:#222;margin-bottom:4mm;font-weight:700}
+      .sign-line{border-top:0.4pt solid #555;padding-top:0.8mm;font-size:7pt;color:#333;line-height:1.5}
+      .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
+      @media print{
+        @page{size:A4 portrait;margin:0}
+        html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}
+        .a4-wrap{box-shadow:none!important;margin:0!important;width:210mm!important;min-height:auto!important}
+        .page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}
+        .a4-bottom{display:none!important}
+        .no-print,.print-btn,.print-guide{display:none!important}
+      }
+      .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+      .print-guide{position:fixed;top:12mm;right:4mm;background:#fff8dc;border:1px solid #cca030;padding:5px 8px;border-radius:4px;font-size:8px;color:#664400;line-height:1.6;z-index:98}
 </style></head><body>
-  <button class="print-btn no-print" onclick="window.print()">Хэвлэх</button>
-    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
-  <div class="page">
-    <div style="display:flex;align-items:center;gap:4mm;margin-bottom:2mm">
+  <button class="print-btn no-print" onclick="window.print()">🖨 Хэвлэх (A4)</button>
+  <div class="print-guide no-print">📄 A4 · Portrait · Margins: None</div>
+  <div class="a4-wrap"><div class="page">
+    <div style="display:flex;align-items:center;gap:3mm;margin-bottom:2mm">
       <div class="logo" style="flex-shrink:0">femmora</div>
       <div style="flex:1;text-align:center"><div class="doc-title">БАРАА ШИЛЖҮҮЛЭЛТИЙН БАРИМТ № ${trDocNum}</div></div>
-      <div style="font-size:7.5pt;color:#444;flex-shrink:0;text-align:right">${dn}</div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0">${dn}</div>
     </div>
-    <div style="border-top:1.5pt solid #000;margin-bottom:2.5mm"></div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:2mm"></div>
     <div class="two-col">
       <div class="col-box">
         <div class="col-title">Шилжүүлэгч</div>
@@ -2942,85 +2978,20 @@ window.openTransferReceipt = id => {
       </div>
     </div>
     <table class="doc-table">
-      <colgroup><col style="width:5%"><col style="width:38%"><col style="width:15%"><col style="width:13%"><col style="width:8%"><col style="width:21%"></colgroup>
-      <thead><tr><th class="c">№</th><th>Барааны нэр</th><th class="c">Барааны код</th><th class="c">Тоо ш</th><th class="c">Нэгж</th><th>Тайлбар</th></tr></thead>
+      <colgroup><col style="width:30%"><col style="width:12%"><col style="width:16%"><col style="width:10%"><col style="width:8%"><col style="width:24%"></colgroup>
+      <thead><tr><th>Барааны нэр</th><th class="c">Барааны код</th><th class="c">Баркод</th><th class="c">Тоо ш</th><th class="c">Нэгж</th><th>Тайлбар</th></tr></thead>
       <tbody>${rows}</tbody>
       <tfoot><tr class="total-row"><td colspan="3" class="r">Нийт:</td><td class="c"><b>${totalQty} ш</b></td><td colspan="2"></td></tr></tfoot>
     </table>
-    ${tr.note?`<div style="font-size:7.5pt;color:#444;margin-bottom:2.5mm">Тэмдэглэл: ${tr.note}</div>`:''}
+    ${tr.note?`<div style="font-size:7pt;color:#444;margin-bottom:1.5mm">Тэмдэглэл: ${tr.note}</div>`:''}
     <div class="sign-row" style="grid-template-columns:1fr 1fr">
       <div><div class="sign-title">Шилжүүлэгч</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
       <div><div class="sign-title">Хүлээн авсан</div><div class="sign-line">Нэр:<br><br>Гарын үсэг:</div></div>
     </div>
-    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span></div>
-  </div></body></html>`);
+    <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: ${userLabel}</span><span>Femmora Cusion</span></div>
+  </div><div class="a4-bottom"></div></div></body></html>`);
   win.document.close();
 };
-
-// ─── НЭГДСЭН HELPER ФУНКЦУУД ─────────────────────────────────────────────────
-
-// Сүүлийн дууссан сарын огноо
-function getLastMonthRange() {
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth(); // m = 0-based
-  const lastM = m === 0 ? 12 : m;
-  const lastY = m === 0 ? y - 1 : y;
-  const from = `${lastY}-${String(lastM).padStart(2,'0')}-01`;
-  const lastDay = new Date(lastY, lastM, 0).getDate();
-  const to = `${lastY}-${String(lastM).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-  return { from, to };
-}
-
-// Огнооны шүүлт эхлүүлэх
-function initDateRange(fromId, toId) {
-  const { from, to } = getLastMonthRange();
-  const fEl = document.getElementById(fromId);
-  const tEl = document.getElementById(toId);
-  if(fEl && !fEl.value) fEl.value = from;
-  if(tEl && !tEl.value) tEl.value = to;
-}
-
-// Огнооны шүүлтийг сүүлийн саруудад буцаах
-function clearToLastMonth(fromId, toId) {
-  const { from, to } = getLastMonthRange();
-  const fEl = document.getElementById(fromId);
-  const tEl = document.getElementById(toId);
-  if(fEl) fEl.value = from;
-  if(tEl) tEl.value = to;
-}
-
-// Баримтын дугаар унших helper
-function getDocNumDisplay(doc) {
-  if(!doc) return '—';
-  const num = doc.docNumber || doc.number || doc.legacyNumber || doc.trNum;
-  if(num && !String(num).includes('?') && num !== 'null' && num !== 'undefined') return num;
-  return doc.id ? 'Дугааргүй хуучин баримт' : '—';
-}
-
-// Үндсэн банкны данс авах
-function getDefaultBank(currency) {
-  currency = currency || 'MNT';
-  return bankAccounts.find(a => a.active !== false && a.isDefault && (a.currency || 'MNT') === currency)
-      || bankAccounts.find(a => a.active !== false && (a.currency || 'MNT') === currency)
-      || null;
-}
-
-// Банкны данс үндсэн болгох
-window.setDefaultBank = async (id) => {
-  if(!canEdit()) { alert('Таны эрх хүрэхгүй байна'); return; }
-  const target = bankAccounts.find(a => a.id === id);
-  if(!target) return;
-  if(target.active === false) { alert('Идэвхгүй дансыг үндсэн данс болгож болохгүй'); return; }
-  try {
-    for(const acc of bankAccounts.filter(a => a.isDefault && a.currency === target.currency && a.id !== id)) {
-      await updateDoc(doc(db, 'bankAccounts', acc.id), { isDefault: false });
-    }
-    await updateDoc(doc(db, 'bankAccounts', id), { isDefault: true });
-    alert('Үндсэн данс тохируулагдлаа!');
-  } catch(e) { alert('Алдаа: ' + e.message); }
-};
-
-
 
 // ─── БОРЛУУЛАЛТ ЗАСАХ (БҮРЭН) ───────────────────────────────────────────────
 let esItems = [];
