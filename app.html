@@ -242,7 +242,9 @@ tbody tr:hover td{background:var(--sur2)}
       <button class="add-row-btn" onclick="addSaleRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
       <div id="s-prev" style="display:none" class="prev-box">
         <div class="prev-row"><span>Нийт тоо</span><span id="pv-qty"></span></div>
-        <div class="prev-row"><span>Нийт дүн</span><span id="pv-tot"></span></div>
+        <div class="prev-row"><span>Барааны нийт дүн</span><span id="pv-subtotal"></span></div>
+        <div class="prev-row" id="pv-disc-row" style="display:none;color:var(--gr)"><span>Нийт хөнгөлөлт</span><span id="pv-disc" style="color:var(--gr)"></span></div>
+        <div class="prev-row" style="font-weight:700"><span>Төлөх нийт дүн</span><span id="pv-tot" style="color:var(--pu)"></span></div>
         <div class="prev-row"><span>Төлсөн</span><span id="pv-paid"></span></div>
         <div class="prev-row total"><span>Авлага</span><span id="pv-recv"></span></div>
       </div>
@@ -514,6 +516,7 @@ tbody tr:hover td{background:var(--sur2)}
         <div class="fl"><label>Нэр</label><input type="text" id="p-name" placeholder="Cusion пудр"></div>
         <div class="fl"><label>Хувилбар / Өнгө</label><input type="text" id="p-var"></div>
         <div class="fl"><label>SKU</label><input type="text" id="p-sku"></div>
+        <div class="fl"><label>Баркод</label><input type="text" id="p-barcode" placeholder="1234567890123" maxlength="20" style="font-family:monospace"></div>
       </div>
       <div class="fg">
         <div class="fl"><label>Борлуулалтын үнэ (₮)</label><input type="number" id="p-price"></div>
@@ -695,27 +698,24 @@ tbody tr:hover td{background:var(--sur2)}
 
 
 <!-- EDIT SALE MODAL -->
-<div class="modal-ov" id="edit-sale-modal">
-  <div class="modal modal-lg">
+<div class="modal-ov" id="edit-sale-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
+  <div class="modal" style="max-width:860px;width:100%;margin:auto">
     <div class="mh">
-      <span><i class="ti ti-edit" style="margin-right:6px"></i>Борлуулалт засах</span>
+      <span><i class="ti ti-edit" style="margin-right:6px"></i>Борлуулалт засах — <span id="es-docnum" style="font-family:monospace;font-size:13px;color:var(--pu)"></span></span>
       <button class="btn bg bxs" onclick="closeModal('edit-sale-modal')"><i class="ti ti-x"></i></button>
     </div>
-    <div class="cb" style="padding:16px">
-      <div class="fg">
-        <div class="fl"><label>Огноо</label><input type="date" id="es-date"></div>
+    <div style="padding:16px 20px">
+      <!-- Үндсэн мэдээлэл -->
+      <div class="fg" style="margin-bottom:12px">
+        <div class="fl"><label>Борлуулалтын огноо</label><input type="date" id="es-date"></div>
         <div class="fl"><label>Харилцагч</label>
-          <select id="es-cust" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)">
-            <option value="">-- Сонгох --</option>
-          </select>
+          <select id="es-cust" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)"><option value="">-- Сонгох --</option></select>
         </div>
         <div class="fl"><label>Байршил</label>
-          <select id="es-loc" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)">
-            <option value="">-- Сонгох --</option>
-          </select>
+          <select id="es-loc" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)"><option value="">-- Сонгох --</option></select>
         </div>
         <div class="fl"><label>Төлбөрийн төрөл</label>
-          <select id="es-pay-type" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)">
+          <select id="es-pay-type" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)" onchange="esPayTypeChange()">
             <option value="cash">Бэлэн</option>
             <option value="transfer">Дансаар</option>
             <option value="credit">Зээл</option>
@@ -723,20 +723,45 @@ tbody tr:hover td{background:var(--sur2)}
           </select>
         </div>
       </div>
-      <div class="fl" style="margin-bottom:12px"><label>Тэмдэглэл</label><input type="text" id="es-note"></div>
-      <!-- Барааны мэдээлэл (зөвхөн харах) -->
-      <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Барааны мэдээлэл</div>
-      <div id="es-items" class="cb np" style="background:var(--sur2);border-radius:var(--r);padding:10px;margin-bottom:12px;font-size:12px"></div>
-      <!-- Төлбөрийн мэдээлэл -->
-      <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px">Төлбөрийн мэдээлэл</div>
-      <div class="fg">
-        <div class="fl"><label>Нийт дүн</label><input type="number" id="es-total" readonly style="background:var(--sur2);color:var(--tx2)"></div>
-        <div class="fl"><label>Төлсөн дүн</label><input type="number" id="es-paid" min="0"></div>
+      <div class="fl" style="margin-bottom:14px"><label>Тайлбар</label><input type="text" id="es-note" placeholder="Тайлбар оруулна уу"></div>
+      <!-- Барааны мөрүүд -->
+      <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Барааны мэдээлэл</div>
+      <div style="overflow-x:auto;margin-bottom:6px">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px">
+          <thead>
+            <tr style="background:var(--sur2)">
+              <th style="padding:7px 8px;border:1px solid var(--bd);text-align:left;width:28%">Бараа</th>
+              <th style="padding:7px 8px;border:1px solid var(--bd);text-align:center;width:9%">Тоо ш</th>
+              <th style="padding:7px 8px;border:1px solid var(--bd);text-align:right;width:13%">Нэгж үнэ ₮</th>
+              <th style="padding:7px 8px;border:1px solid var(--bd);text-align:center;width:14%">Хөнгөлөлтийн төрөл</th>
+              <th style="padding:7px 8px;border:1px solid var(--bd);text-align:right;width:10%">Хөнгөлөлт</th>
+              <th style="padding:7px 8px;border:1px solid var(--bd);text-align:right;width:14%">Нийт ₮</th>
+              <th style="padding:7px 8px;border:1px solid var(--bd);width:36px"></th>
+            </tr>
+          </thead>
+          <tbody id="es-rows"></tbody>
+        </table>
+      </div>
+      <button class="btn bg bxs" onclick="addESRow()" style="margin-bottom:14px;font-size:12px"><i class="ti ti-plus"></i>Бараа нэмэх</button>
+      <!-- Нийт тооцоо -->
+      <div style="background:var(--sur2);border-radius:var(--r);padding:12px 16px;margin-bottom:14px">
+        <div style="display:flex;justify-content:flex-end;align-items:center;gap:16px;margin-bottom:10px;flex-wrap:wrap">
+          <span style="font-size:13px;color:var(--tx2)">Нийт дүн:</span>
+          <span id="es-total-display" style="font-size:18px;font-weight:800;color:var(--pu)">0 ₮</span>
+        </div>
+        <div class="fg">
+          <div class="fl"><label>Төлсөн дүн ₮</label>
+            <input type="number" id="es-paid" min="0" oninput="updateESBalance()" style="font-size:14px;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r)">
+          </div>
+          <div class="fl"><label>Авлага (үлдэгдэл) ₮</label>
+            <input type="number" id="es-recv" readonly style="background:var(--aml);color:var(--am);font-weight:700;font-size:14px;padding:8px 10px;border:1px solid var(--bd);border-radius:var(--r)">
+          </div>
+        </div>
       </div>
       <input type="hidden" id="es-id">
-      <div style="display:flex;gap:8px;margin-top:12px">
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn bp" onclick="saveEditSale()"><i class="ti ti-check"></i>Хадгалах</button>
-        <button class="btn bg" onclick="closeModal('edit-sale-modal')">Цуцлах</button>
+        <button class="btn bg" onclick="closeModal('edit-sale-modal')"><i class="ti ti-x"></i>Цуцлах</button>
       </div>
     </div>
   </div>
@@ -1010,15 +1035,44 @@ function populateSels(){
 let saleRowIdx = 0;
 function saleRowHtml(idx){
   const po = products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
-  return `<div class="item-row sale-row" id="sr-${idx}">
-    <div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="onSaleProdChange(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
-    <div class="fl"><label>Нэгж үнэ (₮)</label><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()"></div>
-    <div class="fl"><label>Тоо (ш)</label><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()"></div>
-    <div class="fl"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
-    <div class="row-total" id="rt-${idx}">0₮</div>
+  return `<div class="item-row sale-row" id="sr-${idx}" style="flex-wrap:wrap;gap:6px;align-items:flex-end">
+    <div class="fl" style="min-width:180px;flex:2"><label>Бараa</label><select class="row-prod-sel" onchange="onSaleProdChange(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="fl" style="min-width:90px;flex:1"><label>Нэгж үнэ ₮</label><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()" style="text-align:right"></div>
+    <div class="fl" style="min-width:70px;flex:0.7"><label>Тоо ш</label><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()" style="text-align:center"></div>
+    <div class="fl" style="min-width:100px;flex:0.8"><label>Хөнгөлөлт</label>
+      <div style="display:flex;gap:4px">
+        <select class="row-disc-type" onchange="onDiscTypeChange(${idx})" style="font-size:12px;padding:5px 4px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx);flex-shrink:0">
+          <option value="none">—</option>
+          <option value="percent">%</option>
+          <option value="amount">₮</option>
+        </select>
+        <input type="number" class="row-disc-val" placeholder="0" min="0" oninput="calcSaleTotal()" disabled
+          style="text-align:right;font-size:12px;width:60px;padding:5px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur3)">
+      </div>
+    </div>
+    <div class="fl" style="min-width:80px;flex:0.8"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
+    <div class="fl" style="min-width:90px;flex:0.9;text-align:right"><label>Нийт ₮</label>
+      <div class="row-total" id="rt-${idx}" style="font-weight:700;font-size:14px;color:var(--pu);padding:6px 0">0₮</div>
+    </div>
     <button class="btn bd2 bxs" onclick="removeSaleRow(${idx})" style="align-self:flex-end;margin-bottom:1px"><i class="ti ti-trash"></i></button>
   </div>`;
 }
+window.onDiscTypeChange = (idx) => {
+  const row = document.getElementById('sr-'+idx); if(!row) return;
+  const dt = row.querySelector('.row-disc-type').value;
+  const dv = row.querySelector('.row-disc-val');
+  if(dt === 'none') {
+    dv.disabled = true;
+    dv.value = '';
+    dv.style.background = 'var(--sur3)';
+  } else {
+    dv.disabled = false;
+    dv.value = dv.value || '0';
+    dv.style.background = 'var(--sur)';
+  }
+  calcSaleTotal();
+};
+
 window.addSaleRow = () => { document.getElementById('s-rows').insertAdjacentHTML('beforeend',saleRowHtml(saleRowIdx++)); populateSels(); refreshSaleRows(); };
 window.removeSaleRow = idx => { document.getElementById('sr-'+idx)?.remove(); calcSaleTotal(); };
 window.onSaleProdChange = idx => {
@@ -1038,24 +1092,49 @@ window.refreshSaleRows = () => {
   calcSaleTotal();
 };
 window.calcSaleTotal = () => {
-  let totQ=0, totA=0; const warns=[];
+  let totQ=0, totSubtotal=0, totDiscount=0, totA=0;
+  const warns=[];
   const lid = document.getElementById('s-loc').value;
   document.querySelectorAll('#s-rows .item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel').value;
-    const price=parseInt(row.querySelector('.row-price').value)||0;
+    const price=parseFloat(row.querySelector('.row-price').value)||0;
     const qty=parseInt(row.querySelector('.row-qty').value)||0;
-    const sub=price*qty;
-    const rt=row.querySelector('.row-total'); if(rt) rt.textContent=sub.toLocaleString()+'₮';
-    totQ+=qty; totA+=sub;
+    const dt=row.querySelector('.row-disc-type')?.value||'none';
+    const dv=parseFloat(row.querySelector('.row-disc-val')?.value)||0;
+    const lineSubtotal=price*qty;
+    let discAmt=0;
+    if(dt==='percent'){
+      const pct=Math.min(100,Math.max(0,dv));
+      discAmt=Math.round(lineSubtotal*pct/100);
+    } else if(dt==='amount'){
+      discAmt=Math.min(lineSubtotal,Math.max(0,dv));
+    }
+    const lineTotal=Math.round(lineSubtotal-discAmt);
+    // Store on row element
+    row.dataset.lineSubtotal=lineSubtotal;
+    row.dataset.discAmt=discAmt;
+    row.dataset.lineTotal=lineTotal;
+    row.dataset.discType=dt;
+    row.dataset.discVal=dv;
+    const rt=row.querySelector('.row-total');
+    if(rt){
+      rt.innerHTML=discAmt>0
+        ? `<span style="text-decoration:line-through;font-size:11px;color:var(--tx3)">${lineSubtotal.toLocaleString()}</span><br>${lineTotal.toLocaleString()}₮`
+        : `${lineTotal.toLocaleString()}₮`;
+    }
+    totQ+=qty; totSubtotal+=lineSubtotal; totDiscount+=discAmt; totA+=lineTotal;
     if(pid&&lid&&qty>0){ const avail=gst(pid,lid); if(avail<qty){ const p=products.find(x=>x.id===pid); warns.push(`${p?.variant||'Бараa'}: ${avail}ш байна`); }}
   });
   const method=document.getElementById('s-pay-type')?.value||'cash';
-  const advance=parseInt(document.getElementById('s-advance')?.value)||0;
+  const advance=parseFloat(document.getElementById('s-advance')?.value)||0;
   const paid=(method==='credit')?0:(method==='mixed')?Math.min(advance,totA):totA;
   const recv=totA-paid;
   if(totA>0){
     document.getElementById('s-prev').style.display='block';
     document.getElementById('pv-qty').textContent=totQ+'ш';
+    document.getElementById('pv-subtotal').textContent=fmt(totSubtotal);
+    document.getElementById('pv-disc').textContent=totDiscount>0?'-'+fmt(totDiscount):'—';
+    document.getElementById('pv-disc-row').style.display=totDiscount>0?'flex':'none';
     document.getElementById('pv-tot').textContent=fmt(totA);
     document.getElementById('pv-paid').textContent=fmt(paid);
     document.getElementById('pv-recv').textContent=fmt(recv);
@@ -1104,7 +1183,26 @@ window.submitSale = async () => {
   const totalAmt=rows.reduce((a,r)=>a+r.price*r.qty,0);
   const paid=(method==='credit'||method==='mixed')?Math.min(advance,totalAmt):totalAmt;
   const recv=totalAmt-paid;
-  const items=rows.map(r=>{ const p=products.find(x=>x.id===r.pid); const unitCost=p?.cost||0; return {pid:r.pid,label:`${p?.name}·${p?.variant}`,price:r.price,qty:r.qty,sub:r.price*r.qty,unitCost,costAmount:unitCost*r.qty}; });
+  const items=rows.map(r=>{
+    const p=products.find(x=>x.id===r.pid);
+    const unitCost=p?.cost||0;
+    const lineSubtotal=r.price*r.qty;
+    const discountAmount=r.discAmt||0;
+    const lineTotal=lineSubtotal-discountAmount;
+    return {
+      pid:r.pid,
+      label:`${p?.name}·${p?.variant}`,
+      price:r.price,qty:r.qty,
+      discountType:r.discType||'none',
+      discountValue:r.discVal||0,
+      discountPercent:r.discType==='percent'?r.discVal:0,
+      discountAmount:Math.round(discountAmount),
+      lineSubtotal:Math.round(lineSubtotal),
+      lineTotal:Math.round(lineTotal),
+      sub:Math.round(lineTotal),
+      unitCost,costAmount:Math.round(unitCost*r.qty)
+    };
+  });
   try {
     const docNum = await getNextDocNum('sale');
     const payType = document.getElementById('s-pay-type')?.value||'cash';
@@ -1321,11 +1419,28 @@ window.delCustomer = async id => { if(!confirm('Устгах уу?'))return; awa
 // ─── PRODUCTS ────────────────────────────────────────────────────────────────
 window.addProduct = async () => {
   if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
-  const name=document.getElementById('p-name').value.trim(), variant=document.getElementById('p-var').value.trim();
+  const name=document.getElementById('p-name').value.trim();
+  const variant=document.getElementById('p-variant').value.trim();
+  const sku=document.getElementById('p-sku').value.trim();
+  const barcode=document.getElementById('p-barcode')?.value.trim()||'';
   if(!name||!variant){alert('Нэр болон хувилбар оруулна уу');return;}
-  await addDoc(collection(db,'products'),{name,variant,sku:document.getElementById('p-sku').value.trim(),price:parseInt(document.getElementById('p-price').value)||0,cost:parseInt(document.getElementById('p-cost').value)||0,color:document.getElementById('p-color').value,note:document.getElementById('p-note').value.trim(),createdAt:serverTimestamp()});
-  ['p-name','p-var','p-sku','p-price','p-cost','p-note'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('p-color').value='#D2A679';
+  // Баркод давхардах шалгалт
+  if(barcode && products.some(p=>p.barcode&&p.barcode===barcode)){
+    alert(`Тэр баркод (${barcode}) аль хэдийн бүртгэгдсэн байна!\nБараа: ${products.find(p=>p.barcode===barcode)?.name||'—'}`);
+    return;
+  }
+  await addDoc(collection(db,'products'),{
+    name,variant,sku,barcode,
+    price:parseInt(document.getElementById('p-price').value)||0,
+    cost:parseInt(document.getElementById('p-cost').value)||0,
+    color:document.getElementById('p-color').value,
+    note:document.getElementById('p-note').value.trim(),
+    createdBy:currentUser.email,createdAt:serverTimestamp()
+  });
+  ['p-name','p-variant','p-sku','p-barcode','p-price','p-cost','p-note'].forEach(id=>{
+    const el=document.getElementById(id);if(el)el.value='';
+  });
+  document.getElementById('p-color').value='#534AB7';
 };
 window.delProduct = async id => { if(!confirm('Устгах уу?'))return; await deleteDoc(doc(db,'products',id)); };
 
@@ -1555,8 +1670,32 @@ window.renderCustomers = () => {
 
 window.renderProducts = () => {
   const tbody=document.getElementById('p-tbody'); if(!tbody) return;
-  tbody.innerHTML=products.length===0?'<tr><td colspan="8"><div class="empty"><i class="ti ti-box"></i>Бараa байхгүй</div></td></tr>':
-    products.map(p=>`<tr><td><span style="display:inline-block;width:16px;height:16px;border-radius:50%;background:${p.color};border:1px solid var(--bd)"></span></td><td style="font-weight:500">${p.name}</td><td>${p.variant}</td><td style="font-size:11px;color:var(--tx3);font-family:monospace">${p.sku||'—'}</td><td style="font-weight:500">${fmt(p.price)}</td><td style="color:var(--tx2)">${p.cost?fmt(p.cost):'—'}</td><td><span class="ba ${totByProd(p.id)<=5?'bre':totByProd(p.id)<=20?'bam2':'bgr'}">${totByProd(p.id)}ш</span></td><td>${canEdit()?`<button class="btn bd2 bxs" onclick="delProduct('${p.id}')"><i class="ti ti-trash"></i></button>`:''}</td></tr>`).join('');
+  const q=(document.getElementById('p-search')?.value||'').toLowerCase().trim();
+  let list=products;
+  if(q) list=list.filter(p=>
+    (p.name||'').toLowerCase().includes(q)||
+    (p.variant||'').toLowerCase().includes(q)||
+    (p.sku||'').toLowerCase().includes(q)||
+    (p.barcode||'').toLowerCase().includes(q)
+  );
+  if(list.length===0){
+    tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><i class="ti ti-box"></i>${q?'Хайлтын үр дүн олдсонгүй':'Бараа байхгүй'}</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML=list.map(p=>`<tr>
+    <td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${p.color||'#ccc'};border:1px solid var(--bd)"></span></td>
+    <td style="font-weight:500">${p.name}</td>
+    <td>${p.variant}</td>
+    <td style="font-size:11px;color:var(--tx2);font-family:monospace">${p.sku||'—'}</td>
+    <td style="font-size:11px;color:var(--tx2);font-family:monospace">${p.barcode||'—'}</td>
+    <td style="font-weight:500">${fmt(p.price)}</td>
+    <td style="color:var(--tx3)">${fmt(p.cost||0)}</td>
+    <td style="font-size:11px;color:var(--tx3)">${p.note||'—'}</td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="editProduct('${p.id}')"><i class="ti ti-edit"></i></button>
+      ${canEdit()?`<button class="btn bd2 bxs" onclick="deleteProduct('${p.id}')"><i class="ti ti-trash"></i></button>`:''}
+    </td>
+  </tr>`).join('');
 };
 
 window.renderLocations = () => {
@@ -1617,15 +1756,26 @@ window.openInvoice = id => {
   const defBank=getDefaultBank('MNT')||{};
   const rows=(sale.items||[]).map((it,i)=>{
     const p=products.find(x=>x.id===it.pid)||{};
+    const discDisplay = it.discountType==='percent'&&it.discountValue
+      ? it.discountValue+'%'
+      : it.discountType==='amount'&&it.discountAmount
+      ? it.discountAmount.toLocaleString()+'₮'
+      : (it.discType==='percent'&&it.discVal ? it.discVal+'%'
+         : it.discType==='amount'&&it.discVal ? it.discVal.toLocaleString()+'₮' : '—');
+    const lineTotal = it.lineTotal||it.sub||0;
+    const lineSubtotal = it.lineSubtotal||(it.price*it.qty)||0;
     return `<tr>
-      <td class="c" style="width:5%">${i+1}</td>
-      <td style="width:36%">${(it.label||'').replace('·',' ')}</td>
-      <td class="c" style="width:12%">${p.sku||p.code||'—'}</td>
-      <td class="r" style="width:14%">${it.price.toLocaleString()}</td>
-      <td class="c" style="width:10%">${it.qty}</td>
-      <td class="r" style="width:23%;font-weight:700">${it.sub.toLocaleString()} ₮</td>
+      <td style="width:32%">${(it.label||'').replace('·',' ')}</td>
+      <td class="c" style="width:11%">${p.sku||p.code||'—'}</td>
+      <td class="c" style="width:8%">${it.qty}</td>
+      <td class="r" style="width:14%">${(it.price||0).toLocaleString()}</td>
+      <td class="c" style="width:12%;color:${discDisplay!=='—'?'#080':'#999'}">${discDisplay}</td>
+      <td class="r" style="width:23%;font-weight:700">${lineTotal.toLocaleString()} ₮</td>
     </tr>`;
   }).join('');
+  const totSubtotal = (sale.items||[]).reduce((a,it)=>a+(it.lineSubtotal||it.price*it.qty||0),0);
+  const totDiscount = (sale.items||[]).reduce((a,it)=>a+(it.discountAmount||0),0);
+  const totFinal = sale.total||0;
   const win=window.open('','_blank'); if(!win) return;
   win.document.write(`<!DOCTYPE html><html lang="mn"><head>
   <meta charset="UTF-8"><title>Борлуулалтын баримт</title>
@@ -1700,13 +1850,18 @@ window.openInvoice = id => {
     </div>
     <table class="doc-table">
       <colgroup><col style="width:5%"><col style="width:36%"><col style="width:12%"><col style="width:14%"><col style="width:10%"><col style="width:23%"></colgroup>
+      <colgroup>
+        <col style="width:30%"><col style="width:11%"><col style="width:8%">
+        <col style="width:14%"><col style="width:12%"><col style="width:25%">
+      </colgroup>
       <thead><tr>
-        <th class="c">№</th><th>Барааны нэр</th><th class="c">Барааны код</th>
-        <th class="r">Нэгж үнэ</th><th class="c">Тоо ш</th><th class="r">Нийт дүн</th>
+        <th>Барааны нэр</th><th class="c">Барааны код</th><th class="c">Тоо ш</th>
+        <th class="r">Нэгж үнэ</th><th class="c">Хөнгөлөлт</th><th class="r">Нийт дүн</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        <tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Нийт дүн:</td><td class="r" style="font-size:9.5pt">${sale.total.toLocaleString()} ₮</td></tr>
+        ${totDiscount>0?`<tr style="font-size:8pt;background:#fafafa"><td colspan="5" class="r" style="color:#666;padding:1.5mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1.5mm 2mm">${totSubtotal.toLocaleString()} ₮</td></tr><tr style="font-size:8pt;background:#f0fff0"><td colspan="5" class="r" style="color:#080;padding:1.5mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1.5mm 2mm">-${totDiscount.toLocaleString()} ₮</td></tr>`:''}
+        <tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Төлөх нийт дүн:</td><td class="r" style="font-size:9.5pt">${totFinal.toLocaleString()} ₮</td></tr>
         <tr class="meta-row"><td colspan="5" class="r">Төлбөрийн төрөл:</td><td style="font-weight:700">${payLabel}</td></tr>
         <tr class="meta-row"><td colspan="5" class="r">Төлсөн дүн:</td><td class="r" style="font-weight:700">${sale.paid.toLocaleString()} ₮</td></tr>
         <tr class="meta-row"><td colspan="5" class="r">Үлдэгдэл:</td><td class="r" style="font-weight:700">${sale.recv.toLocaleString()} ₮</td></tr>
@@ -2622,14 +2777,27 @@ window.openNHInvoice = id => {
   const printDate=new Date().toLocaleDateString('mn-MN');
   const nhNum=sale.nhDocNumber||getDocNumDisplay(sale).replace(/^BB/,'NH');
   const defBank=getDefaultBank('MNT')||{};
-  const rows=(sale.items||[]).map((it,i)=>`<tr>
-    <td class="c" style="width:5%">${i+1}</td>
-    <td style="width:38%">${(it.label||'').replace('·',' ')}</td>
-    <td class="c" style="width:11%">${it.qty}</td>
-    <td class="r" style="width:15%">${it.price.toLocaleString()}</td>
-    <td class="c" style="width:8%">—</td>
-    <td class="r" style="width:23%;font-weight:700">${it.sub.toLocaleString()} ₮</td>
-  </tr>`).join('');
+  const discDisplayFn = it => it.discountType==='percent'&&it.discountValue
+    ? it.discountValue+'%'
+    : it.discountType==='amount'&&it.discountAmount
+    ? it.discountAmount.toLocaleString()+'₮'
+    : (it.discType==='percent'&&it.discVal ? it.discVal+'%'
+       : it.discType==='amount'&&it.discVal ? it.discVal.toLocaleString()+'₮' : '—');
+  const rows=(sale.items||[]).map((it,i)=>{
+    const lineTotal=it.lineTotal||it.sub||0;
+    const dd=discDisplayFn(it);
+    return `<tr>
+      <td style="width:30%">${(it.label||'').replace('·',' ')}</td>
+      <td class="c" style="width:11%">${it.qty}</td>
+      <td class="r" style="width:14%">${(it.price||0).toLocaleString()}</td>
+      <td class="c" style="width:12%;color:${dd!=='—'?'#080':'#999'}">${dd}</td>
+      <td class="c" style="width:8%">—</td>
+      <td class="r" style="width:25%;font-weight:700">${lineTotal.toLocaleString()} ₮</td>
+    </tr>`;
+  }).join('');
+  const nhTotSubtotal=(sale.items||[]).reduce((a,it)=>a+(it.lineSubtotal||it.price*it.qty||0),0);
+  const nhTotDiscount=(sale.items||[]).reduce((a,it)=>a+(it.discountAmount||0),0);
+  const nhTotFinal=sale.total||0;
   const win=window.open('','_blank'); if(!win) return;
   win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Нэхэмжлэл</title><style>
       *{box-sizing:border-box;margin:0;padding:0}
@@ -2686,9 +2854,19 @@ window.openNHInvoice = id => {
     </div>
     <table class="doc-table">
       <colgroup><col style="width:5%"><col style="width:38%"><col style="width:11%"><col style="width:15%"><col style="width:8%"><col style="width:23%"></colgroup>
-      <thead><tr><th class="c">№</th><th>Гүйлгээний утга</th><th class="c">Тоо ш</th><th class="r">Нэгж үнэ</th><th class="c">Хорогдол</th><th class="r">Нийт дүн</th></tr></thead>
+      <colgroup>
+        <col style="width:30%"><col style="width:11%"><col style="width:14%">
+        <col style="width:12%"><col style="width:8%"><col style="width:25%">
+      </colgroup>
+      <thead><tr>
+        <th>Гүйлгээний утга</th><th class="c">Тоо ш</th><th class="r">Нэгж үнэ</th>
+        <th class="c">Хөнгөлөлт</th><th class="c">Хорогдол</th><th class="r">Нийт дүн</th>
+      </tr></thead>
       <tbody>${rows}</tbody>
-      <tfoot><tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Нийт нэхэмжлэх дүн:</td><td class="r" style="font-size:9.5pt">${sale.total.toLocaleString()} ₮</td></tr></tfoot>
+      <tfoot>
+        ${nhTotDiscount>0?`<tr style="font-size:8pt;background:#fafafa"><td colspan="5" class="r" style="color:#666;padding:1.5mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1.5mm 2mm">${nhTotSubtotal.toLocaleString()} ₮</td></tr><tr style="font-size:8pt;background:#f0fff0"><td colspan="5" class="r" style="color:#080;padding:1.5mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1.5mm 2mm">-${nhTotDiscount.toLocaleString()} ₮</td></tr>`:''}
+        <tr class="total-row"><td colspan="5" class="r" style="font-size:9.5pt">Нийт нэхэмжлэх дүн:</td><td class="r" style="font-size:9.5pt">${nhTotFinal.toLocaleString()} ₮</td></tr>
+      </tfoot>
     </table>
     <div class="amount-words">Дүн үсгээр: ${numToWords(sale.total)}</div>
     <div style="font-size:7.5pt;color:#444;margin-bottom:2.5mm">Нэхэмжлэлийн нөхцөл: Нэхэмжлэл хүлээн авснаас хойш 14 хоногт төлнө үү.</div>
@@ -2843,77 +3021,246 @@ window.setDefaultBank = async (id) => {
 };
 
 
+
+// ─── БОРЛУУЛАЛТ ЗАСАХ (БҮРЭН) ───────────────────────────────────────────────
+let esItems = [];
+let esOrigSale = null;
+
 window.openEditSale = (id) => {
   const sale = sales.find(s => s.id === id);
-  if(!sale) return;
-  // Populate edit modal
+  if(!sale) { alert('Борлуулалт олдсонгүй'); return; }
+  esOrigSale = sale;
   document.getElementById('es-id').value = id;
+  document.getElementById('es-docnum').textContent = sale.docNumber || id.slice(-6).toUpperCase();
   document.getElementById('es-date').value = sale.date || today();
   document.getElementById('es-note').value = sale.note || '';
-  document.getElementById('es-total').value = sale.total || 0;
-  document.getElementById('es-paid').value = sale.paid || 0;
-  // Pay type
+  // Харилцагч
+  const cs = document.getElementById('es-cust');
+  cs.innerHTML = '<option value="">-- Сонгох --</option>' +
+    customers.map(c => `<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');
+  cs.value = sale.customerId || '';
+  // Байршил
+  const ls = document.getElementById('es-loc');
+  ls.innerHTML = '<option value="">-- Сонгох --</option>' +
+    locations.map(l => `<option value="${l.id}">${l.name}</option>`).join('');
+  ls.value = sale.locationId || '';
+  // Төлбөрийн төрөл
   const pt = document.getElementById('es-pay-type');
   if(pt) pt.value = sale.paymentType || sale.payType || sale.method || 'cash';
-  // Customer select
-  const cs = document.getElementById('es-cust');
-  cs.innerHTML = '<option value="">-- Сонгох --</option>' + customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-  cs.value = sale.customerId || '';
-  // Location select
-  const ls = document.getElementById('es-loc');
-  ls.innerHTML = '<option value="">-- Сонгох --</option>' + locations.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
-  ls.value = sale.locationId || '';
-  // Items display
-  const itemsEl = document.getElementById('es-items');
-  itemsEl.innerHTML = (sale.items||[]).map((it,i)=>`
-    <div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--bd)">
-      <span>${i+1}. ${it.label?.replace('·',' ')}</span>
-      <span>${it.qty}ш × ${it.price?.toLocaleString()}₮ = <b>${it.sub?.toLocaleString()}₮</b></span>
-    </div>`).join('') || '<div style="color:var(--tx3)">Бараа байхгүй</div>';
+  // Барааны мөрүүд — хөнгөлөлтийн мэдээлэл оруулах
+  esItems = (sale.items || []).map(it => ({
+    pid: it.pid || '',
+    label: it.label || '',
+    price: it.price || 0,
+    qty: it.qty || 1,
+    discType: it.discType || 'none',
+    discVal: it.discVal || 0,
+    sub: it.sub || 0,
+    unitCost: it.unitCost || 0,
+    costAmount: it.costAmount || 0
+  }));
+  // sub дахин тооцоолох
+  esItems.forEach(it => { it.sub = calcESSub(it); });
+  renderESRows();
+  // Төлбөр
+  document.getElementById('es-paid').value = sale.paid || 0;
+  updateESBalance();
   openModal('edit-sale-modal');
 };
 
+function calcESSub(it) {
+  const base = (it.price || 0) * (it.qty || 1);
+  if(it.discType === 'pct') return Math.round(base * (1 - (it.discVal||0)/100));
+  if(it.discType === 'amt') return Math.max(0, Math.round(base - (it.discVal||0)));
+  return Math.round(base);
+}
+
+function renderESRows() {
+  const tbody = document.getElementById('es-rows');
+  if(!tbody) return;
+  tbody.innerHTML = esItems.map((it, i) => {
+    const prodOpts = products.map(p =>
+      `<option value="${p.id}" ${p.id===it.pid?'selected':''}>${p.name}·${p.variant}</option>`
+    ).join('');
+    const sub = calcESSub(it);
+    esItems[i].sub = sub;
+    const discDisplay = it.discType==='percent'&&it.discVal ? it.discVal+'%'
+      : it.discType==='amount'&&it.discVal ? it.discVal.toLocaleString()+'₮' : '—';
+    return `<tr>
+      <td style="padding:4px 6px;border:1px solid var(--bd)">
+        <select onchange="esRowProd(${i},this.value)"
+          style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r)">
+          <option value="">-- Сонгох --</option>${prodOpts}
+        </select>
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bd)">
+        <input type="number" value="${it.qty}" min="1"
+          style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);text-align:center"
+          oninput="esRowUpdate(${i},'qty',this.value)">
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bd)">
+        <input type="number" value="${it.price}" min="0"
+          style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);text-align:right"
+          oninput="esRowUpdate(${i},'price',this.value)">
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bd)">
+        <select onchange="esRowUpdate(${i},'discType',this.value)"
+          style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r)">
+          <option value="none" ${it.discType==='none'||!it.discType?'selected':''}>Хөнгөлөлтгүй</option>
+          <option value="pct" ${it.discType==='pct'?'selected':''}>Хувиар (%)</option>
+          <option value="amt" ${it.discType==='amt'?'selected':''}>Дүнгээр (₮)</option>
+        </select>
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bd)">
+        <input type="number" value="${it.discVal||0}" min="0"
+          style="width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r);text-align:right"
+          oninput="esRowUpdate(${i},'discVal',this.value)"
+          ${!it.discType||it.discType==='none'?'disabled style="background:var(--sur2);width:100%;font-size:12px;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r)"':''}>
+      </td>
+      <td style="padding:4px 6px;border:1px solid var(--bd);text-align:right;font-weight:700;white-space:nowrap;color:var(--pu)">
+        ${sub.toLocaleString()} ₮
+      </td>
+      <td style="padding:4px;border:1px solid var(--bd);text-align:center">
+        <button class="btn bd2 bxs" onclick="esRemoveRow(${i})" style="padding:3px 6px">
+          <i class="ti ti-trash"></i>
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+  updateESTotalDisplay();
+}
+
+window.esRowProd = (i, pid) => {
+  const p = products.find(x => x.id === pid);
+  if(!p) { esItems[i].pid=''; esItems[i].label=''; return; }
+  esItems[i].pid = pid;
+  esItems[i].label = `${p.name}·${p.variant}`;
+  esItems[i].price = p.price || esItems[i].price || 0;
+  esItems[i].unitCost = p.cost || 0;
+  esItems[i].sub = calcESSub(esItems[i]);
+  esItems[i].costAmount = esItems[i].unitCost * esItems[i].qty;
+  renderESRows();
+};
+
+window.esRowUpdate = (i, field, val) => {
+  if(field === 'discType') {
+    esItems[i].discType = val;
+    esItems[i].discVal = 0;
+  } else {
+    esItems[i][field] = parseFloat(val) || 0;
+  }
+  esItems[i].sub = calcESSub(esItems[i]);
+  esItems[i].costAmount = (esItems[i].unitCost || 0) * esItems[i].qty;
+  renderESRows();
+};
+
+window.esRemoveRow = (i) => {
+  esItems.splice(i, 1);
+  renderESRows();
+};
+
+window.addESRow = () => {
+  esItems.push({ pid:'', label:'', price:0, qty:1, discType:'none', discVal:0, sub:0, unitCost:0, costAmount:0 });
+  renderESRows();
+};
+
+function updateESTotalDisplay() {
+  const total = esItems.reduce((a, it) => a + (it.sub || 0), 0);
+  const el = document.getElementById('es-total-display');
+  if(el) el.textContent = Math.round(total).toLocaleString() + ' ₮';
+  updateESBalance();
+}
+
+window.updateESBalance = () => {
+  const total = esItems.reduce((a, it) => a + (it.sub || 0), 0);
+  const paid = parseFloat(document.getElementById('es-paid')?.value) || 0;
+  const recv = Math.max(0, Math.round(total) - paid);
+  const recvEl = document.getElementById('es-recv');
+  if(recvEl) { recvEl.value = recv; }
+};
+
+window.esPayTypeChange = () => {
+  const pt = document.getElementById('es-pay-type')?.value;
+  const total = esItems.reduce((a, it) => a + (it.sub || 0), 0);
+  const paidEl = document.getElementById('es-paid');
+  if(!paidEl) return;
+  if(pt === 'cash' || pt === 'transfer' || pt === 'online') {
+    paidEl.value = Math.round(total);
+  } else if(pt === 'credit') {
+    paidEl.value = 0;
+  }
+  updateESBalance();
+};
+
 window.saveEditSale = async () => {
+  if(!canEdit()) { alert('Таны эрх хүрэхгүй байна'); return; }
   const id = document.getElementById('es-id').value;
   if(!id) return;
-  const sale = sales.find(s=>s.id===id);
+  const sale = sales.find(s => s.id === id);
   if(!sale) return;
-  const newDate = document.getElementById('es-date').value || today();
+  if(esItems.length === 0) { alert('Барааны мөр хоосон байна'); return; }
+  const newDate  = document.getElementById('es-date').value || today();
   const newCustId = document.getElementById('es-cust').value || sale.customerId;
-  const newLocId = document.getElementById('es-loc').value || sale.locationId;
+  const newLocId  = document.getElementById('es-loc').value || sale.locationId;
   const newPayType = document.getElementById('es-pay-type').value || 'cash';
-  const newNote = document.getElementById('es-note').value || '';
-  const newPaid = parseInt(document.getElementById('es-paid').value) || 0;
-  const newRecv = Math.max(0, sale.total - newPaid);
-  const newCust = customers.find(c=>c.id===newCustId) || {};
-  const newLoc = locations.find(l=>l.id===newLocId) || {};
+  const newNote   = document.getElementById('es-note').value || '';
+  const newPaid   = Math.round(parseFloat(document.getElementById('es-paid').value) || 0);
+  const newTotal  = Math.round(esItems.reduce((a, it) => a + (it.sub || 0), 0));
+  const newRecv   = Math.max(0, newTotal - newPaid);
+  const newTotalCost = Math.round(esItems.reduce((a, it) => a + (it.costAmount || 0), 0));
+  const newCust   = customers.find(c => c.id === newCustId) || {};
+  const newLoc    = locations.find(l => l.id === newLocId) || {};
+
+  // Нөөц шинэчлэх: хуучин items буцаах → шинэ items хасах
+  const stockChanges = [];
+  (sale.items || []).forEach(it => {
+    if(it.pid && sale.locationId) stockChanges.push({ pid:it.pid, lid:sale.locationId, delta:it.qty });
+  });
+  esItems.forEach(it => {
+    if(it.pid && newLocId) stockChanges.push({ pid:it.pid, lid:newLocId, delta:-it.qty });
+  });
+
+  // Audit log
+  const auditBefore = { total:sale.total, paid:sale.paid, recv:sale.recv, locationId:sale.locationId, customerId:sale.customerId };
+  const auditAfter  = { total:newTotal, paid:newPaid, recv:newRecv, locationId:newLocId, customerId:newCustId };
+
   try {
-    await updateDoc(doc(db,'sales',id),{
-      date: newDate,
+    await updateStock(stockChanges);
+    await updateDoc(doc(db,'sales',id), {
+      date:       newDate,
       customerId: newCustId,
-      customerName: newCust.name || sale.customerName,
-      customerReg: newCust.reg || sale.customerReg || '',
-      customerPhone: newCust.phone || sale.customerPhone || '',
+      customerName:    newCust.name    || sale.customerName    || '',
+      customerCode:    newCust.customerCode || sale.customerCode || '',
+      customerReg:     newCust.reg     || sale.customerReg     || '',
+      customerPhone:   newCust.phone   || sale.customerPhone   || '',
       customerAddress: newCust.address || sale.customerAddress || '',
-      customerCode: newCust.customerCode || sale.customerCode || '',
-      locationId: newLocId,
-      locationName: newLoc.name || sale.locationName,
+      customerEmail:   newCust.email   || sale.customerEmail   || '',
+      locationId:   newLocId,
+      locationName: newLoc.name || sale.locationName || '',
+      items:       esItems.map(it => ({ ...it, sub:Math.round(it.sub) })),
+      total:       newTotal,
+      totalCost:   newTotalCost,
+      paid:        newPaid,
+      recv:        newRecv,
       paymentType: newPayType,
-      payType: newPayType,
-      method: newPayType,
-      note: newNote,
-      paid: newPaid,
-      recv: newRecv,
-      status: newRecv === 0 ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid',
-      updatedAt: serverTimestamp(),
-      updatedBy: currentUser.email
+      payType:     newPayType,
+      method:      newPayType,
+      note:        newNote,
+      status:      newRecv===0 ? 'paid' : newPaid>0 ? 'partial' : 'unpaid',
+      updatedAt:   serverTimestamp(),
+      updatedBy:   currentUser.email,
+      _auditBefore: auditBefore,
+      _auditAfter:  auditAfter
     });
     closeModal('edit-sale-modal');
-    alert('Борлуулалт амжилттай шинэчлэгдлээ!');
+    // Амжилттай хадгалсаны дараа Preview автоматаар нээнэ
+    setTimeout(() => openInvoice(id), 300);
   } catch(e) {
     alert('Алдаа: ' + e.message);
   }
 };
+
+
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 addSaleRow();
 addInRow();
