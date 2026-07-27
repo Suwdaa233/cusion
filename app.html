@@ -596,28 +596,49 @@ tbody tr:hover td{background:var(--sur2)}
   </div>
   <div id="bt-import" class="b-tab" style="display:none">
     <div class="card">
-      <div class="ch"><span class="ct"><i class="ti ti-file-import"></i>Excel/CSV импортлох</span></div>
+      <div class="ch"><span class="ct"><i class="ti ti-file-import"></i>Хаан банкны хуулга импортлох</span></div>
       <div class="cb">
-        <div class="fg"><div class="fl"><label>Банкны данс</label><select id="imp-account"><option value="">-- Данс сонгох --</option></select></div></div>
-        <div style="border:2px dashed var(--bd);border-radius:var(--r);padding:24px;text-align:center;margin-bottom:12px;cursor:pointer;background:var(--sur2)" onclick="document.getElementById('imp-file').click()">
-          <i class="ti ti-upload" style="font-size:28px;color:var(--tx3);display:block;margin-bottom:8px"></i>
-          <p style="font-size:13px;color:var(--tx2)">Excel (.xlsx, .xls) эсвэл CSV файл сонгох</p>
-          <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this)">
+        <div style="background:var(--sur2);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--tx2)">
+          <i class="ti ti-info-circle"></i> Хаан банкны интернет банкнаас татсан <b>Excel (.xlsx)</b> файлыг автоматаар таньж импортолно.
+          Огноо, орлого, зарлага, гүйлгээний утга, харьцсан данс бүгд автоматаар ялгагдана.
         </div>
+        <div class="fg" style="margin-bottom:12px">
+          <div class="fl"><label>Банкны данс <span style="color:var(--re)">*</span></label>
+            <select id="imp-account" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+              <option value="">-- Данс сонгох --</option>
+            </select>
+          </div>
+        </div>
+        <div style="border:2px dashed var(--bd);border-radius:var(--r);padding:28px;text-align:center;margin-bottom:12px;cursor:pointer;background:var(--sur2);transition:.2s" onclick="document.getElementById('imp-file').click()"
+          onmouseover="this.style.borderColor='var(--pu)'" onmouseout="this.style.borderColor='var(--bd)'">
+          <i class="ti ti-upload" style="font-size:32px;color:var(--tx3);display:block;margin-bottom:8px"></i>
+          <p style="font-size:14px;font-weight:600;color:var(--tx)">Excel файл сонгох эсвэл энд чирж оруулна уу</p>
+          <p style="font-size:12px;color:var(--tx3);margin-top:4px">.xlsx, .xls формат · Хаан банкны стандарт хуулга</p>
+          <input type="file" id="imp-file" accept=".xlsx,.xls" style="display:none" onchange="handleImportFile(this)">
+        </div>
+        <!-- Баганын тохиргоо — автомат тодорхойлогдсон тул нуугдсан -->
         <div id="imp-column-map" style="display:none">
-          <div style="font-size:13px;font-weight:600;margin-bottom:10px">Баганын тохиргоо</div>
+          <div style="font-size:12px;color:var(--tx3)">Формат автоматаар таньж чадсангүй. Гараар тохируулна уу:</div>
           <div class="fg" id="imp-map-fields"></div>
-          <button class="btn bp" onclick="previewImport()" style="margin-top:8px"><i class="ti ti-eye"></i>Урьдчилан харах</button>
         </div>
+        <!-- Preview -->
         <div id="imp-preview" style="display:none">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Урьдчилан харах (<span id="imp-count">0</span> мөр) <span id="imp-dup-warn" style="color:var(--am);font-size:12px"></span></div>
-          <div class="tw" style="max-height:280px;overflow-y:auto"><table>
-            <thead><tr><th>#</th><th>Огноо</th><th>Утга</th><th>Орлого</th><th>Зарлага</th><th>Статус</th></tr></thead>
-            <tbody id="imp-preview-tbody"></tbody>
-          </table></div>
-          <div style="margin-top:10px;display:flex;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <div style="font-size:13px;font-weight:600">
+              Урьдчилан харах — <span id="imp-count">0</span> мөр
+            </div>
+            <div id="imp-dup-warn" style="font-size:12px;color:var(--am)"></div>
+          </div>
+          <div class="tw" style="max-height:320px;overflow-y:auto">
+            <table>
+              <thead><tr><th>Огноо</th><th>Гүйлгээний утга</th><th>Орлого ₮</th><th>Зарлага ₮</th><th>Харьцсан данс</th><th>Статус</th></tr></thead>
+              <tbody id="imp-preview-tbody"></tbody>
+            </table>
+          </div>
+          <div style="margin-top:10px;display:flex;gap:8px;align-items:center">
             <button class="btn bp" onclick="submitImport()"><i class="ti ti-check"></i>Хадгалах</button>
             <button class="btn bg" onclick="cancelImport()">Цуцлах</button>
+            <span style="font-size:12px;color:var(--tx3)">Давхардсан мөрүүд автоматаар алгасагдана</span>
           </div>
         </div>
       </div>
@@ -2330,6 +2351,12 @@ window.showBankTab=(name,btn)=>{
   btn.classList.add('on');
   if(name==='transactions'){initDateRange('txn-from','txn-to');renderTransactions();}
   if(name==='links'){initDateRange('lnk-from','lnk-to');renderLinks();}
+  if(name==='import'||name==='paste'){
+    const activeAccs=bankAccounts.filter(a=>a.active!==false);
+    const opts='<option value="">-- Данс сонгох --</option>'+activeAccs.map(a=>`<option value="${a.id}">${a.bankName} — ${a.accountNumber}${a.isDefault?' (Үндсэн)':''}</option>`).join('');
+    const impSel=document.getElementById('imp-account'); if(impSel){impSel.innerHTML=opts; const def=getDefaultBank('MNT'); if(def&&!impSel.value) impSel.value=def.id;}
+    const pasteSel=document.getElementById('paste-account'); if(pasteSel){pasteSel.innerHTML=opts; const def=getDefaultBank('MNT'); if(def&&!pasteSel.value) pasteSel.value=def.id;}
+  }
 };
 
 // ─── BANK ACCOUNTS ────────────────────────────────────────────────────────────
@@ -2362,71 +2389,189 @@ window.toggleBankAcc=async(id,isActive)=>await updateDoc(doc(db,'bankAccounts',i
 window.delBankAcc=async(id)=>{if(!confirm('Устгах уу?'))return;await deleteDoc(doc(db,'bankAccounts',id));};
 
 // ─── IMPORT ───────────────────────────────────────────────────────────────────
-window.handleImportFile=async(input)=>{
-  const file=input.files[0];if(!file)return;
-  const XLSX=await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
-  const reader=new FileReader();
-  reader.onload=(e)=>{
-    try{
-      const wb=XLSX.read(e.target.result,{type:'binary',cellDates:true});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      importData=XLSX.utils.sheet_to_json(ws,{header:1});
-      if(importData.length<2){alert('Хоосон файл байна');return;}
-      showImpMapper(importData[0],'imp');
-    }catch(err){alert('Файл уншихад алдаа: '+err.message);}
-  };
-  reader.readAsBinaryString(file);
-};
-function showImpMapper(headers,prefix){
-  const fields=[{key:'date',label:'Огноо',req:true},{key:'desc',label:'Гүйлгээний утга',req:true},{key:'income',label:'Орлого',req:false},{key:'expense',label:'Зарлага',req:false},{key:'balance',label:'Үлдэгдэл',req:false},{key:'txnNum',label:'Гүйлгээний дугаар',req:false}];
-  const mfEl=document.getElementById(prefix+'-map-fields');if(!mfEl)return;
-  mfEl.innerHTML=fields.map(f=>`<div class="fl"><label>${f.label}${f.req?' *':''}</label><select id="${prefix}-col-${f.key}" style="font-size:12px"><option value="">-- Сонгоогүй --</option>${headers.map((h,i)=>`<option value="${i}">${h}</option>`).join('')}</select></div>`).join('');
-  document.getElementById(prefix+'-column-map').style.display='block';
-}
-window.previewImport=()=>{
-  const accountId=document.getElementById('imp-account').value;
-  if(!accountId){alert('Данс сонгоно уу');return;}
-  const gc=key=>parseInt(document.getElementById('imp-col-'+key)?.value);
-  const rows=importData.slice(1).map((row,i)=>{
-    const dateRaw=row[gc('date')];
-    const dateStr=dateRaw instanceof Date?dateRaw.toISOString().slice(0,10):String(dateRaw||'').slice(0,10);
-    const income=parseFloat(String(row[gc('income')]||'').replace(/,/g,''))||0;
-    const expense=parseFloat(String(row[gc('expense')]||'').replace(/,/g,''))||0;
-    const desc=String(row[gc('desc')]||'');
-    const isDup=bankTxns.some(t=>t.accountId===accountId&&t.date===dateStr&&t.income===income&&t.expense===expense&&t.description===desc);
-    return{idx:i+1,date:dateStr,description:desc,income,expense,balance:parseFloat(String(row[gc('balance')]||'').replace(/,/g,''))||0,txnNum:String(row[gc('txnNum')]||''),isDup,accountId};
-  }).filter(r=>r.date&&r.date.length>=8);
-  importMapped=rows;
-  const dupCount=rows.filter(r=>r.isDup).length;
-  document.getElementById('imp-count').textContent=rows.length;
-  document.getElementById('imp-dup-warn').textContent=dupCount>0?`⚠ ${dupCount} давхардсан мөр`:'';
-  document.getElementById('imp-preview-tbody').innerHTML=rows.map(r=>`<tr style="${r.isDup?'background:var(--aml)':''}"><td>${r.idx}</td><td>${r.date}</td><td style="font-size:11px">${r.description.slice(0,40)}</td><td style="color:var(--gr)">${r.income?fmt(r.income):''}</td><td style="color:var(--re)">${r.expense?fmt(r.expense):''}</td><td>${r.isDup?'<span class="ba bam2">Давхардсан</span>':'<span class="ba bgr">Шинэ</span>'}</td></tr>`).join('');
-  document.getElementById('imp-preview').style.display='block';
-};
-window.submitImport=async()=>{
-  const newRows=importMapped.filter(r=>!r.isDup);
-  if(!newRows.length){alert('Хадгалах шинэ мөр байхгүй');return;}
-  try{
-    const impDocNum = await getNextDocNum('bankImport');
-    for(const r of newRows)await addDoc(collection(db,'bankTxns'),{docNumber:impDocNum,accountId:r.accountId,date:r.date,description:r.description,income:r.income,expense:r.expense,balance:r.balance,txnNum:r.txnNum,source:'excel',linkedAmount:0,unlinkedAmount:r.income,status:r.income>0?'unlinked':'expense',createdBy:currentUser.email,createdAt:serverTimestamp()});
-    document.getElementById('imp-preview').style.display='none';
-    document.getElementById('imp-column-map').style.display='none';
-    importData=[];importMapped=[];document.getElementById('imp-file').value='';
-    alert(`${newRows.length} мөр амжилттай импортлогдлоо!`);
-  }catch(e){alert('Алдаа: '+e.message);}
-};
-window.cancelImport=()=>{document.getElementById('imp-preview').style.display='none';importData=[];importMapped=[];};
 
-// ─── PASTE ────────────────────────────────────────────────────────────────────
-window.parsePasteData=()=>{
-  const raw=document.getElementById('paste-data').value.trim();
-  if(!raw){alert('Мэдээлэл оруулна уу');return;}
-  const lines=raw.split(/\r?\n/).filter(l=>l.trim());
-  pasteData=lines.map(l=>l.split(l.includes('\t')?'\t':',')).map(r=>r.map(c=>String(c).replace(/^"|"$/g,'').trim()));
-  if(pasteData.length<2){alert('Хамгийн багадаа 2 мөр шаардлагатай');return;}
-  showImpMapper(pasteData[0],'paste');
-  document.getElementById('paste-map').style.display='block';
+// ─── БАНКНЫ ХУУЛГА ИМПОРТ (ХААН БАНК АВТОМАТ) ───────────────────────────────
+// (importData, pasteData нь дээр тодорхойлогдсон)
+
+// Хаан банкны Excel бүтцийг автоматаар таних
+function detectKhanBankFormat(rows) {
+  // R8 = header мөр, R9+ = өгөгдөл
+  // Баганы дараалал: A=огноо, B=салбар, C=эхний үлдэгдэл,
+  //   D=кредит(орлого), E=дебит(зарлага), F=эцсийн үлдэгдэл,
+  //   G=гүйлгээний утга, H=харьцсан данс
+  for(let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    if(!row || !row[0]) continue;
+    const firstCell = String(row[0]).trim();
+    // Header мөрийг олох
+    if(firstCell.includes('Гүйлгээний огноо') || firstCell.includes('огноо')) {
+      return { headerRow: i, dataStart: i + 1, format: 'khan' };
+    }
+  }
+  return null;
+}
+
+// Дүнг цэвэрлэх
+function cleanAmount(val) {
+  if(val === null || val === undefined || val === 0) return 0;
+  const n = parseFloat(String(val).replace(/,/g, '').replace(/\s/g, ''));
+  return isNaN(n) ? 0 : Math.abs(n);
+}
+
+// Огноог цэвэрлэх
+function cleanDate(val) {
+  if(!val) return '';
+  const s = String(val).trim();
+  // 2026-06-01 09:49:07 → 2026-06-01
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
+  // 2026/06/01 → 2026-06-01
+  if(/^\d{4}\/\d{2}\/\d{2}/.test(s)) return s.slice(0, 10).replace(/\//g, '-');
+  return s.slice(0, 10);
+}
+
+window.handleImportFile = async (input) => {
+  const file = input.files[0]; if(!file) return;
+  const accountId = document.getElementById('imp-account')?.value;
+  if(!accountId) { alert('Эхлээд банкны данс сонгоно уу'); input.value=''; return; }
+
+  try {
+    const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: false });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null });
+
+        // Хаан банкны формат автомат таних
+        const fmt = detectKhanBankFormat(rows);
+        if(fmt) {
+          processKhanBankRows(rows, fmt, accountId);
+        } else {
+          // Автомат таниагүй бол хэрэглэгчид мэдэгдэх
+          alert('Хаан банкны хуулгын формат таньж чадсангүй.\nExcel файлын 8-р мөрт "Гүйлгээний огноо" гэсэн гарчиг байх ёстой.');
+        }
+      } catch(err) { alert('Файл уншихад алдаа: ' + err.message); }
+    };
+    reader.readAsBinaryString(file);
+  } catch(err) { alert('XLSX library ачаалахад алдаа: ' + err.message); }
 };
+
+function processKhanBankRows(rows, fmt, accountId) {
+  const dataRows = rows.slice(fmt.dataStart);
+  const result = [];
+
+  for(const row of dataRows) {
+    if(!row || !row[0]) continue; // Хоосон мөр
+    const dateStr = cleanDate(row[0]);
+    if(!dateStr || dateStr.length < 10) continue;
+
+    // Нийт дүн мөрийг алгасах
+    const firstCell = String(row[0] || '').trim();
+    if(firstCell.includes('Нийт дүн') || firstCell.includes('нийт')) continue;
+
+    const credit = cleanAmount(row[3]); // D: Кредит (орлого)
+    const debit  = cleanAmount(row[4]); // E: Дебит (зарлага, сөрөг утгатай)
+    const income  = credit > 0 ? credit : 0;
+    const expense = debit  > 0 ? debit  : 0;
+    const balance = cleanAmount(row[5]); // F: Эцсийн үлдэгдэл
+    const desc    = String(row[6] || '').trim(); // G: Гүйлгээний утга
+    const counter = String(row[7] || '').trim(); // H: Харьцсан данс
+
+    if(income === 0 && expense === 0) continue; // Хөдөлгөөнгүй мөр
+
+    // Давхардах шалгалт
+    const isDup = bankTxns.some(t =>
+      t.accountId === accountId &&
+      t.date === dateStr &&
+      Math.abs(t.income - income) < 1 &&
+      Math.abs(t.expense - expense) < 1 &&
+      t.description === desc
+    );
+
+    result.push({
+      date: dateStr,
+      description: desc,
+      income,
+      expense,
+      balance,
+      counterAccount: counter,
+      source: 'excel_khan',
+      accountId,
+      isDup
+    });
+  }
+
+  importMapped = result;
+  showImportPreview(result);
+}
+
+function showImportPreview(rows) {
+  const total = rows.length;
+  const dupCount = rows.filter(r => r.isDup).length;
+  const newCount = total - dupCount;
+
+  document.getElementById('imp-column-map').style.display = 'none';
+  document.getElementById('imp-count').textContent = total;
+
+  const warnEl = document.getElementById('imp-dup-warn');
+  if(warnEl) warnEl.textContent = dupCount > 0 ? `⚠ ${dupCount} давхардсан (алгасна) · ${newCount} шинэ мөр` : `✅ ${newCount} шинэ мөр`;
+
+  document.getElementById('imp-preview-tbody').innerHTML = rows.map(r => `<tr style="${r.isDup ? 'opacity:0.5;background:var(--sur2)' : ''}">
+    <td style="font-size:11px">${r.date}</td>
+    <td style="font-size:11px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description}</td>
+    <td style="color:var(--gr);font-weight:${r.income?'600':'400'}">${r.income ? fmt(r.income) : ''}</td>
+    <td style="color:var(--re);font-weight:${r.expense?'600':'400'}">${r.expense ? fmt(r.expense) : ''}</td>
+    <td style="font-size:10px;color:var(--tx3)">${r.counterAccount||''}</td>
+    <td>${r.isDup ? '<span class="ba bam2">Давхардсан</span>' : '<span class="ba bgr">Шинэ</span>'}</td>
+  </tr>`).join('');
+
+  document.getElementById('imp-preview').style.display = 'block';
+}
+
+window.submitImport = async () => {
+  const newRows = importMapped.filter(r => !r.isDup);
+  if(!newRows.length) { alert('Хадгалах шинэ мөр байхгүй'); return; }
+  try {
+    const impDocNum = await getNextDocNum('bankImport');
+    for(const r of newRows) {
+      await addDoc(collection(db, 'bankTxns'), {
+        docNumber:      impDocNum,
+        accountId:      r.accountId,
+        date:           r.date,
+        description:    r.description,
+        income:         r.income,
+        expense:        r.expense,
+        balance:        r.balance,
+        counterAccount: r.counterAccount || '',
+        source:         r.source || 'excel_khan',
+        linkedAmount:   0,
+        unlinkedAmount: r.income,
+        status:         r.income > 0 ? 'unlinked' : 'expense',
+        createdBy:      currentUser.email,
+        createdAt:      serverTimestamp()
+      });
+    }
+    // Reset
+    importData = []; importMapped = [];
+    document.getElementById('imp-file').value = '';
+    document.getElementById('imp-preview').style.display = 'none';
+    document.getElementById('imp-column-map').style.display = 'none';
+    alert(`✅ ${newRows.length} мөр амжилттай импортлогдлоо!`);
+    // Switch to transactions tab
+    const txnBtn = document.querySelector('#sec-bank .tb[onclick*="transactions"]');
+    if(txnBtn) txnBtn.click();
+  } catch(e) { alert('Алдаа: ' + e.message); }
+};
+
+window.cancelImport = () => {
+  document.getElementById('imp-preview').style.display = 'none';
+  document.getElementById('imp-column-map').style.display = 'none';
+  importData = []; importMapped = [];
+  const fileEl = document.getElementById('imp-file');
+  if(fileEl) fileEl.value = '';
+};
+
 window.previewPaste=()=>{
   const accountId=document.getElementById('paste-account').value;
   if(!accountId){alert('Данс сонгоно уу');return;}
