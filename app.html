@@ -163,6 +163,8 @@ tbody tr:hover td{background:var(--sur2)}
     <button class="ni" onclick="goSec('bank',this)"><i class="ti ti-building-bank"></i><span>Банкны хуулга</span></button>
     <div class="sb-sec">Тайлан</div>
     <button class="ni" onclick="goSec('report',this)"><i class="ti ti-chart-bar"></i><span>Тайлан</span></button>
+    <div class="sb-sec admin-only" style="display:none">Тохиргоо</div>
+    <button class="ni admin-only" style="display:none" onclick="goSec('users',this)"><i class="ti ti-shield-lock"></i><span>Хэрэглэгчид</span></button>
   </div>
   <div class="user-bar">
     <div class="user-email" id="user-email"></div>
@@ -718,6 +720,83 @@ tbody tr:hover td{background:var(--sur2)}
 </div>
 
 
+  <!-- USERS SECTION -->
+  <div id="sec-users" class="sec" style="display:none">
+    <div class="sh"><span>Хэрэглэгчид</span><span id="users-date" style="font-size:12px;color:var(--tx3)"></span></div>
+    <!-- Шинэ хэрэглэгч нэмэх -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="ch"><span class="ct"><i class="ti ti-user-plus"></i>Хэрэглэгч нэмэх</span></div>
+      <div class="cb">
+        <div class="fg">
+          <div class="fl"><label>И-мэйл хаяг <span style="color:var(--re)">*</span></label>
+            <input type="email" id="u-email" placeholder="example@gmail.com">
+          </div>
+          <div class="fl"><label>Нэр</label>
+            <input type="text" id="u-name" placeholder="Овог нэр">
+          </div>
+          <div class="fl"><label>Нууц үг <span style="color:var(--re)">*</span></label>
+            <input type="password" id="u-pass" placeholder="Хамгийн багадаа 6 тэмдэгт">
+          </div>
+          <div class="fl"><label>Эрхийн түвшин</label>
+            <select id="u-role" style="padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+              <option value="viewer">Viewer — Зөвхөн харах</option>
+              <option value="manager">Manager — Засах боломжтой</option>
+              <option value="admin">Admin — Бүрэн эрх</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn bp" onclick="createUser()"><i class="ti ti-user-plus"></i>Нэмэх</button>
+      </div>
+    </div>
+    <!-- Хэрэглэгчдийн жагсаалт -->
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-users"></i>Хэрэглэгчдийн жагсаалт</span>
+        <button class="btn bg bxs" onclick="loadUsers()"><i class="ti ti-refresh"></i>Шинэчлэх</button>
+      </div>
+      <div class="cb np">
+        <div class="tw">
+          <table>
+            <thead><tr>
+              <th>И-мэйл</th><th>Нэр</th><th>Эрх</th><th>Статус</th><th>Нэмсэн огноо</th><th>Үйлдэл</th>
+            </tr></thead>
+            <tbody id="users-tbody"><tr><td colspan="6"><div class="empty">Хэрэглэгчдийн жагсаалт татаж байна...</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- EDIT USER MODAL -->
+<div class="modal-ov" id="edit-user-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="mh">
+      <span><i class="ti ti-edit"></i> Хэрэглэгч засах</span>
+      <button class="btn bg bxs" onclick="closeModal('edit-user-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div style="margin-bottom:12px;padding:8px 12px;background:var(--sur2);border-radius:var(--r);font-size:13px">
+        <b id="eu-email-display"></b>
+      </div>
+      <div class="fl" style="margin-bottom:12px"><label>Нэр</label><input id="eu-name" type="text"></div>
+      <div class="fl" style="margin-bottom:12px"><label>Эрхийн түвшин</label>
+        <select id="eu-role" style="padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="viewer">Viewer — Зөвхөн харах</option>
+          <option value="manager">Manager — Засах боломжтой</option>
+          <option value="admin">Admin — Бүрэн эрх</option>
+        </select>
+      </div>
+      <div class="fl" style="margin-bottom:12px"><label>Шинэ нууц үг (хоосон бол өөрчлөхгүй)</label>
+        <input id="eu-pass" type="password" placeholder="Шинэ нууц үг оруулах бол...">
+      </div>
+      <input type="hidden" id="eu-uid">
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn bp" onclick="saveEditUser()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('edit-user-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT SALE MODAL -->
 <div class="modal-ov" id="edit-sale-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
   <div class="modal" style="max-width:860px;width:100%;margin:auto">
@@ -1008,7 +1087,7 @@ const db = getFirestore(app);
 const MLABELS={cash:'Бэлнээр',card:'Картаар',transfer:'Дансаар',online:'Онлайн',credit:'Зээлээр',mixed:'Хосолсон'};
 const MBADGE={cash:'bgr2',card:'bbl',transfer:'bpu',online:'bte',credit:'bre',mixed:'bam2'};
 const LTYPES={store:'Дэлгүүр',warehouse:'Агуулах',online:'Онлайн',consign:'Консигнаци',other:'Бусад'};
-const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivable:'Авлага',inventory:'Бараа материал',customers:'Харилцагч',products:'Бараа',locations:'Байршил',bank:'Банкны хуулга',report:'Тайлан'};
+const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivable:'Авлага',inventory:'Бараа материал',customers:'Харилцагч',products:'Бараа',locations:'Байршил',bank:'Банкны хуулга',report:'Тайлан',users:'Хэрэглэгчид'};
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let currentUser = null;
@@ -1236,6 +1315,11 @@ onAuthStateChanged(auth, async user => {
   const roleLabels = { admin:'<span class="ba bpu">Admin</span>', manager:'<span class="ba bgr">Менежер</span>', viewer:'<span class="ba bgr2">Харагч</span>' };
   document.getElementById('user-role-badge').innerHTML = roleLabels[userRole] || '';
 
+  // Admin-д зориулсан nav элементүүд харуулах
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = userRole === 'admin' ? '' : 'none';
+  });
+
   document.getElementById('loading-ov').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
 
@@ -1333,9 +1417,11 @@ function initDates(){
 window.goSec = (name, btn) => {
   document.querySelectorAll('.sec').forEach(s=>s.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
-  document.getElementById('sec-'+name).classList.add('on');
+  const secEl = document.getElementById('sec-'+name);
+  if(secEl) secEl.classList.add('on');
   if(btn) btn.classList.add('on');
   document.getElementById('sec-title').textContent = MTITLES[name]||name;
+  if(name === 'users') loadUsers();
 };
   // showRTab defined below with full tab support
 window.showInvTab = (name, btn) => {
@@ -3867,6 +3953,170 @@ window.fixLocationNames = async () => {
   }
   alert(`${wrong.length} байршлын нэр засагдлаа`);
 };
+
+
+// ─── ХЭРЭГЛЭГЧИЙН ТОХИРГОО ───────────────────────────────────────────────────
+// Firebase Auth REST API ашиглан хэрэглэгч үүсгэх/засах
+// Admin SDK ашиглах боломжгүй тул Firestore users collection + Auth REST
+
+const AUTH_API = `https://identitytoolkit.googleapis.com/v1/accounts`;
+const API_KEY = firebaseConfig.apiKey;
+
+// Хэрэглэгчийн жагсаалт (Firestore users collection)
+let usersList = [];
+
+window.loadUsers = async () => {
+  const tbody = document.getElementById('users-tbody');
+  if(!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="6"><div class="empty"><div class="spin" style="width:20px;height:20px;border:2px solid var(--bd);border-top-color:var(--pu);border-radius:50%;animation:spin .7s linear infinite;display:inline-block"></div></div></td></tr>';
+  try {
+    const snap = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js')
+      .then(m => m.getDocs(m.collection(db, 'users')));
+    const {getDocs, collection: col} = await import('https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js');
+    const usersSnap = await getDocs(col(db, 'users'));
+    usersList = usersSnap.docs.map(d => ({uid: d.id, ...d.data()}));
+    renderUsersList();
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty" style="color:var(--re)">Алдаа: ${e.message}</div></td></tr>`;
+  }
+};
+
+function renderUsersList() {
+  const tbody = document.getElementById('users-tbody');
+  if(!tbody) return;
+  if(usersList.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6"><div class="empty">Хэрэглэгч байхгүй</div></td></tr>';
+    return;
+  }
+  const roleLabels = {
+    admin:   '<span class="ba bpu">Admin</span>',
+    manager: '<span class="ba bgr">Manager</span>',
+    viewer:  '<span class="ba bgr2">Viewer</span>'
+  };
+  tbody.innerHTML = usersList.map(u => `<tr>
+    <td style="font-size:13px">${u.email || '—'}</td>
+    <td>${u.name || '—'}</td>
+    <td>${roleLabels[u.role] || '<span class="ba bgr2">'+u.role+'</span>'}</td>
+    <td>${u.active === false ? '<span class="ba bre">Идэвхгүй</span>' : '<span class="ba bgr">Идэвхтэй</span>'}</td>
+    <td style="font-size:11px;color:var(--tx3)">${u.createdAt?.toDate?.()?.toLocaleDateString('mn-MN') || '—'}</td>
+    <td style="white-space:nowrap">
+      ${u.uid !== currentUser.uid ? `
+        <button class="btn bg bxs" onclick="openEditUser('${u.uid}')" title="Засах"><i class="ti ti-edit"></i></button>
+        ${u.active !== false
+          ? `<button class="btn bd2 bxs" onclick="toggleUser('${u.uid}',false)" title="Идэвхгүй болгох"><i class="ti ti-user-off"></i></button>`
+          : `<button class="btn bg bxs" onclick="toggleUser('${u.uid}',true)" title="Идэвхжүүлэх"><i class="ti ti-user-check"></i></button>`
+        }` : '<span style="font-size:11px;color:var(--tx3)">Та өөрөө</span>'}
+    </td>
+  </tr>`).join('');
+}
+
+// Шинэ хэрэглэгч үүсгэх — Firebase Auth REST + Firestore
+window.createUser = async () => {
+  const email = document.getElementById('u-email').value.trim();
+  const pass  = document.getElementById('u-pass').value;
+  const name  = document.getElementById('u-name').value.trim();
+  const role  = document.getElementById('u-role').value;
+
+  if(!email || !pass) { alert('И-мэйл болон нууц үг заавал оруулна уу'); return; }
+  if(pass.length < 6) { alert('Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой'); return; }
+
+  const btn = document.querySelector('#sec-users .btn.bp');
+  if(btn) { btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader"></i>Үүсгэж байна...'; }
+
+  try {
+    // Firebase Auth REST API-аар хэрэглэгч үүсгэх
+    const res = await fetch(`${AUTH_API}:signUp?key=${API_KEY}`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({email, password: pass, returnSecureToken: false})
+    });
+    const data = await res.json();
+    if(data.error) throw new Error(data.error.message);
+
+    const uid = data.localId;
+    // Firestore-д хэрэглэгчийн мэдээлэл хадгалах
+    await setDoc(doc(db, 'users', uid), {
+      email, name, role,
+      active: true,
+      createdAt: serverTimestamp(),
+      createdBy: currentUser.email
+    });
+
+    // Form цэвэрлэх
+    ['u-email', 'u-name', 'u-pass'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+    document.getElementById('u-role').value = 'viewer';
+
+    alert(`✅ Хэрэглэгч амжилттай үүслээ!\nИ-мэйл: ${email}\nНууц үг: Таны оруулсан нууц үг`);
+    loadUsers();
+  } catch(e) {
+    const errMsgs = {
+      'EMAIL_EXISTS': 'Тэр и-мэйл хаяг аль хэдийн бүртгэлтэй байна',
+      'WEAK_PASSWORD': 'Нууц үг хэт богино байна (6+ тэмдэгт)',
+      'INVALID_EMAIL': 'И-мэйл хаяг буруу байна',
+    };
+    alert('Алдаа: ' + (errMsgs[e.message] || e.message));
+  } finally {
+    if(btn) { btn.disabled = false; btn.innerHTML = '<i class="ti ti-user-plus"></i>Нэмэх'; }
+  }
+};
+
+// Хэрэглэгч засах modal нээх
+window.openEditUser = (uid) => {
+  const u = usersList.find(x => x.uid === uid);
+  if(!u) return;
+  document.getElementById('eu-uid').value = uid;
+  document.getElementById('eu-email-display').textContent = u.email || '—';
+  document.getElementById('eu-name').value = u.name || '';
+  document.getElementById('eu-role').value = u.role || 'viewer';
+  document.getElementById('eu-pass').value = '';
+  openModal('edit-user-modal');
+};
+
+// Хэрэглэгч засах хадгалах
+window.saveEditUser = async () => {
+  const uid  = document.getElementById('eu-uid').value; if(!uid) return;
+  const name = document.getElementById('eu-name').value.trim();
+  const role = document.getElementById('eu-role').value;
+  const pass = document.getElementById('eu-pass').value;
+
+  try {
+    // Firestore шинэчлэх
+    await updateDoc(doc(db, 'users', uid), {
+      name, role,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser.email
+    });
+
+    // Нууц үг өөрчлөх (Admin REST API)
+    if(pass && pass.length >= 6) {
+      // Note: Firebase Admin SDK шаарддаг тул энэ хэсэг
+      // хэрэглэгч өөрөө password reset хийнэ
+      alert('Нууц үг өөрчлөхийн тулд хэрэглэгч Firebase-ийн "Нууц үг мартсан" функцийг ашиглана уу.\n\nФайрбэйс консол → Authentication → Users → Reset password хийж болно.');
+    }
+
+    closeModal('edit-user-modal');
+    alert('✅ Хэрэглэгч амжилттай шинэчлэгдлээ!');
+    loadUsers();
+  } catch(e) { alert('Алдаа: ' + e.message); }
+};
+
+// Хэрэглэгч идэвхгүй/идэвхтэй болгох
+window.toggleUser = async (uid, active) => {
+  const u = usersList.find(x => x.uid === uid);
+  const action = active ? 'идэвхжүүлэх' : 'идэвхгүй болгох';
+  if(!confirm(`${u?.email || uid}-г ${action} уу?`)) return;
+  try {
+    await updateDoc(doc(db, 'users', uid), {
+      active,
+      updatedAt: serverTimestamp(),
+      updatedBy: currentUser.email
+    });
+    alert(`✅ Хэрэглэгч ${action}д боллоо`);
+    loadUsers();
+  } catch(e) { alert('Алдаа: ' + e.message); }
+};
+
+// goSec wrapper removed — users loaded via loadUsers() directly
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
