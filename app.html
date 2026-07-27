@@ -991,6 +991,211 @@ const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivabl
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let currentUser = null;
+
+// ─── НЭГДСЭН HELPER ФУНКЦУУД ─────────────────────────────────────────────────
+
+function getLastMonthRange() {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(); // 0-based
+  const lastM = m === 0 ? 12 : m;
+  const lastY = m === 0 ? y - 1 : y;
+  const lastDay = new Date(lastY, lastM, 0).getDate();
+  return {
+    from: `${lastY}-${String(lastM).padStart(2,'0')}-01`,
+    to:   `${lastY}-${String(lastM).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
+  };
+}
+
+function initDateRange(fromId, toId) {
+  const {from, to} = getLastMonthRange();
+  const f = document.getElementById(fromId);
+  const t = document.getElementById(toId);
+  if(f && !f.value) f.value = from;
+  if(t && !t.value) t.value = to;
+}
+
+function clearToLastMonth(fromId, toId) {
+  const {from, to} = getLastMonthRange();
+  const f = document.getElementById(fromId);
+  const t = document.getElementById(toId);
+  if(f) f.value = from;
+  if(t) t.value = to;
+}
+
+function getDocNumDisplay(doc) {
+  if(!doc) return '—';
+  const n = doc.docNumber || doc.number || doc.legacyNumber || doc.trNum;
+  if(n && !String(n).includes('?') && n !== 'null' && n !== 'undefined') return n;
+  return doc.id ? 'Дугааргүй хуучин баримт' : '—';
+}
+
+function getDefaultBank(currency) {
+  currency = currency || 'MNT';
+  return bankAccounts.find(a => a.active !== false && a.isDefault && (a.currency||'MNT') === currency)
+      || bankAccounts.find(a => a.active !== false && (a.currency||'MNT') === currency)
+      || null;
+}
+
+window.setDefaultBank = async (id) => {
+  if(!canEdit()){alert('Эрх хүрэхгүй байна');return;}
+  const target = bankAccounts.find(a=>a.id===id);
+  if(!target||target.active===false){alert('Идэвхгүй данс сонгож болохгүй');return;}
+  try{
+    for(const acc of bankAccounts.filter(a=>a.isDefault&&(a.currency||'MNT')===(target.currency||'MNT')&&a.id!==id)){
+      await updateDoc(doc(db,'bankAccounts',acc.id),{isDefault:false});
+    }
+    await updateDoc(doc(db,'bankAccounts',id),{isDefault:true});
+    alert('Үндсэн данс тохируулагдлаа!');
+  }catch(e){alert('Алдаа: '+e.message);}
+};
+
+window.renderReconcileList = () => {
+  const listEl = document.getElementById('rec-list');
+  if(!listEl) return;
+  if(!reconcileDocs||reconcileDocs.length===0){
+    listEl.innerHTML='<div class="empty">Тооцоо нийлэлт байхгүй</div>';
+    return;
+  }
+  listEl.innerHTML=`<div style="font-size:12px;font-weight:600;color:var(--tx2);margin:12px 0 8px">Тооцоо нийлэлтийн жагсаалт</div>
+  <div class="tw"><table><thead><tr>
+    <th>Дугаар</th><th>Харилцагч</th><th>Хугацаа</th><th>Үлдэгдэл</th><th>Гараар оруулсан</th><th>Статус</th><th></th>
+  </tr></thead><tbody>${reconcileDocs.map(r=>`<tr>
+    <td style="font-family:monospace;font-size:11px;color:var(--pu)">${r.docNumber||'—'}</td>
+    <td>${r.customerName||'—'}</td>
+    <td style="font-size:11px">${r.from||'—'} — ${r.to||'—'}</td>
+    <td style="font-weight:600">${fmt(r.totalRecv||0)}</td>
+    <td>${fmt(r.manualSaleAmount||0)}</td>
+    <td>${r.status==='voided'?'<span class="ba bre">Хүчингүй</span>':'<span class="ba bgr">Хүчинтэй</span>'}</td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="previewSavedReconcile('${r.id}')"><i class="ti ti-eye"></i></button>
+      <button class="btn bg bxs" onclick="editReconcile('${r.id}')"><i class="ti ti-edit"></i></button>
+      <button class="btn bg bxs" onclick="previewSavedReconcile('${r.id}',true)"><i class="ti ti-printer"></i></button>
+      ${r.status!=='voided'?`<button class="btn bd2 bxs" onclick="voidReconcile('${r.id}')"><i class="ti ti-ban"></i></button>`:''}
+    </td>
+  </tr>`).join('')}</tbody></table></div>`;
+};
+
+window.previewSavedReconcile = (id, doPrint=false) => {
+  const r = reconcileDocs.find(x=>x.id===id); if(!r) return;
+  const fmtD = d => d ? new Date(d).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'}) : '—';
+  const printDate = new Date().toLocaleDateString('mn-MN');
+  const win = window.open('','_blank'); if(!win){alert('Popup блоклогдсон');return;}
+  win.document.write(generateReconcileHTML(r, fmtD, printDate));
+  win.document.close();
+  if(doPrint) setTimeout(()=>win.print(), 500);
+};
+
+window.editReconcile = (id) => {
+  const r = reconcileDocs.find(x=>x.id===id); if(!r) return;
+  const sel=document.getElementById('rec-cust'); if(sel) sel.value=r.customerId||'';
+  const fEl=document.getElementById('rec-from'); if(fEl) fEl.value=r.from||'';
+  const tEl=document.getElementById('rec-to'); if(tEl) tEl.value=r.to||'';
+  const dEl=document.getElementById('rec-date'); if(dEl) dEl.value=r.recDate||today();
+  const bEl=document.getElementById('rec-bank'); if(bEl) bEl.value=r.bankAccountId||'';
+  const msEl=document.getElementById('rec-manual-sale'); if(msEl) msEl.value=r.manualSaleAmount||0;
+  const nEl=document.getElementById('rec-note'); if(nEl) nEl.value=r.note||'';
+  const eidEl=document.getElementById('rec-edit-id'); if(eidEl) eidEl.value=id;
+  document.getElementById('rt-reconcile')?.scrollIntoView({behavior:'smooth'});
+};
+
+window.voidReconcile = async (id) => {
+  const reason = prompt('Хүчингүй болгох шалтгаан:');
+  if(!reason) return;
+  await updateDoc(doc(db,'reconcileDocs',id),{
+    status:'voided', voidedAt:serverTimestamp(),
+    voidedBy:currentUser.email, voidReason:reason
+  });
+};
+
+function generateReconcileHTML(r, fmtD, printDate) {
+  const defBank = getDefaultBank('MNT')||{};
+  return `<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>${r.docNumber||'TN'}</title><style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    html,body{margin:0;padding:0;font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#d8d8d8}
+    .a4-wrap{width:210mm;min-height:297mm;background:#fff;margin:8mm auto;box-shadow:0 3px 16px rgba(0,0,0,.25)}
+    .page{width:210mm;height:148mm;max-height:148mm;overflow:hidden;padding:5mm 6mm 4mm;background:#fff;position:relative}
+    .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
+    .logo{font-family:'Georgia',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px}
+    .doc-title{font-size:10pt;font-weight:bold;color:#000;text-align:center}
+    table.tn{width:100%;border-collapse:collapse;font-size:8pt;margin:1.5mm 0}
+    table.tn th{border:0.4pt solid #444;padding:1.5mm 2mm;background:#f0f0f0;font-weight:bold;text-align:left;font-size:7.5pt}
+    table.tn td{border:0.4pt solid #444;padding:1.5mm 2mm}
+    .tn-total td{font-weight:bold;background:#f5f5f5}
+    .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
+    .info-lbl{font-size:7.5pt;color:#555;min-width:28mm;flex-shrink:0}
+    .info-val{font-size:7.5pt;font-weight:600}
+    .sign-table{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:2mm}
+    .sign-line2{border-top:0.4pt solid #555;margin-top:8mm;padding-top:1mm;font-size:7pt}
+    .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
+    @media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}.a4-wrap{box-shadow:none!important;margin:0!important}.page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}.a4-bottom{display:none!important}button{display:none!important}}
+    .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+    .r{text-align:right!important}
+  </style></head><body>
+  <button class="print-btn" onclick="window.print()">🖨 Хэвлэх (A4)</button>
+  <div class="a4-wrap"><div class="page">
+    <div style="display:flex;align-items:center;gap:3mm;margin-bottom:1.5mm">
+      <div class="logo" style="flex-shrink:0">femmora</div>
+      <div style="flex:1;text-align:center">
+        <div style="font-size:6.5pt;color:#666">НХМаягт ТМ-З</div>
+        <div class="doc-title">ТООЦООНЫ ҮЛДЭГДЛИЙН БАТАЛГАА № ${r.docNumber||'—'}</div>
+      </div>
+      <div style="font-size:7.5pt;color:#444;flex-shrink:0">${fmtD(r.recDate)}</div>
+    </div>
+    <div style="border-top:1.5pt solid #000;margin-bottom:1.5mm"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2mm">
+      <div style="border:0.4pt solid #999;padding:1.8mm 2.5mm">
+        <div style="font-size:7pt;font-weight:bold;text-transform:uppercase;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm">Нэхэмжлэгч</div>
+        <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
+        <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
+        <div class="info-row"><span class="info-lbl">Банкны нэр:</span><span class="info-val">${r.bankName||defBank.bankName||'Хаан банк'}</span></div>
+        <div class="info-row"><span class="info-lbl">Дансны дугаар:</span><span class="info-val">${r.bankAccountNumber||defBank.accountNumber||'5020001234'}</span></div>
+      </div>
+      <div style="border:0.4pt solid #999;padding:1.8mm 2.5mm">
+        <div style="font-size:7pt;font-weight:bold;text-transform:uppercase;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm">Төлөгч</div>
+        <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">${r.customerName||'—'}</span></div>
+        <div class="info-row"><span class="info-lbl">Утас:</span><span class="info-val">${r.customerPhone||'—'}</span></div>
+        ${r.customerReg?`<div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">${r.customerReg}</span></div>`:''}
+      </div>
+    </div>
+    <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">
+      Тооцоо нийлсэн хугацаа: ${fmtD(r.from)} – ${fmtD(r.to)} &nbsp;&nbsp; Тооцоо нийлсэн огноо: ${fmtD(r.recDate)}
+    </div>
+    <div style="font-size:7pt;margin-bottom:1.5mm;line-height:1.5">
+      Нэхэмжлэгчийн нэрийн өмнөөс нягтлан бодогч ажилтай Ганцэцэг овогтой <b>Алтансувд</b> нь
+      төлөгчийн нэрийн өмнөөс ______ажилтай______овогтой______-тай нийлж үзэхэд
+    </div>
+    <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">I. Тооцооны үлдэгдэл (${fmtD(r.to)}-ны өдрийн байдлаар)</div>
+    <table class="tn">
+      <thead><tr><th style="width:5%;text-align:center">№</th><th>Үзүүлэлт</th><th style="width:22%;text-align:right">Дүн (₮)</th></tr></thead>
+      <tbody>
+        <tr><td class="r">1</td><td>Эхний үлдэгдэл</td><td class="r">0 ₮</td></tr>
+        <tr><td class="r">2</td><td>Тухайн хугацааны зээлийн борлуулалт</td><td class="r">${(r.totalSale||0).toLocaleString()} ₮</td></tr>
+        <tr><td class="r">3</td><td>Тухайн хугацааны төлөлт</td><td class="r">(${(r.totalPaid||0).toLocaleString()} ₮)</td></tr>
+        <tr><td class="r">4</td><td>Буцаалт, хөнгөлөлт</td><td class="r">0 ₮</td></tr>
+      </tbody>
+      <tfoot><tr class="tn-total"><td colspan="2">Тооцооны үлдэгдэл (1+2-3-4)</td><td class="r">${(r.totalRecv||0).toLocaleString()} ₮</td></tr></tfoot>
+    </table>
+    <div style="font-size:7pt;margin-bottom:1.5mm">
+      Төлөгч байгуулга нь дээрх дүнгээр <b>${(r.totalRecv||0).toLocaleString()} ₮</b>-ийн өртэй гарсныг харилцан батлав.
+    </div>
+    <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">II. Тухайн сарын борлуулалтын нэхэмжлэх дүн</div>
+    <table class="tn">
+      <tbody><tr><td>Тухайн хугацааны борлуулалтын орлого (гараар оруулсан)</td>
+        <td class="r" style="width:22%;font-weight:700">${(r.manualSaleAmount||0).toLocaleString()} ₮</td></tr></tbody>
+    </table>
+    <div style="font-size:7pt;font-style:italic;margin:1mm 0">${r.manualSaleAmountWords||numToWords(r.manualSaleAmount||0)}</div>
+    <div class="sign-table">
+      <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Нэхэмжлэгчийн төлөөлөл</div>
+        <div class="sign-line2">Нэр: / Г.Алтансувд /<br>Гарын үсэг:</div></div>
+      <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Төлөгчийн төлөөлөл</div>
+        <div class="sign-line2">Нэр:<br>Гарын үсэг:</div></div>
+    </div>
+    <div class="doc-footer">
+      <span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: Алтансувд</span><span>Femmora Cusion</span>
+    </div>
+  </div><div class="a4-bottom"></div></div></body></html>`;
+}
+
 let userRole = 'viewer';
 let customers = [], products = [], locations = [], sales = [], invLogs = [], stockMap = {};
 let reconcileDocs = [];
