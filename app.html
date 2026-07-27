@@ -2351,7 +2351,6 @@ window.renderBankAccounts=()=>{
     <td>${a.accountName||'—'}</td><td>${a.currency||'MNT'}</td><td>${fmt(a.initialBalance||0)}</td>
     <td>${a.active!==false?'<span class="ba bgr">Идэвхтэй</span>':'<span class="ba bgr2">Идэвхгүй</span>'}</td>
     <td style="white-space:nowrap">
-      ${!a.isDefault&&a.active!==false?`<button class="btn bp bxs" onclick="setDefaultBank('${a.id}')"><i class="ti ti-star"></i>Үндсэн</button>`:''}
       ${!a.isDefault&&a.active!==false?`<button class="btn bp bxs" onclick="setDefaultBank('${a.id}')" title="Үндсэн болгох"><i class="ti ti-star"></i></button>`:''}
       <button class="btn bg bxs" onclick="editBankAcc('${a.id}')" title="Засах"><i class="ti ti-edit"></i></button>
       <button class="btn bg bxs" onclick="toggleBankAcc('${a.id}',${a.active!==false})">${a.active!==false?'<i class="ti ti-eye-off"></i>':'<i class="ti ti-eye"></i>'}</button>
