@@ -739,7 +739,7 @@ tbody tr:hover td{background:var(--sur2)}
             <input type="text" id="u-name" placeholder="Овог нэр">
           </div>
           <div class="fl"><label>Нууц үг <span style="color:var(--re)">*</span></label>
-            <input type="password" id="u-pass" placeholder="Хамгийн багадаа 6 тэмдэгт">
+            <input type="password" id="u-pass" placeholder="Шинэ бүртгэл: 6+ тэмдэгт · Аль хэдийн бүртгэлтэй бол хоосон болгоно уу">
           </div>
         </div>
         <!-- Эрхийн тохиргоо -->
@@ -1348,8 +1348,9 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('main-app').style.display = 'flex';
 
   initDates();
-  // Эрхийн тохиргоо ачаалах
+  // Эрхийн тохиргоо ачаалах + needsUidLink шалгах
   await loadCurrentPermissions(user.uid);
+  await linkUserUidIfNeeded(user);
   subscribeAll();
 });
 
@@ -4105,33 +4106,108 @@ window.createUser = async () => {
   const email = document.getElementById('u-email').value.trim();
   const pass  = document.getElementById('u-pass').value;
   const name  = document.getElementById('u-name').value.trim();
-  if(!email||!pass){alert('И-мэйл болон нууц үг оруулна уу');return;}
-  if(pass.length<6){alert('Нууц үг хамгийн багадаа 6 тэмдэгт');return;}
+  if(!email){ alert('И-мэйл оруулна уу'); return; }
   const permissions = getPermsFromCheckboxes('new');
-  const btn = event.target;
-  btn.disabled=true; btn.innerHTML='<i class="ti ti-loader"></i>Үүсгэж байна...';
+  const btn = event?.target || document.querySelector('#sec-users .btn.bp');
+  if(btn){ btn.disabled=true; btn.innerHTML='<i class="ti ti-loader"></i>Үүсгэж байна...'; }
+
   try {
-    const res = await fetch(`${AUTH_API}:signUp?key=${API_KEY}`,{
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({email,password:pass,returnSecureToken:false})
-    });
-    const data = await res.json();
-    if(data.error) throw new Error(data.error.message);
-    await setDoc(doc(db,'users',data.localId),{
-      email,name,permissions,active:true,
-      createdAt:serverTimestamp(),createdBy:currentUser.email
-    });
-    ['u-email','u-name','u-pass'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
-    setAllPerms('new',false);
-    alert(`✅ Хэрэглэгч үүслээ!\nИ-мэйл: ${email}`);
+    let uid = null;
+
+    if(pass && pass.length >= 6) {
+      // Шинэ Auth бүртгэл үүсгэх
+      const res = await fetch(`${AUTH_API}:signUp?key=${API_KEY}`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email, password:pass, returnSecureToken:true})
+      });
+      const data = await res.json();
+
+      if(data.error && data.error.message === 'EMAIL_EXISTS') {
+        // Аль хэдийн бүртгэлтэй — нэвтэрч uid авна
+        const signInRes = await fetch(`${AUTH_API}:signInWithPassword?key=${API_KEY}`, {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({email, password:pass, returnSecureToken:true})
+        });
+        const signInData = await signInRes.json();
+        if(signInData.error) {
+          // Нууц үг буруу — зүгээр л lookup хийнэ
+          const lookupRes = await fetch(`${AUTH_API}:lookup?key=${API_KEY}`, {
+            method:'POST', headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({idToken: null})
+          });
+          // Нууц үг буруу бол мэдэгдэх
+          alert(`"${email}" и-мэйл аль хэдийн Firebase-д бүртгэлтэй байна.
+
+Зөв нууц үгийг оруулах уу, эсвэл нууц үгийг хоосон орхиод дахин оролдоно уу.`);
+          return;
+        }
+        uid = signInData.localId;
+        alert(`ℹ️ "${email}" аль хэдийн бүртгэлтэй байсан.
+Эрхийн тохиргоо шинэчлэгдлээ.`);
+      } else if(data.error) {
+        throw new Error(data.error.message);
+      } else {
+        uid = data.localId;
+      }
+    } else if(!pass) {
+      // Нууц үггүй — existujúce хэрэглэгчид эрх тохируулах
+      // Email-ээр Firestore-с uid хайх
+      const snap = await getDocs(collection(db, 'users'));
+      const found = snap.docs.find(d => d.data().email === email);
+      if(found) {
+        uid = found.id;
+        alert(`ℹ️ "${email}" олдлоо. Эрхийн тохиргоо шинэчлэгдэнэ.`);
+      } else {
+        // Uid мэдэхгүй тул needsUidLink ашиглана
+        const tempRef = doc(collection(db, 'users'));
+        await setDoc(tempRef, {
+          email, name, permissions, active:true, needsUidLink:true,
+          createdAt:serverTimestamp(), createdBy:currentUser.email
+        });
+        alert(`✅ Хэрэглэгчийн мэдээлэл хадгалагдлаа!
+
+"${email}" дараагийн нэвтрэлтэндээ эрх авна.
+
+Тэмдэглэл: Нууц үг оруулаагүй тул UID автоматаар холбогдоно.`);
+        clearCreateForm();
+        loadUsers();
+        return;
+      }
+    } else {
+      alert('Нууц үг хамгийн багадаа 6 тэмдэгт байх ёстой');
+      return;
+    }
+
+    // Firestore-д хадгалах/шинэчлэх
+    await setDoc(doc(db, 'users', uid), {
+      email, name, permissions, active:true, needsUidLink:false,
+      createdAt:serverTimestamp(), createdBy:currentUser.email
+    }, {merge:true});
+
+    alert(`✅ Амжилттай!
+И-мэйл: ${email}
+Эрх тохируулагдлаа.`);
+    clearCreateForm();
     loadUsers();
   } catch(e) {
-    const msgs={'EMAIL_EXISTS':'Тэр и-мэйл аль хэдийн бүртгэлтэй','WEAK_PASSWORD':'Нууц үг хэт богино'};
-    alert('Алдаа: '+(msgs[e.message]||e.message));
+    const msgs = {
+      'EMAIL_EXISTS':       'Тэр и-мэйл аль хэдийн бүртгэлтэй — нууц үгийг оруулж оролдоно уу',
+      'WEAK_PASSWORD':      'Нууц үг хэт богино (6+ тэмдэгт)',
+      'INVALID_EMAIL':      'И-мэйл хаяг буруу байна',
+      'INVALID_PASSWORD':   'Нууц үг буруу байна',
+      'TOO_MANY_ATTEMPTS':  'Хэт олон удаа оролдлоо. Түр хүлээнэ үү.',
+    };
+    alert('Алдаа: ' + (msgs[e.message] || e.message));
   } finally {
-    btn.disabled=false; btn.innerHTML='<i class="ti ti-user-plus"></i>Хэрэглэгч нэмэх';
+    if(btn){ btn.disabled=false; btn.innerHTML='<i class="ti ti-user-plus"></i>Хэрэглэгч нэмэх'; }
   }
 };
+
+function clearCreateForm() {
+  ['u-email','u-name','u-pass'].forEach(id => { const el=document.getElementById(id); if(el) el.value=''; });
+  setAllPerms('new', false);
+}
+
 
 // Засах modal нээх
 window.openEditUser = (uid) => {
@@ -4169,6 +4245,32 @@ window.toggleUser = async (uid, active) => {
     loadUsers();
   } catch(e){alert('Алдаа: '+e.message);}
 };
+
+
+// Нэвтэрсэн хэрэглэгчийн UID-г email-ээр олж холбох
+async function linkUserUidIfNeeded(user) {
+  try {
+    // Аль хэдийн UID-тай бол алгасах
+    const existing = await getDoc(doc(db, 'users', user.uid));
+    if(existing.exists()) return;
+    // needsUidLink=true байгаа document-г хайж email-ээр холбох
+    const snap = await getDocs(collection(db, 'users'));
+    for(const d of snap.docs) {
+      const data = d.data();
+      if(data.needsUidLink && data.email === user.email) {
+        // Шинэ document UID-тайгаар үүсгэх
+        await setDoc(doc(db,'users',user.uid), {
+          ...data, needsUidLink:false,
+          uid:user.uid, linkedAt:serverTimestamp()
+        });
+        // Хуучин document-г устгах
+        await deleteDoc(doc(db,'users',d.id));
+        console.log('UID linked for', user.email);
+        break;
+      }
+    }
+  } catch(e) { console.warn('linkUserUidIfNeeded error:', e); }
+}
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
