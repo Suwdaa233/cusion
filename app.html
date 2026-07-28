@@ -1161,7 +1161,7 @@ function getDefaultBank(currency) {
 }
 
 window.setDefaultBank = async (id) => {
-  if(!canEdit()){alert('Эрх хүрэхгүй байна');return;}
+  if(!hasPerm('bank_edit')){alert('Банкны данс засах эрх байхгүй байна');return;}
   const target = bankAccounts.find(a=>a.id===id);
   if(!target||target.active===false){alert('Идэвхгүй данс сонгож болохгүй');return;}
   try{
@@ -1428,7 +1428,15 @@ function totByLoc(lid){ return products.reduce((a,p)=>a+gst(p.id,lid),0); }
 function fmt(n){ return Math.round(n||0).toLocaleString()+'₮'; }
 function today(){ return new Date().toISOString().slice(0,10); }
 function invNum(id){ return 'INV-'+String(id).slice(-4).toUpperCase(); }
-function canEdit(){ return userRole === 'admin' || userRole === 'manager'; }
+function canEdit(perm) {
+  if(userRole === 'admin') return true;
+  // perm тодорхой байвал тэр эрхийг шалга
+  if(perm) return currentPermissions[perm] === true;
+  // perm байхгүй бол ямар нэгэн edit эрх байгаа эсэхийг шалга
+  return Object.keys(currentPermissions).some(k =>
+    k.endsWith('_create') || k.endsWith('_edit') || k.endsWith('_delete')
+  ) && Object.values(currentPermissions).some(v => v === true);
+}
 
 function initDates(){
   const t = today();
@@ -1612,7 +1620,7 @@ window.onSaleMethodChange = () => {
   onPayTypeChange();
 };
 window.submitSale = async () => {
-  if(!canEdit()){ alert('Таны эрх хүрэхгүй байна'); return; }
+  if(!hasPerm('sales_create')){ alert('Борлуулалт бүртгэх эрх байхгүй байна'); return; }
   const cid=document.getElementById('s-cust').value;
   const lid=document.getElementById('s-loc').value;
   const method=document.getElementById('s-pay-type')?.value||'cash';
@@ -1712,7 +1720,7 @@ window.showSaleAfterSave = (id) => {
   }
 };
 window.deleteSale = async id => {
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   if(!confirm('Устгах уу?')) return;
   const sale=sales.find(s=>s.id===id); if(!sale) return;
   const stockChanges=sale.items.map(it=>({pid:it.pid,lid:sale.locationId,delta:it.qty}));
@@ -1770,7 +1778,7 @@ function inRowHtml(){
 }
 window.addInRow = () => { document.getElementById('in-rows').insertAdjacentHTML('beforeend',inRowHtml()); populateSels(); };
 window.submitIn = async () => {
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   const lid=document.getElementById('in-loc').value;
   const note=document.getElementById('in-note').value.trim();
   const iDate=document.getElementById('in-date').value||today();
@@ -1812,7 +1820,7 @@ window.onOutReasonChange = () => {
   document.getElementById('out-to-wrap').style.display=document.getElementById('out-reason').value==='transfer'?'block':'none';
 };
 window.submitOut = async () => {
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   const lid=document.getElementById('out-loc').value;
   const reason=document.getElementById('out-reason').value;
   const toLid=document.getElementById('out-to-loc').value;
@@ -1852,7 +1860,7 @@ window.submitOut = async () => {
 
 // ─── CUSTOMERS ───────────────────────────────────────────────────────────────
 window.addCustomer = async () => {
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   const name=document.getElementById('c-name').value.trim();
   const reg=document.getElementById('c-reg').value.trim();
   if(!name){alert('Нэр оруулна уу');return;}
@@ -1888,7 +1896,7 @@ window.delCustomer = async id => { if(!confirm('Устгах уу?'))return; awa
 
 // ─── PRODUCTS ────────────────────────────────────────────────────────────────
 window.addProduct = async () => {
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   const name=document.getElementById('p-name').value.trim();
   const variant=document.getElementById('p-variant').value.trim();
   const sku=document.getElementById('p-sku').value.trim();
@@ -1916,7 +1924,7 @@ window.delProduct = async id => { if(!confirm('Устгах уу?'))return; awai
 
 // ─── LOCATIONS ───────────────────────────────────────────────────────────────
 window.addLocation = async () => {
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   const name=document.getElementById('l-name').value.trim();
   if(!name){alert('Нэр оруулна уу');return;}
   await addDoc(collection(db,'locations'),{name,type:document.getElementById('l-type').value,address:document.getElementById('l-addr').value.trim(),contact:document.getElementById('l-contact').value.trim(),minStock:parseInt(document.getElementById('l-min').value)||10,note:document.getElementById('l-note').value.trim(),createdAt:serverTimestamp()});
@@ -2012,8 +2020,8 @@ window.renderSalesTable = () => {
     <td style="font-size:11px;color:var(--tx3)">${s.createdBy||''}</td>
     <td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="openInvoice('${s.id}')" title="Нэхэмжлэх"><i class="ti ti-file-invoice"></i></button>
-      ${canEdit()?`<button class="btn bg bxs" onclick="openEditSale('${s.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
-      ${canEdit()?`<button class="btn bd2 bxs" onclick="deleteSale('${s.id}')" title="Устгах"><i class="ti ti-trash"></i></button>`:''}
+      ${hasPerm('sales_edit')?`<button class="btn bg bxs" onclick="openEditSale('${s.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+      ${hasPerm('sales_delete')?`<button class="btn bd2 bxs" onclick="deleteSale('${s.id}')" title="Устгах"><i class="ti ti-trash"></i></button>`:''}
     </td>
   </tr>`).join('');
 };
@@ -2064,7 +2072,7 @@ window.renderRecvDetail = () => {
             <div style="font-size:13px;font-weight:600">${fmt(s.total)}</div>
             ${s.recv>0?`<div style="font-size:11px;color:var(--am)">Авлага: ${fmt(s.recv)}</div>`:`<div style="font-size:11px;color:var(--gr)">Бүрэн төлөгдсөн</div>`}
           </div>
-          ${s.recv>0&&canEdit()?`<button class="btn bs bxs" onclick="event.stopPropagation();openPay('${s.id}')"><i class="ti ti-cash"></i>Төлөлт</button>`:''}
+          ${s.recv>0&&hasPerm('receivable_create')?`<button class="btn bs bxs" onclick="event.stopPropagation();openPay('${s.id}')"><i class="ti ti-cash"></i>Төлөлт</button>`:''}
           <button class="btn bg bxs" onclick="event.stopPropagation();openInvoice('${s.id}')"><i class="ti ti-file-invoice"></i></button>
           <i class="ti ti-chevron-down" style="color:var(--tx3);font-size:16px" id="rv-ch-${s.id}"></i>
         </div>
@@ -2081,7 +2089,7 @@ window.renderRecvDetail = () => {
           <div style="background:var(--sur2);border-radius:var(--r);padding:8px 10px"><div style="font-size:10px;color:var(--tx3)">Хэрэгсэл</div><div><span class="ba ${MBADGE[s.method]||'bgr2'}" style="font-size:11px">${MLABELS[s.method]||s.method}</span></div></div>
         </div>
         ${(s.payments||[]).length>0?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Төлөлтийн түүх</div><div>${(s.payments||[]).map((pm,i)=>`<div class="pay-hist-row"><span style="color:var(--tx3)">${i+1}. ${pm.date}</span><span class="ba ${MBADGE[pm.method]||'bgr2'}">${MLABELS[pm.method]||pm.method}</span><span style="color:var(--gr);font-weight:600">+${fmt(pm.amount)}</span>${pm.note?`<span style="color:var(--tx3)">${pm.note}</span>`:''}</div>`).join('')}</div></div>`:''}
-        ${s.recv>0&&canEdit()?`<div style="background:var(--grl);border:1px solid #B8DCA0;border-radius:var(--r);padding:10px 12px">
+        ${s.recv>0&&hasPerm('receivable_create')?`<div style="background:var(--grl);border:1px solid #B8DCA0;border-radius:var(--r);padding:10px 12px">
           <div style="font-size:11px;font-weight:600;color:var(--gr);margin-bottom:8px">Шинэ төлөлт нэмэх</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
             <div class="fl"><label>Огноо</label><input type="date" id="rp-dt-${s.id}" value="${today()}" style="font-size:12px"></div>
@@ -2137,7 +2145,7 @@ window.renderCustomers = () => {
   tbody.innerHTML=list.length===0?'<tr><td colspan="8"><div class="empty"><i class="ti ti-users"></i>Харилцагч байхгүй</div></td></tr>':
     list.map(c=>`<tr><td style="font-weight:500">${c.name}</td><td style="font-size:11px;font-family:monospace">${c.reg||'—'}</td><td style="font-size:12px">${c.phone||'—'}${c.phone2?`<br><span style="color:var(--tx3)">${c.phone2}</span>`:''}</td><td>${c.type==='org'?'<span class="ba bpu">Байгууллага</span>':'<span class="ba bte">Хувь хүн</span>'}</td><td>${c.channel==='online'?'<span class="ba bbl">Онлайн</span>':c.channel==='both'?'<span class="ba bgr2">Хоёулаа</span>':'Шууд'}</td><td style="font-size:11px;color:var(--tx2)">${c.address||'—'}</td><td style="font-size:11px;color:var(--tx2)">${c.note||'—'}</td><td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="editCustomer('${c.id}')" title="Засах"><i class="ti ti-edit"></i></button>
-      ${canEdit()?`<button class="btn bd2 bxs" onclick="delCustomer('${c.id}')"><i class="ti ti-trash"></i></button>`:''}</td></tr>`).join('');
+      ${hasPerm('customers_delete')?`<button class="btn bd2 bxs" onclick="delCustomer('${c.id}')"><i class="ti ti-trash"></i></button>`:''}</td></tr>`).join('');
 };
 
 window.renderProducts = () => {
@@ -2165,7 +2173,7 @@ window.renderProducts = () => {
     <td style="font-size:11px;color:var(--tx3)">${p.note||'—'}</td>
     <td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="editProduct('${p.id}')"><i class="ti ti-edit"></i></button>
-      ${canEdit()?`<button class="btn bd2 bxs" onclick="deleteProduct('${p.id}')"><i class="ti ti-trash"></i></button>`:''}
+      ${hasPerm('inventory_delete')?`<button class="btn bd2 bxs" onclick="deleteProduct('${p.id}')"><i class="ti ti-trash"></i></button>`:''}
     </td>
   </tr>`).join('');
 };
@@ -2179,7 +2187,7 @@ window.renderLocations = () => {
       return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px"><span class="dot" style="background:${p.color}"></span><span style="font-size:12px;flex:1">${p.variant}</span><div style="width:100px;background:var(--sur3);border-radius:3px;height:6px;overflow:hidden"><div style="width:${Math.min(100,q)}%;height:100%;background:${bar}"></div></div><span style="font-size:12px;font-weight:600;min-width:26px;text-align:right;color:${bar}">${q}ш</span></div>`;
     }).join('');
     return `<div style="border:1px solid var(--bd);border-radius:var(--r);margin-bottom:10px;overflow:hidden"><div style="background:var(--sur2);padding:10px 14px;display:flex;justify-content:space-between;align-items:center"><div><b>${l.name}</b> <span class="ba bgr2" style="margin-left:4px">${LTYPES[l.type]||l.type}</span></div><div style="display:flex;align-items:center;gap:8px"><span style="font-size:12px;color:var(--tx2)">Нийт <b>${tot}ш</b></span><button class="btn bg bxs" onclick="editLocation('${l.id}')" title="Засах"><i class="ti ti-edit"></i></button>
-      ${canEdit()?`<button class="btn bd2 bxs" onclick="delLocation('${l.id}')"><i class="ti ti-trash"></i></button>`:''}</div></div><div style="padding:10px 14px">${rows}</div></div>`;
+      ${hasPerm('inventory_delete')?`<button class="btn bd2 bxs" onclick="delLocation('${l.id}')"><i class="ti ti-trash"></i></button>`:''}</div></div><div style="padding:10px 14px">${rows}</div></div>`;
   }).join('');
 };
 
@@ -2403,7 +2411,7 @@ window.refreshTransferStock=(idx)=>{
   if(avail)avail.value=(pid&&lid)?gst(pid,lid)+'ш':'—';
 };
 window.submitTransfer=async()=>{
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   const fromLid=document.getElementById('tr-from-loc').value;
   const toLid=document.getElementById('tr-to-loc').value;
   const trDate=document.getElementById('tr-date').value||today();
@@ -2474,7 +2482,7 @@ window.showBankTab=(name,btn)=>{
 
 // ─── BANK ACCOUNTS ────────────────────────────────────────────────────────────
 window.addBankAccount=async()=>{
-  if(!canEdit()){alert('Таны эрх хүрэхгүй байна');return;}
+  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   const bankName=document.getElementById('ba-bank').value.trim();
   const accountNumber=document.getElementById('ba-number').value.trim();
   if(!bankName||!accountNumber){alert('Банкны нэр болон дансны дугаар оруулна уу');return;}
@@ -3764,7 +3772,7 @@ window.esPayTypeChange = () => {
 };
 
 window.saveEditSale = async () => {
-  if(!canEdit()) { alert('Таны эрх хүрэхгүй байна'); return; }
+  if(!hasPerm('sales_edit')) { alert('Борлуулалт засах эрх байхгүй байна'); return; }
   const id = document.getElementById('es-id').value;
   if(!id) return;
   const sale = sales.find(s => s.id === id);
@@ -3849,7 +3857,7 @@ window.editProduct = id => {
 window.closeEditProd = () => closeModal('edit-prod-modal');
 
 window.saveEditProduct = async () => {
-  if(!canEdit()){alert('Эрх хүрэхгүй');return;}
+  if(!hasPerm('inventory_edit')){alert('Бараа засах эрх байхгүй байна');return;}
   const id=document.getElementById('ep-id').value; if(!id) return;
   const newBarcode=document.getElementById('ep-barcode').value.trim();
   if(newBarcode && products.some(p=>p.id!==id&&p.barcode&&p.barcode===newBarcode)){
@@ -3892,7 +3900,7 @@ window.editCustomer = id => {
 window.closeEditCust = () => closeModal('edit-cust-modal');
 
 window.saveEditCustomer = async () => {
-  if(!canEdit()){alert('Эрх хүрэхгүй');return;}
+  if(!hasPerm('customers_edit')){alert('Харилцагч засах эрх байхгүй байна');return;}
   const id=document.getElementById('ec-id').value; if(!id) return;
   const newReg=document.getElementById('ec-reg').value.trim();
   if(newReg && customers.some(c=>c.id!==id&&c.reg&&c.reg===newReg)){
@@ -3926,7 +3934,7 @@ window.editLocation = id => {
   openModal('edit-loc-modal');
 };
 window.saveEditLocation = async () => {
-  if(!canEdit()){alert('Эрх хүрэхгүй');return;}
+  if(!hasPerm('inventory_edit')){alert('Байршил засах эрх байхгүй байна');return;}
   const id=document.getElementById('el-id').value; if(!id) return;
   const name=document.getElementById('el-name').value.trim();
   if(!name){alert('Байршлын нэр оруулна уу');return;}
@@ -3953,7 +3961,7 @@ window.editBankAcc = id => {
   openModal('edit-bank-modal');
 };
 window.saveEditBankAcc = async () => {
-  if(!canEdit()){alert('Эрх хүрэхгүй');return;}
+  if(!hasPerm('bank_edit')){alert('Банкны данс засах эрх байхгүй байна');return;}
   const id=document.getElementById('eb-id').value; if(!id) return;
   try{
     await updateDoc(doc(db,'bankAccounts',id),{
