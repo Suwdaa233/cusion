@@ -2938,160 +2938,139 @@ window.goToRecvDetail = (custId) => {
 
 // ─── LEDGER (Авлагын дэлгэрэнгүй тайлан) ────────────────────────────────────
 window.renderLedger = () => {
-  const custId = document.getElementById('ldg-cust')?.value||'';
-  const from = document.getElementById('ldg-from')?.value||'';
-  const to = document.getElementById('ldg-to')?.value||'';
-  if(!custId){alert('Харилцагч сонгоно уу');return;}
-  const cust = customers.find(c=>c.id===custId);
-  const tbody = document.getElementById('ldg-tbody');
+  const custId = document.getElementById('ldg-cust')?.value || '';
+  const from   = document.getElementById('ldg-from')?.value || '';
+  const to     = document.getElementById('ldg-to')?.value   || '';
+  const tbody  = document.getElementById('ldg-tbody');
+  if(!custId) { alert('Харилцагч сонгоно уу'); return; }
+  if(!from || !to) { alert('Эхлэх болон дуусах огноо сонгоно уу'); return; }
   if(!tbody) return;
 
-  // Get all movements for this customer
-  const movements = [];
-  // Sales
-  sales.filter(s=>s.customerId===custId).forEach(s=>{
-    if(from&&s.date<from)return;
-    if(to&&s.date>to)return;
-    const PTYPES={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
-    movements.push({date:s.date,docNum:s.docNumber||s.id.slice(-6).toUpperCase(),desc:`Борлуулалт: ${(s.items||[]).map(it=>it.label?.split('·')[1]).join(', ')}`,type:PTYPES[s.payType]||PTYPES[s.method]||'',debit:s.total,credit:0,saleId:s.id});
-    // Payments
-    (s.payments||[]).forEach(pm=>{
-      if(from&&pm.date<from)return;
-      if(to&&pm.date>to)return;
-      movements.push({date:pm.date,docNum:s.docNumber||s.id.slice(-6).toUpperCase(),desc:`Төлөлт${pm.source==='bank'?' (Банкны хуулга)':''}`,type:MLABELS[pm.method]||pm.method,debit:0,credit:pm.amount,paymentId:pm.date+pm.amount});
+  const stmt = calculateReceivableStatement({
+    customerId: custId,
+    startDate:  from,
+    endDate:    to
+  });
+
+  let html = `<tr style="background:var(--sur2)">
+    <td colspan="5" style="padding:8px 10px;font-weight:600">Эхний үлдэгдэл (${from}-ний өмнөх)</td>
+    <td></td><td></td>
+    <td style="text-align:right;font-weight:700;color:var(--am)">${fmt(stmt.openingBalance)}</td>
+  </tr>`;
+
+  if(stmt.rows.length === 0) {
+    html += `<tr><td colspan="8"><div class="empty">Тайлант хугацаанд гүйлгээ байхгүй</div></td></tr>`;
+  } else {
+    stmt.rows.forEach(m => {
+      html += `<tr>
+        <td style="padding:7px 10px;text-align:center;color:var(--tx3)">${m.idx}</td>
+        <td style="padding:7px 10px;font-size:11px;color:var(--tx3)">${m.date}</td>
+        <td style="padding:7px 10px;font-family:monospace;font-size:11px;cursor:pointer;color:var(--pu)"
+          ${m.saleId ? `onclick="openInvoice('${m.saleId}')"` : ''}>${m.docNum}</td>
+        <td style="padding:7px 10px;font-size:12px">${m.desc}</td>
+        <td style="padding:7px 10px;font-size:12px">${m.type}</td>
+        <td style="padding:7px 10px;text-align:right;color:var(--re)">${m.debit ? fmt(m.debit) : ''}</td>
+        <td style="padding:7px 10px;text-align:right;color:var(--gr)">${m.credit ? fmt(m.credit) : ''}</td>
+        <td style="padding:7px 10px;text-align:right;font-weight:600;color:${m.balance > 0 ? 'var(--am)' : m.balance < 0 ? 'var(--gr)' : 'var(--tx)'}">${fmt(m.balance)}</td>
+      </tr>`;
     });
-  });
-  movements.sort((a,b)=>a.date.localeCompare(b.date));
+  }
 
-  let balance = 0;
-  let rows = `<tr style="background:var(--sur2)"><td colspan="5" style="padding:8px 10px;font-weight:600">Эхний үлдэгдэл</td><td></td><td></td><td style="text-align:right;font-weight:700">${fmt(0)}</td></tr>`;
-  let totalDebit=0, totalCredit=0;
-
-  movements.forEach((m,i)=>{
-    balance += m.debit - m.credit;
-    totalDebit += m.debit; totalCredit += m.credit;
-    rows += `<tr>
-      <td style="padding:7px 10px;text-align:center;color:var(--tx3)">${i+1}</td>
-      <td style="padding:7px 10px;font-size:11px;color:var(--tx3)">${m.date}</td>
-      <td style="padding:7px 10px;font-family:monospace;font-size:11px;cursor:pointer;color:var(--pu)" ${m.saleId?`onclick="openInvoice('${m.saleId}')"`:''}>${m.docNum}</td>
-      <td style="padding:7px 10px;font-size:12px">${m.desc}</td>
-      <td style="padding:7px 10px;font-size:12px">${m.type}</td>
-      <td style="padding:7px 10px;text-align:right;color:var(--re)">${m.debit?fmt(m.debit):''}</td>
-      <td style="padding:7px 10px;text-align:right;color:var(--gr)">${m.credit?fmt(m.credit):''}</td>
-      <td style="padding:7px 10px;text-align:right;font-weight:600;color:${balance>0?'var(--am)':'var(--gr)'}">${fmt(balance)}</td>
-    </tr>`;
-  });
-
-  // Summary rows inside table
-  rows += `<tr style="background:var(--sur2);border-top:2px solid var(--bd)">
-    <td colspan="5" style="padding:8px 10px;font-weight:600">Нийт борлуулалт</td>
-    <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--re)">${fmt(totalDebit)}</td><td></td><td></td></tr>
+  // Summary
+  html += `
+  <tr style="background:var(--sur2);border-top:2px solid var(--bd)">
+    <td colspan="5" style="padding:8px 10px;font-weight:600">Нийт дебет (борлуулалт)</td>
+    <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--re)">${fmt(stmt.periodDebits)}</td>
+    <td></td><td></td>
+  </tr>
   <tr style="background:var(--sur2)">
-    <td colspan="5" style="padding:8px 10px;font-weight:600">Нийт төлөлт</td>
-    <td></td><td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--gr)">${fmt(totalCredit)}</td><td></td></tr>
+    <td colspan="5" style="padding:8px 10px;font-weight:600">Нийт кредит (төлөлт)</td>
+    <td></td>
+    <td style="padding:8px 10px;text-align:right;font-weight:700;color:var(--gr)">${fmt(stmt.periodCredits)}</td>
+    <td></td>
+  </tr>
   <tr style="background:var(--pul)">
-    <td colspan="7" style="padding:10px;font-weight:800;font-size:14px;color:var(--pu)">Эцсийн үлдэгдэл</td>
-    <td style="padding:10px;text-align:right;font-weight:800;font-size:14px;color:var(--am)">${fmt(balance)}</td></tr>`;
+    <td colspan="7" style="padding:10px;font-weight:800;font-size:14px;color:var(--pu)">Эцсийн үлдэгдэл (${to}-ны байдлаар)</td>
+    <td style="padding:10px;text-align:right;font-weight:800;font-size:14px;color:${stmt.closingBalance > 0 ? 'var(--am)' : 'var(--gr)'}">${fmt(stmt.closingBalance)}</td>
+  </tr>`;
 
-  tbody.innerHTML = rows || '<tr><td colspan="8"><div class="empty">Мэдээлэл байхгүй</div></td></tr>';
+  tbody.innerHTML = html;
 };
 
 window.printLedger = () => {
-  const custId=document.getElementById('ldg-cust')?.value;
-  if(!custId){alert('Харилцагч сонгоно уу');return;}
-  const from=document.getElementById('ldg-from')?.value||'';
-  const to=document.getElementById('ldg-to')?.value||'';
-  const cust=customers.find(c=>c.id===custId)||{};
-  const printDate=new Date().toLocaleString('mn-MN');
-  const dn=new Date().toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
-  const MLBL={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
-  const PTYPES={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
-  const movements=[];
-  sales.filter(s=>s.customerId===custId).forEach(s=>{
-    if(from&&s.date<from)return; if(to&&s.date>to)return;
-    movements.push({date:s.date,docNum:getDocNumDisplay(s),desc:'Бараа борлуулалт',type:PTYPES[s.paymentType]||PTYPES[s.payType]||PTYPES[s.method]||'',debit:s.total,credit:0,saleId:s.id});
-    (s.payments||[]).forEach(pm=>{
-      if(from&&pm.date<from)return; if(to&&pm.date>to)return;
-      movements.push({date:pm.date,docNum:pm.docNumber||'',desc:'Төлөлт'+(pm.source==='bank'?' (Банкны хуулга)':''),type:MLBL[pm.method]||pm.method,debit:0,credit:pm.amount});
-    });
-  });
-  movements.sort((a,b)=>a.date.localeCompare(b.date));
-  let balance=0,totalDebit=0,totalCredit=0;
-  const rows=movements.map((m,i)=>{
-    balance+=m.debit-m.credit; totalDebit+=m.debit; totalCredit+=m.credit;
-    return `<tr>
-      <td style="text-align:center">${i+1}</td>
-      <td>${m.date}</td>
-      <td style="font-family:monospace;font-size:7pt">${m.docNum}</td>
-      <td>${m.desc}</td><td>${m.type}</td>
-      <td style="text-align:right">${m.debit?m.debit.toLocaleString():''}</td>
-      <td style="text-align:right">${m.credit?m.credit.toLocaleString():''}</td>
-      <td style="text-align:right;font-weight:bold">${balance.toLocaleString()}</td>
-    </tr>`;
-  }).join('');
-  const win=window.open('','_blank'); if(!win) return;
-  win.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Авлагын тайлан</title><style>
+  const custId = document.getElementById('ldg-cust')?.value;
+  const from   = document.getElementById('ldg-from')?.value || '';
+  const to     = document.getElementById('ldg-to')?.value   || '';
+  if(!custId) { alert('Харилцагч сонгоно уу'); return; }
+  const cust = customers.find(c => c.id === custId) || {};
+  const defBank = getDefaultBank('MNT') || {};
+  const printDate = new Date().toLocaleDateString('mn-MN');
+  const userLabel = currentUser?.email || '—';
+
+  const stmt = calculateReceivableStatement({ customerId: custId, startDate: from, endDate: to });
+
+  const rowsHtml = stmt.rows.map((m, i) => `<tr>
+    <td style="text-align:center">${i+1}</td>
+    <td>${m.date}</td>
+    <td style="font-family:monospace;font-size:7pt">${m.docNum}</td>
+    <td>${m.desc}</td>
+    <td>${m.type}</td>
+    <td style="text-align:right">${m.debit ? m.debit.toLocaleString() : ''}</td>
+    <td style="text-align:right">${m.credit ? m.credit.toLocaleString() : ''}</td>
+    <td style="text-align:right;font-weight:600">${m.balance.toLocaleString()}</td>
+  </tr>`).join('');
+
+  const win = window.open('', '_blank'); if(!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>Авлагын тайлан</title>
+  <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:Arial,sans-serif;font-size:8.5pt;color:#000;background:#fff;padding:10mm}
-    .logo{font-family:'Georgia',serif;font-size:13pt;font-weight:normal;color:#000;letter-spacing:1px}
-    .doc-title{font-size:11pt;font-weight:bold;text-align:center}
-    table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:3mm}
-    th{background:#000;color:#fff;padding:2mm 2.5mm;border:0.4pt solid #000;text-align:left}
-    td{border:0.4pt solid #888;padding:1.5mm 2.5mm}
-    .opening td,.closing td,.sumrow td{font-weight:bold}
-    .opening td{background:#f0f0f0}
-    .closing td{background:#000;color:#fff}
-    .sumrow td{background:#f5f5f5}
-    .footer{font-size:7pt;color:#555;margin-top:3mm;display:flex;justify-content:space-between;border-top:0.3pt solid #ccc;padding-top:1.5mm}
-    @media print{@page{size:A4 portrait;margin:10mm}button{display:none!important}}
-    .print-btn{position:fixed;top:4mm;right:4mm;background:#000;color:#fff;border:none;padding:5px 12px;border-radius:4px;cursor:pointer;font-size:10px;z-index:99}
+    body{font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#fff;padding:10mm}
+    h2{font-size:13pt;margin-bottom:4mm}
+    .info{display:flex;gap:8mm;margin-bottom:4mm;font-size:8.5pt}
+    table{width:100%;border-collapse:collapse;font-size:8pt}
+    th{background:#1a1a1a;color:#fff;padding:2mm 3mm;text-align:left;white-space:nowrap}
+    td{border:0.4pt solid #ccc;padding:1.5mm 2mm}
+    .total-row td{font-weight:700;background:#f5f5f5;border-top:1pt solid #333}
+    .opening-row td{font-weight:600;background:#f0f8ff}
+    .closing-row td{font-weight:800;background:#fff8dc;font-size:10pt}
+    .r{text-align:right}
+    .footer{margin-top:8mm;display:flex;justify-content:space-between;font-size:7pt;color:#888;border-top:0.4pt solid #ccc;padding-top:2mm}
+    @media print{@page{size:A4 portrait;margin:10mm}body{padding:0}button{display:none}}
+    .print-btn{position:fixed;top:5mm;right:5mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px}
   </style></head><body>
-  <button class="print-btn" onclick="window.print()">🖨 Хэвлэх</button>
-    <div class="print-guide no-print" style="position:fixed;top:10mm;right:3mm;max-width:120mm;font-size:8px;background:#fff8dc;border:1px solid #cca;padding:5px 8px;border-radius:3px;line-height:1.6;z-index:98">⚙️ <b>Хэвлэх тохиргоо:</b><br>More settings → Paper size: <b>Custom</b><br>Width: <b>200мм</b> / Height: <b>140мм</b><br>Layout: <b>Landscape</b> → Margins: <b>None</b></div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3mm">
-    <div class="logo">femmora</div>
-    <div style="text-align:center;flex:1;margin:0 4mm"><div class="doc-title">АВЛАГЫН ДЭЛГЭРЭНГҮЙ ТАЙЛАН</div></div>
-    <div style="font-size:7.5pt;color:#333">Огноо: ${dn}</div>
+  <button class="print-btn" onclick="window.print()">🖨 Хэвлэх (A4)</button>
+  <div style="text-align:center;margin-bottom:4mm">
+    <div style="font-family:'Georgia',serif;font-size:14pt;font-weight:400">femmora</div>
+    <h2>АВЛАГЫН ДЭЛГЭРЭНГҮЙ ТАЙЛАН</h2>
+    <div style="font-size:9pt;color:#555">${from||'—'} — ${to||'—'}</div>
   </div>
-  <div style="border-top:1.5pt solid #000;margin-bottom:3mm"></div>
-  <div style="display:flex;justify-content:space-between;font-size:8.5pt;margin-bottom:2mm">
-    <span>Харилцагч: <b>${cust.name||'—'}</b>${cust.reg?' ('+cust.reg+')':''}</span>
-    <span>Тайлант хугацаа: <b>${from||'—'}</b> — <b>${to||'—'}</b></span>
+  <div class="info">
+    <div><b>Харилцагч:</b> ${cust.name||'—'} ${cust.customerCode?'('+cust.customerCode+')':''}</div>
+    <div><b>Регистр:</b> ${cust.reg||'—'}</div>
+    <div><b>Хэвлэсэн:</b> ${printDate}</div>
   </div>
   <table>
-    <thead><tr>
-      <th style="width:4%;text-align:center">№</th>
-      <th style="width:9%">Огноо</th>
-      <th style="width:16%">Баримт №</th>
-      <th>Гүйлгээний утга</th>
-      <th style="width:9%">Төлбөрийн төрөл</th>
-      <th style="width:12%;text-align:right">Дебет</th>
-      <th style="width:12%;text-align:right">Кредит</th>
-      <th style="width:12%;text-align:right">Үлдэгдэл</th>
-    </tr></thead>
+    <thead><tr><th>№</th><th>Огноо</th><th>Баримт №</th><th>Утга</th><th>Төрөл</th><th class="r">Дебет ₮</th><th class="r">Кредит ₮</th><th class="r">Үлдэгдэл ₮</th></tr></thead>
     <tbody>
-      <tr class="opening"><td style="text-align:center">—</td><td>${from||'—'}</td><td>—</td><td>Эхний үлдэгдэл</td><td>—</td><td>—</td><td>—</td><td style="text-align:right">0</td></tr>
-      ${rows}
+      <tr class="opening-row">
+        <td colspan="5" style="font-weight:600">Эхний үлдэгдэл (${from}-ний өмнөх)</td>
+        <td></td><td></td>
+        <td class="r" style="font-weight:700">${stmt.openingBalance.toLocaleString()}</td>
+      </tr>
+      ${rowsHtml}
+      <tr class="total-row"><td colspan="5">Нийт дебет</td><td class="r">${stmt.periodDebits.toLocaleString()}</td><td></td><td></td></tr>
+      <tr class="total-row"><td colspan="5">Нийт кредит</td><td></td><td class="r">${stmt.periodCredits.toLocaleString()}</td><td></td></tr>
+      <tr class="closing-row">
+        <td colspan="7" style="font-weight:800">Эцсийн үлдэгдэл (${to}-ны байдлаар)</td>
+        <td class="r">${stmt.closingBalance.toLocaleString()}</td>
+      </tr>
     </tbody>
-    <tfoot>
-      <tr class="sumrow"><td colspan="5">Нийт борлуулалт</td><td style="text-align:right">${totalDebit.toLocaleString()}</td><td></td><td></td></tr>
-      <tr class="sumrow"><td colspan="5">Нийт төлөлт</td><td></td><td style="text-align:right">${totalCredit.toLocaleString()}</td><td></td></tr>
-      <tr class="closing"><td colspan="7" style="text-align:right;padding:2mm">Эцсийн үлдэгдэл:</td><td style="text-align:right">${balance.toLocaleString()} ₮</td></tr>
-    </tfoot>
   </table>
-  <div style="font-size:7.5pt;font-style:italic;margin-bottom:3mm">Эцсийн үлдэгдэл үсгээр: ${numToWords(balance)}</div>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:6mm;margin-top:3mm">
-    <div><div style="font-size:7.5pt;font-weight:bold;margin-bottom:8mm">Нэхэмжлэгчийн төлөөлөл</div><div style="border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt">Нэр:<br>Гарын үсэг:</div></div>
-    <div><div style="font-size:7.5pt;font-weight:bold;margin-bottom:8mm">Төлөгчийн төлөөлөл</div><div style="border-top:0.5pt solid #555;padding-top:1mm;font-size:7.5pt">Нэр:<br>Гарын үсэг:</div></div>
-  </div>
   <div class="footer">
-    <span>Хэвлэсэн огноо: ${printDate}</span>
-    <span>Хэвлэсэн хариуцагч: Алтансувд</span>
-    <span>System: Femmora Cusion</span>
+    <span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: ${userLabel}</span><span>Femmora Cusion</span>
   </div>
   </body></html>`);
   win.document.close();
-  setTimeout(()=>win.print(),400);
 };
 
 // ─── RECONCILE (Тооцоо нийлэлт) ──────────────────────────────────────────────
@@ -3104,22 +3083,35 @@ window.updateRecWords = () => {
 
 window.loadReconcileData = () => {
   const custId = document.getElementById('rec-cust')?.value;
-  const from = document.getElementById('rec-from')?.value;
-  const to = document.getElementById('rec-to')?.value;
-  if(!custId) return;
-  const custSales = sales.filter(s=>s.customerId===custId&&(!from||s.date>=from)&&(!to||s.date<=to));
-  const totalSale = custSales.reduce((a,s)=>a+s.total,0);
-  const totalPaid = custSales.reduce((a,s)=>a+s.paid,0);
-  const totalRecv = custSales.reduce((a,s)=>a+s.recv,0);
-  reconcileData = {custId,from,to,totalSale,totalPaid,totalRecv,custSales};
-  const sumEl = document.getElementById('rec-summary');
-  if(sumEl){
-    sumEl.style.display='block';
-    sumEl.innerHTML=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
-      <div><div style="font-size:10px;color:var(--tx3)">Нийт борлуулалт</div><div style="font-weight:700">${fmt(totalSale)}</div></div>
-      <div><div style="font-size:10px;color:var(--tx3)">Нийт төлөлт</div><div style="font-weight:700;color:var(--gr)">${fmt(totalPaid)}</div></div>
-      <div><div style="font-size:10px;color:var(--tx3)">Авлагын үлдэгдэл</div><div style="font-weight:700;color:var(--am)">${fmt(totalRecv)}</div></div>
-    </div>`;
+  const from   = document.getElementById('rec-from')?.value;
+  const to     = document.getElementById('rec-to')?.value;
+  if(!custId || !from || !to) return;
+
+  const stmt = calculateReceivableStatement({
+    customerId: custId,
+    startDate:  from,
+    endDate:    to
+  });
+
+  reconcileData = {
+    totalSale:  stmt.periodDebits,
+    totalPaid:  stmt.periodCredits,
+    totalRecv:  stmt.closingBalance,
+    openingBalance: stmt.openingBalance
+  };
+
+  const manualSale = parseInt(document.getElementById('rec-manual-sale')?.value) || 0;
+  const summaryEl = document.getElementById('rec-summary');
+  if(summaryEl) {
+    summaryEl.style.display = 'block';
+    summaryEl.innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px">
+        <div><span style="color:var(--tx2)">Эхний үлдэгдэл:</span><br><b>${fmt(stmt.openingBalance)}</b></div>
+        <div><span style="color:var(--tx2)">Тайлант хугацааны борлуулалт:</span><br><b style="color:var(--re)">${fmt(stmt.periodDebits)}</b></div>
+        <div><span style="color:var(--tx2)">Тайлант хугацааны төлөлт:</span><br><b style="color:var(--gr)">${fmt(stmt.periodCredits)}</b></div>
+        <div><span style="color:var(--tx2)">Эцсийн үлдэгдэл:</span><br><b style="color:var(--am);font-size:16px">${fmt(stmt.closingBalance)}</b></div>
+        ${manualSale ? `<div style="grid-column:1/-1"><span style="color:var(--tx2)">Гараар оруулсан борлуулалт (акт):</span><br><b>${fmt(manualSale)}</b></div>` : ''}
+      </div>`;
   }
 };
 
@@ -3135,72 +3127,57 @@ window.printReconcile = () => {
 };
 
 function generateReconcileDoc(doPrint=false) {
-  const custId=document.getElementById('rec-cust')?.value;
-  const from=document.getElementById('rec-from')?.value||'';
-  const to=document.getElementById('rec-to')?.value||'';
-  const recDate=document.getElementById('rec-date')?.value||today();
-  const bankAccId=document.getElementById('rec-bank')?.value||'';
-  const manualSale=parseInt(document.getElementById('rec-manual-sale')?.value)||0;
-  const note=document.getElementById('rec-note')?.value||'';
-  if(!custId){alert('Харилцагч сонгоно уу');return;}
-  loadReconcileData();
-  const cust=customers.find(c=>c.id===custId)||{};
-  const bank=bankAccounts.find(b=>b.id===bankAccId)||getDefaultBank('MNT')||{};
-  const {totalSale=0,totalPaid=0,totalRecv=0}=reconcileData;
-  const saleAmt=manualSale||totalSale;
-  const fmtD=d=>d?new Date(d).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'}):'—';
-  const printDate=new Date().toLocaleDateString('mn-MN');
-  const userLabel=currentUser?.email||'—';
-  getNextDocNum('reconcile').then(tnNum=>{
-    const win=window.open('','_blank');
-    if(!win){alert('Popup блоклогдсон');return;}
-    win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>${tnNum}</title><style>
+  const custId  = document.getElementById('rec-cust')?.value;
+  const from    = document.getElementById('rec-from')?.value || '';
+  const to      = document.getElementById('rec-to')?.value   || '';
+  const recDate = document.getElementById('rec-date')?.value  || today();
+  const bankAccId = document.getElementById('rec-bank')?.value || '';
+  const manualSale = parseInt(document.getElementById('rec-manual-sale')?.value) || 0;
+  const note    = document.getElementById('rec-note')?.value  || '';
+
+  if(!custId) { alert('Харилцагч сонгоно уу'); return; }
+
+  // Нэгдсэн helper ашиглах
+  const stmt = calculateReceivableStatement({ customerId: custId, startDate: from, endDate: to });
+  const cust = customers.find(c => c.id === custId) || {};
+  const bank = bankAccounts.find(b => b.id === bankAccId) || getDefaultBank('MNT') || {};
+  const fmtD = d => d ? new Date(d).toLocaleDateString('mn-MN', {year:'numeric',month:'2-digit',day:'2-digit'}) : '—';
+  const printDate = new Date().toLocaleDateString('mn-MN');
+  const userLabel = currentUser?.email || '—';
+
+  // Акт дахь дүнгүүд
+  const saleAmt = manualSale || stmt.periodDebits;
+
+  getNextDocNum('reconcile').then(tnNum => {
+    const win = window.open('', '_blank');
+    if(!win) { alert('Popup блоклогдсон'); return; }
+
+    const TN_CSS = `
       *{box-sizing:border-box;margin:0;padding:0}
       html,body{margin:0;padding:0;font-family:Arial,sans-serif;font-size:9pt;color:#000;background:#d8d8d8}
       .a4-wrap{width:210mm;min-height:297mm;background:#fff;margin:8mm auto;box-shadow:0 3px 16px rgba(0,0,0,.25)}
       .page{width:210mm;height:148mm;max-height:148mm;overflow:hidden;padding:5mm 6mm 4mm;background:#fff;position:relative}
       .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
-      .logo{font-family:'Georgia','Times New Roman',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1}
-      .doc-title{font-size:10pt;font-weight:bold;color:#000;line-height:1.2;text-align:center}
-      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2.5mm}
-      .col-box{border:0.4pt solid #999;padding:1.8mm 2.5mm}
-      .col-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm;color:#333}
-      .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
-      .info-lbl{font-size:7.5pt;color:#555;min-width:20mm;flex-shrink:0}
-      .info-val{font-size:7.5pt;font-weight:600;color:#000;word-break:break-word}
-      table.doc-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:1.5mm;table-layout:fixed}
-      table.doc-table th{background:#1a1a1a;color:#fff;padding:1.5mm 2mm;border:0.4pt solid #1a1a1a;font-size:7pt;font-weight:700;text-align:left;white-space:nowrap}
-      table.doc-table td{border:0.4pt solid #bbb;padding:1.2mm 2mm;vertical-align:middle}
-      .r{text-align:right!important}.c{text-align:center!important}
-      .total-row td{font-weight:700;background:#f5f5f5;border-top:1pt solid #333}
-      .meta-row td{font-size:7.5pt;padding:1mm 2mm;border:0.4pt solid #ccc}
-      .amount-words{font-size:7pt;font-style:italic;color:#444;margin-bottom:1.5mm;line-height:1.3}
-      .sign-row{display:grid;gap:3mm;margin-top:2mm}
-      .sign-title{font-size:7pt;color:#222;margin-bottom:4mm;font-weight:700}
-      .sign-line{border-top:0.4pt solid #555;padding-top:0.8mm;font-size:7pt;color:#333;line-height:1.5}
-      .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
-      @media print{
-        @page{size:A4 portrait;margin:0}
-        html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}
-        .a4-wrap{box-shadow:none!important;margin:0!important;width:210mm!important;min-height:auto!important}
-        .page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}
-        .a4-bottom{display:none!important}
-        .no-print,.print-btn,.print-guide{display:none!important}
-      }
-      .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99;box-shadow:0 2px 6px rgba(0,0,0,.3)}
-      .print-guide{position:fixed;top:12mm;right:4mm;background:#fff8dc;border:1px solid #cca030;padding:5px 8px;border-radius:4px;font-size:8px;color:#664400;line-height:1.6;z-index:98}
-
+      .logo{font-family:'Georgia',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px}
+      .doc-title{font-size:10pt;font-weight:bold;color:#000;text-align:center}
       table.tn{width:100%;border-collapse:collapse;font-size:8pt;margin:1.5mm 0}
       table.tn th{border:0.4pt solid #444;padding:1.5mm 2mm;background:#f0f0f0;font-weight:bold;text-align:left;font-size:7.5pt}
       table.tn td{border:0.4pt solid #444;padding:1.5mm 2mm}
-      .tn-total td{font-weight:bold;background:#f5f5f5;border-top:1pt solid #333}
-      table.info{width:100%;border-collapse:collapse;margin-bottom:2mm}
-      table.info td{padding:1mm 1.5mm;vertical-align:top;font-size:7.5pt}
+      .tn-total td{font-weight:bold;background:#f5f5f5}
+      .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
+      .info-lbl{font-size:7.5pt;color:#555;min-width:28mm;flex-shrink:0}
+      .info-val{font-size:7.5pt;font-weight:600}
       .sign-table{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:2mm}
       .sign-line2{border-top:0.4pt solid #555;margin-top:8mm;padding-top:1mm;font-size:7pt}
-</style></head><body>
+      .doc-footer{display:flex;justify-content:space-between;font-size:6pt;color:#888;margin-top:1.5mm;padding-top:1mm;border-top:0.3pt solid #ddd}
+      .r{text-align:right!important}
+      @media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important;width:210mm}.a4-wrap{box-shadow:none!important;margin:0!important}.page{height:148mm!important;max-height:148mm!important;overflow:hidden!important}.a4-bottom{display:none!important}button{display:none!important}}
+      .print-btn{position:fixed;top:4mm;right:4mm;background:#1a1a1a;color:#fff;border:none;padding:6px 16px;border-radius:4px;cursor:pointer;font-size:9px;z-index:99}
+    `;
+
+    win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>${tnNum}</title>
+    <style>${TN_CSS}</style></head><body>
     <button class="print-btn" onclick="window.print()">🖨 Хэвлэх (A4)</button>
-    <div class="print-guide no-print">📄 A4 · Portrait · Margins: None</div>
     <div class="a4-wrap"><div class="page">
       <div style="display:flex;align-items:center;gap:3mm;margin-bottom:1.5mm">
         <div class="logo" style="flex-shrink:0">femmora</div>
@@ -3211,59 +3188,61 @@ function generateReconcileDoc(doPrint=false) {
         <div style="font-size:7.5pt;color:#444;flex-shrink:0">${fmtD(recDate)}</div>
       </div>
       <div style="border-top:1.5pt solid #000;margin-bottom:1.5mm"></div>
-      <table class="info">
-        <tr>
-          <td style="width:50%;border-right:0.4pt solid #ccc;padding-right:3mm">
-            <div style="font-weight:700;font-size:7.5pt;margin-bottom:1mm">Нэхэмжлэгч:</div>
-            <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
-            <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
-            <div class="info-row"><span class="info-lbl">Банкны нэр:</span><span class="info-val">${bank.bankName||'Хаан банк'}</span></div>
-            <div class="info-row"><span class="info-lbl">Дансны дугаар:</span><span class="info-val">${bank.accountNumber||'5020001234'}</span></div>
-          </td>
-          <td style="width:50%;padding-left:3mm">
-            <div style="font-weight:700;font-size:7.5pt;margin-bottom:1mm">Төлөгч:</div>
-            <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">${cust.name||'—'}</span></div>
-            <div class="info-row"><span class="info-lbl">Утас:</span><span class="info-val">${cust.phone||'—'}</span></div>
-            ${cust.reg?`<div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">${cust.reg}</span></div>`:''}
-          </td>
-        </tr>
-      </table>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2mm">
+        <div style="border:0.4pt solid #999;padding:1.8mm 2.5mm">
+          <div style="font-size:7pt;font-weight:bold;text-transform:uppercase;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm">Нэхэмжлэгч</div>
+          <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">Арвижих гэгээн нар ХХК</span></div>
+          <div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">7180617</span></div>
+          <div class="info-row"><span class="info-lbl">Банкны нэр:</span><span class="info-val">${bank.bankName||'Хаан банк'}</span></div>
+          <div class="info-row"><span class="info-lbl">Дансны дугаар:</span><span class="info-val">${bank.accountNumber||'5020001234'}</span></div>
+        </div>
+        <div style="border:0.4pt solid #999;padding:1.8mm 2.5mm">
+          <div style="font-size:7pt;font-weight:bold;text-transform:uppercase;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm">Төлөгч</div>
+          <div class="info-row"><span class="info-lbl">Байгууллагын нэр:</span><span class="info-val">${cust.name||'—'}</span></div>
+          <div class="info-row"><span class="info-lbl">Утас:</span><span class="info-val">${cust.phone||'—'}</span></div>
+          ${cust.reg?`<div class="info-row"><span class="info-lbl">Регистр:</span><span class="info-val">${cust.reg}</span></div>`:''}
+        </div>
+      </div>
       <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">
         Тооцоо нийлсэн хугацаа: ${fmtD(from)} – ${fmtD(to)} &nbsp;&nbsp; Тооцоо нийлсэн огноо: ${fmtD(recDate)}
       </div>
       <div style="font-size:7pt;margin-bottom:1.5mm;line-height:1.5">
         Нэхэмжлэгчийн нэрийн өмнөөс нягтлан бодогч ажилтай Ганцэцэг овогтой <b>Алтансувд</b> нь
-        төлөгчийн нэрийн өмнөөс ______ажилтай______овогтой______-тай
-        тус хоёр байгууллага хооронд нийлж үзэхэд
+        төлөгчийн нэрийн өмнөөс ______ажилтай______овогтой______-тай нийлж үзэхэд
       </div>
       <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">I. Тооцооны үлдэгдэл (${fmtD(to)}-ны өдрийн байдлаар)</div>
       <table class="tn">
         <thead><tr><th style="width:5%;text-align:center">№</th><th>Үзүүлэлт</th><th style="width:22%;text-align:right">Дүн (₮)</th></tr></thead>
         <tbody>
-          <tr><td class="c">1</td><td>Эхний үлдэгдэл</td><td class="r">0 ₮</td></tr>
-          <tr><td class="c">2</td><td>Тухайн хугацааны зээлийн борлуулалт</td><td class="r">${totalSale.toLocaleString()} ₮</td></tr>
-          <tr><td class="c">3</td><td>Тухайн хугацааны төлөлт</td><td class="r">(${totalPaid.toLocaleString()} ₮)</td></tr>
-          <tr><td class="c">4</td><td>Буцаалт, хөнгөлөлт</td><td class="r">0 ₮</td></tr>
+          <tr><td class="r">1</td><td>Эхний үлдэгдэл (${fmtD(from)}-ны өмнөх)</td><td class="r">${stmt.openingBalance.toLocaleString()} ₮</td></tr>
+          <tr><td class="r">2</td><td>Тухайн хугацааны зээлийн борлуулалт</td><td class="r">${stmt.periodDebits.toLocaleString()} ₮</td></tr>
+          <tr><td class="r">3</td><td>Тухайн хугацааны төлөлт</td><td class="r">(${stmt.periodCredits.toLocaleString()} ₮)</td></tr>
+          <tr><td class="r">4</td><td>Буцаалт, хөнгөлөлт</td><td class="r">0 ₮</td></tr>
         </tbody>
-        <tfoot><tr class="tn-total"><td colspan="2">Тооцооны үлдэгдэл (1+2-3-4)</td><td class="r">${totalRecv.toLocaleString()} ₮</td></tr></tfoot>
+        <tfoot><tr class="tn-total"><td colspan="2">Тооцооны үлдэгдэл (1+2-3-4)</td><td class="r">${stmt.closingBalance.toLocaleString()} ₮</td></tr></tfoot>
       </table>
       <div style="font-size:7pt;margin-bottom:1.5mm">
-        Төлөгч байгуулга нь дээрх дүнгээр <b>${totalRecv.toLocaleString()} ₮</b>-ийн өртэй гарсныг харилцан батлав.
+        Төлөгч байгуулга нь дээрх дүнгээр <b>${stmt.closingBalance.toLocaleString()} ₮</b>-ийн өртэй гарсныг харилцан батлав.
       </div>
       <div style="font-size:7.5pt;font-weight:700;margin-bottom:1mm">II. Тухайн сарын борлуулалтын нэхэмжлэх дүн</div>
       <table class="tn">
-        <tbody><tr><td>Тухайн хугацааны борлуулалтын орлого (гараар оруулсан)</td><td class="r" style="width:22%;font-weight:700">${saleAmt.toLocaleString()} ₮</td></tr></tbody>
+        <tbody><tr>
+          <td>Тухайн хугацааны борлуулалтын орлого${manualSale?' (гараар оруулсан)':' (системийн)'}</td>
+          <td class="r" style="width:22%;font-weight:700">${saleAmt.toLocaleString()} ₮</td>
+        </tr></tbody>
       </table>
       <div style="font-size:7pt;font-style:italic;margin:1mm 0">${numToWords(saleAmt)}</div>
       ${note?`<div style="font-size:7pt;color:#444;margin-bottom:1mm">Тайлбар: ${note}</div>`:''}
       <div class="sign-table">
-        <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Нэхэмжлэгчийн төлөөлөл</div><div class="sign-line2">Нэр: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; / Г.Алтансувд /<br>Гарын үсэг:</div></div>
-        <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Төлөгчийн төлөөлөл</div><div class="sign-line2">Нэр:<br>Гарын үсэг:</div></div>
+        <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Нэхэмжлэгчийн төлөөлөл</div>
+          <div class="sign-line2">Нэр: / Г.Алтансувд /<br>Гарын үсэг:</div></div>
+        <div><div style="font-size:7pt;font-weight:700;margin-bottom:7mm">Төлөгчийн төлөөлөл</div>
+          <div class="sign-line2">Нэр:<br>Гарын үсэг:</div></div>
       </div>
       <div class="doc-footer"><span>Хэвлэсэн: ${printDate}</span><span>Хариуцагч: ${userLabel}</span><span>Femmora Cusion</span></div>
     </div><div class="a4-bottom"></div></div></body></html>`);
     win.document.close();
-    if(doPrint) setTimeout(()=>win.print(),500);
+    if(doPrint) setTimeout(() => win.print(), 500);
   });
 
 }
@@ -4280,6 +4259,96 @@ async function linkUserUidIfNeeded(user) {
   } catch(e) { console.warn('linkUserUidIfNeeded error:', e); }
 }
 
+
+// ─── АВЛАГЫН НЭГДСЭН HELPER ──────────────────────────────────────────────────
+
+// Огноог YYYY-MM-DD string болгох (Timestamp, ISO, string бүгд)
+function toDateStr(val) {
+  if(!val) return '';
+  if(typeof val === 'string') return val.slice(0, 10);
+  if(val?.toDate) return val.toDate().toISOString().slice(0, 10);
+  if(val instanceof Date) return val.toISOString().slice(0, 10);
+  return String(val).slice(0, 10);
+}
+
+// Нэг харилцагчийн авлагын тайлан тооцоолох
+// { customerId, startDate, endDate, allSales, allPayments }
+// Буцааx: { openingBalance, periodDebits, periodCredits, closingBalance, rows }
+function calculateReceivableStatement({ customerId, startDate, endDate }) {
+  const txns = []; // { date, docNum, desc, type, debit, credit, saleId }
+
+  // Зөвхөн зээлийн борлуулалт авлагад нөлөөлнө
+  const custSales = sales.filter(s => {
+    if(customerId && s.customerId !== customerId) return false;
+    if(s.status === 'deleted' || s.status === 'void' || s.status === 'cancelled') return false;
+    // Зөвхөн зээл эсвэл хэсэгчилсэн төлөлттэй борлуулалт
+    const pt = s.paymentType || s.payType || s.method || '';
+    return pt === 'credit' || s.recv > 0;
+  });
+
+  // Бүх борлуулалтын мөрүүд
+  custSales.forEach(s => {
+    const d = toDateStr(s.date);
+    txns.push({
+      date: d,
+      sort2: toDateStr(s.createdAt) || d,
+      docNum: s.docNumber || s.id?.slice(-6).toUpperCase() || '—',
+      desc: 'Зээлийн борлуулалт',
+      type: 'Зээл',
+      debit: s.total || 0,
+      credit: 0,
+      saleId: s.id
+    });
+    // Төлөлтүүд
+    (s.payments || []).forEach(pm => {
+      const pd = toDateStr(pm.date);
+      const MLBLS = {cash:'Бэлэн',transfer:'Дансаар',card:'Картаар',online:'Онлайн',bank:'Банкны хуулга'};
+      txns.push({
+        date: pd,
+        sort2: pd,
+        docNum: pm.docNumber || s.docNumber || '—',
+        desc: `Төлөлт${pm.source === 'bank' ? ' (Банкны хуулга)' : ''}`,
+        type: MLBLS[pm.method] || pm.method || '—',
+        debit: 0,
+        credit: pm.amount || 0,
+        saleId: s.id
+      });
+    });
+  });
+
+  // Эрэмбэлэх: огноо → sort2 → docNum
+  txns.sort((a, b) => {
+    if(a.date !== b.date) return a.date.localeCompare(b.date);
+    if(a.sort2 !== b.sort2) return a.sort2.localeCompare(b.sort2);
+    return (a.docNum||'').localeCompare(b.docNum||'');
+  });
+
+  // Эхний үлдэгдэл: startDate-ээс өмнөх гүйлгээ (strict <)
+  let openingBalance = 0;
+  txns.forEach(t => {
+    if(t.date < startDate) {
+      openingBalance += t.debit - t.credit;
+    }
+  });
+
+  // Тайлангийн хугацааны гүйлгээ
+  const periodTxns = txns.filter(t => t.date >= startDate && t.date <= endDate);
+  let periodDebits = 0, periodCredits = 0;
+  periodTxns.forEach(t => { periodDebits += t.debit; periodCredits += t.credit; });
+
+  // Running balance
+  let runBal = openingBalance;
+  const rows = periodTxns.map((t, i) => {
+    runBal += t.debit - t.credit;
+    return { ...t, idx: i + 1, balance: runBal };
+  });
+
+  const closingBalance = openingBalance + periodDebits - periodCredits;
+
+  return { openingBalance, periodDebits, periodCredits, closingBalance, rows };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 addSaleRow();
