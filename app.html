@@ -821,6 +821,87 @@ tbody tr:hover td{background:var(--sur2)}
   </div>
 </div>
 
+<!-- EDIT PAYMENT MODAL -->
+<div class="modal-ov" id="edit-payment-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
+  <div class="modal" style="max-width:560px;width:100%">
+    <div class="mh">
+      <span><i class="ti ti-edit"></i> Төлөлт засах — <span id="ep2-docnum" style="font-family:monospace;font-size:12px;color:var(--pu)"></span></span>
+      <button class="btn bg bxs" onclick="closeModal('edit-payment-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div class="fg">
+        <div class="fl"><label>Огноо</label><input type="date" id="ep2-date"></div>
+        <div class="fl"><label>Харилцагч</label>
+          <select id="ep2-cust" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)"><option value="">-- Сонгох --</option></select>
+        </div>
+        <div class="fl"><label>Дүн ₮</label><input type="number" id="ep2-amt" min="0"></div>
+        <div class="fl"><label>Төлбөрийн төрөл</label>
+          <select id="ep2-method" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r)">
+            <option value="cash">Бэлэн</option>
+            <option value="transfer">Дансаар</option>
+            <option value="card">Картаар</option>
+            <option value="online">Онлайн</option>
+          </select>
+        </div>
+        <div class="fl" style="grid-column:1/-1"><label>Тайлбар</label><input type="text" id="ep2-note" placeholder="Тайлбар"></div>
+        <div class="fl" style="grid-column:1/-1"><label>Засварын шалтгаан <span style="color:var(--re)">*</span></label>
+          <input type="text" id="ep2-reason" placeholder="Засварын шалтгааныг заавал бичнэ">
+        </div>
+      </div>
+      <input type="hidden" id="ep2-id">
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn bp" onclick="saveEditPayment()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('edit-payment-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CANCEL PAYMENT MODAL -->
+<div class="modal-ov" id="cancel-payment-modal">
+  <div class="modal" style="max-width:460px">
+    <div class="mh">
+      <span><i class="ti ti-ban" style="color:var(--re)"></i> Төлөлт цуцлах</span>
+      <button class="btn bg bxs" onclick="closeModal('cancel-payment-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div id="cp-info" style="background:var(--sur2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:13px"></div>
+      <div class="fl" style="margin-bottom:12px">
+        <label>Цуцлах шалтгаан <span style="color:var(--re)">*</span></label>
+        <input type="text" id="cp-reason" placeholder="Шалтгааныг заавал бичнэ">
+      </div>
+      <input type="hidden" id="cp-id">
+      <div style="display:flex;gap:8px">
+        <button class="btn bd2" onclick="executeCancelPayment()" style="background:var(--re);color:#fff;border:none">
+          <i class="ti ti-ban"></i>Цуцлах
+        </button>
+        <button class="btn bg" onclick="closeModal('cancel-payment-modal')">Болих</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MIGRATION MODAL -->
+<div class="modal-ov" id="migration-modal">
+  <div class="modal" style="max-width:500px">
+    <div class="mh">
+      <span><i class="ti ti-database-import"></i> Төлөлтийн мэдээлэл шилжүүлэх</span>
+      <button class="btn bg bxs" onclick="closeModal('migration-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div style="background:var(--sur2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--tx2)">
+        Хуучин борлуулалтын дотор хадгалагдсан төлөлтүүдийг шинэ <b>payments</b> collection руу шилжүүлнэ.
+        Энэ үйлдэл аюулгүй бөгөөд хуучин өгөгдлийг устгахгүй.
+      </div>
+      <div id="migration-status" style="font-size:11px;color:var(--tx2);max-height:200px;overflow-y:auto"></div>
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn bp" onclick="runPaymentMigration()"><i class="ti ti-arrow-right"></i>Migration эхлэх</button>
+        <button class="btn bg" onclick="closeModal('migration-modal')">Хаах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT SALE MODAL -->
 <div class="modal-ov" id="edit-sale-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
   <div class="modal" style="max-width:860px;width:100%;margin:auto">
@@ -1090,7 +1171,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, onSnapshot, query, orderBy, serverTimestamp, getDoc, setDoc, runTransaction
+  getDocs, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ⬇️ FIREBASE CONFIG - ЭНД ӨӨРИЙН CONFIG ОРУУЛНА УУ
@@ -1323,6 +1404,7 @@ function generateReconcileHTML(r, fmtD, printDate) {
 let userRole = 'viewer';
 let customers = [], products = [], locations = [], sales = [], invLogs = [], stockMap = {};
 let reconcileDocs = [];
+let payments = []; // Шинэ payments collection
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async user => {
@@ -1739,21 +1821,54 @@ window.openPay = saleId => {
   openModal('pay-modal');
 };
 window.submitPayment = async () => {
-  const id=document.getElementById('pm-sale-id').value;
-  const amt=parseInt(document.getElementById('pm-amt').value)||0;
-  const method=document.getElementById('pm-method').value;
-  const note=document.getElementById('pm-note').value.trim();
-  const pDate=document.getElementById('pm-date').value||today();
-  const sale=sales.find(s=>s.id===id);
-  if(!sale||amt<=0){alert('Дүн оруулна уу');return;}
-  const actual=Math.min(amt,sale.recv);
-  const newPaid=sale.paid+actual, newRecv=sale.recv-actual;
-  const newStatus=newRecv===0?'paid':'partial';
-  const newPayments=[...(sale.payments||[]),{date:pDate,amount:actual,method,note}];
-  const tpDocNum = await getNextDocNum('payment');
-  newPayments[newPayments.length-1].docNumber = tpDocNum;
-  await updateDoc(doc(db,'sales',id),{paid:newPaid,recv:newRecv,status:newStatus,payments:newPayments});
-  closeModal('pay-modal');
+  const saleId = document.getElementById('pm-sale-id').value;
+  const amt    = parseInt(document.getElementById('pm-amt').value) || 0;
+  const method = document.getElementById('pm-method').value;
+  const note   = document.getElementById('pm-note').value.trim();
+  const pDate  = document.getElementById('pm-date').value || today();
+  const sale   = sales.find(s => s.id === saleId);
+  if(!sale || amt <= 0) { alert('Дүн оруулна уу'); return; }
+  const actual    = Math.min(amt, sale.recv);
+  const newPaid   = sale.paid + actual;
+  const newRecv   = sale.recv - actual;
+  const newStatus = newRecv === 0 ? 'paid' : 'partial';
+  // Doc number
+  const tpDocNum  = await getNextDocNum('payment');
+  const cust      = customers.find(c => c.id === sale.customerId) || {};
+  try {
+    // 1. payments collection-д шинэ document үүсгэх
+    await addDoc(collection(db, 'payments'), {
+      documentNumber:   tpDocNum,
+      customerId:       sale.customerId,
+      customerCode:     sale.customerCode || cust.customerCode || '',
+      customerName:     sale.customerName || cust.name || '',
+      paymentDate:      pDate,
+      amount:           actual,
+      paymentType:      method,
+      bankAccountId:    '',
+      bankTransactionId:'',
+      description:      `Борлуулалт ${sale.docNumber||sale.id.slice(-6)} -ийн төлөлт`,
+      note:             note,
+      allocations: [{
+        saleId:            saleId,
+        saleDocumentNumber:sale.docNumber || sale.id.slice(-6).toUpperCase(),
+        allocatedAmount:   actual
+      }],
+      status:     'active',
+      isCancelled:false,
+      source:     'manual',
+      createdAt:  serverTimestamp(),
+      createdBy:  currentUser.email,
+      updatedAt:  serverTimestamp(),
+      updatedBy:  currentUser.email
+    });
+    // 2. sale document шинэчлэх
+    await updateDoc(doc(db, 'sales', saleId), {
+      paid: newPaid, recv: newRecv, status: newStatus
+    });
+    closeModal('pay-modal');
+    alert(`✅ ${fmt(actual)} төлөлт амжилттай бүртгэгдлээ!`);
+  } catch(e) { alert('Алдаа: ' + e.message); }
 };
 window.inlinePayment = async saleId => {
   const amt=parseInt(document.getElementById('rp-amt-'+saleId)?.value)||0;
@@ -2114,15 +2229,93 @@ window.toggleRecvCard = id => {
 };
 
 window.renderRecvHistory = () => {
-  const from=document.getElementById('ph-from')?.value;
-  const to=document.getElementById('ph-to')?.value;
-  const custId=document.getElementById('ph-cust')?.value||'';
-  const allPays=[];
-  sales.forEach(s=>(s.payments||[]).forEach(pm=>{ if(from&&pm.date<from)return; if(to&&pm.date>to)return; if(custId&&s.customerId!==custId)return; allPays.push({...pm,customerName:s.customerName,saleId:s.id,items:s.items}); }));
-  allPays.sort((a,b)=>b.date.localeCompare(a.date));
-  const tbody=document.getElementById('rv-hist-tbody'); if(!tbody) return;
-  tbody.innerHTML=allPays.length===0?'<tr><td colspan="7"><div class="empty">Төлөлтийн бүртгэл байхгүй</div></td></tr>':
-    allPays.map(p=>`<tr><td style="font-size:11px;color:var(--tx3)">${p.date}</td><td style="font-weight:500">${p.customerName}</td><td style="font-size:11px;color:var(--tx3)">${p.saleId?.slice(-6)}</td><td style="font-size:11px">${(p.items||[]).map(it=>it.label?.split('·')[1]).join(', ')}</td><td style="color:var(--gr);font-weight:700">+${fmt(p.amount)}</td><td><span class="ba ${MBADGE[p.method]||'bgr2'}">${MLABELS[p.method]||p.method}</span></td><td style="font-size:11px;color:var(--tx2)">${p.note||''}</td></tr>`).join('');
+  const from   = document.getElementById('ph-from')?.value || '';
+  const to     = document.getElementById('ph-to')?.value   || '';
+  const custId = document.getElementById('ph-cust')?.value || '';
+  const tbody  = document.getElementById('rv-hist-tbody');
+  if(!tbody) return;
+
+  const MBADGE  = {cash:'bgr2',transfer:'bbl',card:'bpu',online:'bpu',credit:'bam2',bank:'bgr'};
+  const MLABELS2 = {cash:'Бэлэн',transfer:'Дансаар',card:'Карт',online:'Онлайн',credit:'Зээл',bank:'Банкны хуулга'};
+
+  // Шинэ payments collection
+  const allPays = [];
+  payments.forEach(pm => {
+    if(from && pm.paymentDate < from) return;
+    if(to   && pm.paymentDate > to)   return;
+    if(custId && pm.customerId !== custId) return;
+    allPays.push({
+      _id:      pm.id,
+      date:     pm.paymentDate,
+      docNum:   pm.documentNumber || '—',
+      custName: pm.customerName || '—',
+      method:   pm.paymentType || '—',
+      amount:   pm.amount || 0,
+      note:     pm.note || '',
+      status:   pm.status || 'active',
+      isCancelled: pm.isCancelled || false,
+      cancelReason: pm.cancellationReason || '',
+      allocations: pm.allocations || [],
+      source:   pm.source || 'manual'
+    });
+  });
+
+  // Хуучин sales.payments array (migration хийгдээгүй)
+  sales.forEach(s => {
+    if(s.paymentsMigrated) return;
+    if(custId && s.customerId !== custId) return;
+    (s.payments || []).forEach((pm, i) => {
+      const migKey = `${s.id}_${i}`;
+      if(payments.some(p => p.migrationKey === migKey)) return;
+      if(from && pm.date < from) return;
+      if(to   && pm.date > to)   return;
+      allPays.push({
+        _id:      `legacy_${migKey}`,
+        date:     pm.date,
+        docNum:   pm.docNumber || s.docNumber || '—',
+        custName: s.customerName || '—',
+        method:   pm.method || '—',
+        amount:   pm.amount || 0,
+        note:     pm.note || '',
+        status:   'active',
+        isCancelled: false,
+        allocations: [{ saleId: s.id, saleDocumentNumber: s.docNumber }],
+        source:   'legacy'
+      });
+    });
+  });
+
+  allPays.sort((a, b) => (b.date||'').localeCompare(a.date||''));
+
+  if(allPays.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8"><div class="empty">Төлөлтийн бүртгэл байхгүй</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = allPays.map(p => {
+    const cancelled = p.isCancelled || p.status === 'cancelled';
+    const statusBadge = cancelled
+      ? '<span class="ba bre">Цуцлагдсан</span>'
+      : '<span class="ba bgr">Идэвхтэй</span>';
+    const allocStr = (p.allocations||[]).map(a=>a.saleDocumentNumber||a.saleId?.slice(-6)||'—').join(', ');
+    const canEdit   = !cancelled && p.source !== 'legacy' && hasPerm('receivable_edit');
+    const canCancel = !cancelled && p.source !== 'legacy' && hasPerm('receivable_edit');
+    const canPrint  = hasPerm('receivable_print');
+    return `<tr style="${cancelled ? 'opacity:0.6;text-decoration:line-through' : ''}">
+      <td style="font-size:11px;color:var(--tx3)">${p.date}</td>
+      <td style="font-family:monospace;font-size:11px;color:var(--pu)">${p.docNum}</td>
+      <td style="font-weight:500">${p.custName}</td>
+      <td><span class="ba ${MBADGE[p.method]||'bgr2'}">${MLABELS2[p.method]||p.method}</span></td>
+      <td style="color:var(--gr);font-weight:700;text-align:right">${fmt(p.amount)}</td>
+      <td style="font-size:11px;color:var(--tx3)">${allocStr}</td>
+      <td>${statusBadge}${cancelled?'<br><span style="font-size:10px;color:var(--re)">'+p.cancelReason+'</span>':''}</td>
+      <td style="white-space:nowrap">
+        ${canPrint?`<button class="btn bg bxs" onclick="printPaymentById('${p._id}')" title="Хэвлэх"><i class="ti ti-printer"></i></button>`:''}
+        ${canEdit?`<button class="btn bg bxs" onclick="openEditPayment('${p._id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+        ${canCancel?`<button class="btn bd2 bxs" onclick="confirmCancelPayment('${p._id}')" title="Цуцлах"><i class="ti ti-ban"></i></button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
 };
 
 window.renderInvLog = () => {
@@ -4275,64 +4468,92 @@ function toDateStr(val) {
 // { customerId, startDate, endDate, allSales, allPayments }
 // Буцааx: { openingBalance, periodDebits, periodCredits, closingBalance, rows }
 function calculateReceivableStatement({ customerId, startDate, endDate }) {
-  const txns = []; // { date, docNum, desc, type, debit, credit, saleId }
+  // Backward compatible: payments collection (шинэ) + sales.payments array (хуучин)
+  const txns = [];
+  const processedSalePayments = new Set();
 
-  // Зөвхөн зээлийн борлуулалт авлагад нөлөөлнө
-  const custSales = sales.filter(s => {
-    if(customerId && s.customerId !== customerId) return false;
-    if(s.status === 'deleted' || s.status === 'void' || s.status === 'cancelled') return false;
-    // Зөвхөн зээл эсвэл хэсэгчилсэн төлөлттэй борлуулалт
-    const pt = s.paymentType || s.payType || s.method || '';
-    return pt === 'credit' || s.recv > 0;
+  // === ШИНЭ: payments collection-с унших ===
+  const custPayments = payments.filter(pm => {
+    if(pm.isCancelled || pm.status === 'cancelled') return false;
+    if(customerId && pm.customerId !== customerId) return false;
+    return true;
   });
 
-  // Бүх борлуулалтын мөрүүд
+  custPayments.forEach(pm => {
+    // Хуваарилалт бүрийг гүйлгээ болгох
+    (pm.allocations || [{ saleId:'', allocatedAmount: pm.amount }]).forEach(al => {
+      const sale = sales.find(s => s.id === al.saleId);
+      txns.push({
+        date:   toDateStr(pm.paymentDate),
+        sort2:  toDateStr(pm.createdAt),
+        docNum: pm.documentNumber || '—',
+        desc:   pm.description || 'Төлөлт',
+        type:   pm.paymentType || '—',
+        debit:  0,
+        credit: al.allocatedAmount || pm.amount || 0,
+        paymentId: pm.id,
+        saleId: al.saleId
+      });
+      if(al.saleId) processedSalePayments.add(`${al.saleId}_migrated`);
+    });
+  });
+
+  // === ХУУЧИН: sales.payments array (migration хийгдээгүй) ===
+  const custSales = sales.filter(s => {
+    if(s.status === 'deleted' || s.status === 'void') return false;
+    if(customerId && s.customerId !== customerId) return false;
+    const pt = s.paymentType || s.payType || s.method || '';
+    return pt === 'credit' || s.recv > 0 || s.paid > 0;
+  });
+
   custSales.forEach(s => {
+    // Борлуулалтын дебет
     const d = toDateStr(s.date);
     txns.push({
-      date: d,
-      sort2: toDateStr(s.createdAt) || d,
+      date:  d, sort2: toDateStr(s.createdAt) || d,
       docNum: s.docNumber || s.id?.slice(-6).toUpperCase() || '—',
-      desc: 'Зээлийн борлуулалт',
-      type: 'Зээл',
-      debit: s.total || 0,
-      credit: 0,
-      saleId: s.id
+      desc:  'Зээлийн борлуулалт', type: 'Зээл',
+      debit: s.total || 0, credit: 0, saleId: s.id
     });
-    // Төлөлтүүд
-    (s.payments || []).forEach(pm => {
-      const pd = toDateStr(pm.date);
-      const MLBLS = {cash:'Бэлэн',transfer:'Дансаар',card:'Картаар',online:'Онлайн',bank:'Банкны хуулга'};
-      txns.push({
-        date: pd,
-        sort2: pd,
-        docNum: pm.docNumber || s.docNumber || '—',
-        desc: `Төлөлт${pm.source === 'bank' ? ' (Банкны хуулга)' : ''}`,
-        type: MLBLS[pm.method] || pm.method || '—',
-        debit: 0,
-        credit: pm.amount || 0,
-        saleId: s.id
+
+    // Хуучин payments array — migration хийгдсэн бол алгасах
+    if(!s.paymentsMigrated) {
+      (s.payments || []).forEach((pm, i) => {
+        const migKey = `${s.id}_${i}`;
+        // Шинэ collection-д аль хэдийн байвал алгасах
+        const alreadyMigrated = payments.some(p => p.migrationKey === migKey);
+        if(alreadyMigrated) return;
+        const pd = toDateStr(pm.date);
+        txns.push({
+          date:  pd, sort2: pd,
+          docNum: pm.docNumber || s.docNumber || '—',
+          desc:  'Төлөлт (хуучин)', type: pm.method || '—',
+          debit: 0, credit: pm.amount || 0, saleId: s.id
+        });
       });
-    });
+    }
   });
 
-  // Эрэмбэлэх: огноо → sort2 → docNum
+  // Эрэмбэлэх
   txns.sort((a, b) => {
     if(a.date !== b.date) return a.date.localeCompare(b.date);
     if(a.sort2 !== b.sort2) return a.sort2.localeCompare(b.sort2);
     return (a.docNum||'').localeCompare(b.docNum||'');
   });
 
-  // Эхний үлдэгдэл: startDate-ээс өмнөх гүйлгээ (strict <)
+  // Эхний үлдэгдэл (strict <)
   let openingBalance = 0;
   txns.forEach(t => {
-    if(t.date < startDate) {
+    if(!startDate || t.date < startDate) {
       openingBalance += t.debit - t.credit;
     }
   });
 
   // Тайлангийн хугацааны гүйлгээ
-  const periodTxns = txns.filter(t => t.date >= startDate && t.date <= endDate);
+  const periodTxns = txns.filter(t =>
+    (!startDate || t.date >= startDate) &&
+    (!endDate   || t.date <= endDate)
+  );
   let periodDebits = 0, periodCredits = 0;
   periodTxns.forEach(t => { periodDebits += t.debit; periodCredits += t.credit; });
 
@@ -4343,12 +4564,244 @@ function calculateReceivableStatement({ customerId, startDate, endDate }) {
     return { ...t, idx: i + 1, balance: runBal };
   });
 
-  const closingBalance = openingBalance + periodDebits - periodCredits;
-
-  return { openingBalance, periodDebits, periodCredits, closingBalance, rows };
+  return {
+    openingBalance,
+    periodDebits,
+    periodCredits,
+    closingBalance: openingBalance + periodDebits - periodCredits,
+    rows
+  };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+// ─── MIGRATION: sales.payments → payments collection ─────────────────────────
+window.runPaymentMigration = async () => {
+  if(!confirm('sales.payments array-г payments collection руу шилжүүлэх үү?\n\nЭнэ үйлдэл нэг удаа хийгдэх ба буцаах боломжгүй.')) return;
+  let migrated = 0, skipped = 0, errors = 0;
+  const statusEl = document.getElementById('migration-status');
+  const log = msg => { if(statusEl) statusEl.innerHTML += '<br>' + msg; console.log(msg); };
+
+  log('Migration эхлэж байна...');
+
+  for(const sale of sales) {
+    if(!sale.payments || sale.payments.length === 0) continue;
+    const cust = customers.find(c => c.id === sale.customerId) || {};
+
+    for(let i = 0; i < sale.payments.length; i++) {
+      const pm = sale.payments[i];
+      const migKey = `${sale.id}_${i}`;
+
+      // Давхар migration шалгах
+      const snap = await getDocs(query(
+        collection(db, 'payments'),
+        where('migrationKey', '==', migKey)
+      ));
+      if(!snap.empty) { skipped++; continue; }
+
+      try {
+        await addDoc(collection(db, 'payments'), {
+          documentNumber:    pm.docNumber || `MIG-${migKey.slice(-8)}`,
+          migrationKey:      migKey,
+          customerId:        sale.customerId,
+          customerCode:      sale.customerCode || cust.customerCode || '',
+          customerName:      sale.customerName || cust.name || '',
+          paymentDate:       pm.date || toDateStr(sale.date),
+          amount:            pm.amount || 0,
+          paymentType:       pm.method || 'cash',
+          bankAccountId:     '',
+          bankTransactionId: pm.bankTxnId || '',
+          description:       `Борлуулалт ${sale.docNumber||sale.id.slice(-6)} -ийн төлөлт (migration)`,
+          note:              pm.note || '',
+          allocations: [{
+            saleId:            sale.id,
+            saleDocumentNumber:sale.docNumber || sale.id.slice(-6).toUpperCase(),
+            allocatedAmount:   pm.amount || 0
+          }],
+          status:     'active',
+          isCancelled:false,
+          source:     'migration',
+          migratedFromSaleId:     sale.id,
+          migratedFromArrayIndex: i,
+          createdAt:  pm.date ? new Date(pm.date) : serverTimestamp(),
+          createdBy:  pm.createdBy || 'migration',
+          updatedAt:  serverTimestamp(),
+          updatedBy:  currentUser.email
+        });
+        migrated++;
+      } catch(e) {
+        errors++;
+        log(`❌ Алдаа (${migKey}): ${e.message}`);
+      }
+    }
+
+    // sale-д migration тэмдэглэх
+    if(!sale.paymentsMigrated) {
+      await updateDoc(doc(db, 'sales', sale.id), { paymentsMigrated: true });
+    }
+  }
+
+  log(`✅ Migration дууслаа: ${migrated} шилжүүлсэн, ${skipped} давхардал алгасав, ${errors} алдаа`);
+  alert(`Migration дууслаа!\n✅ Шилжүүлсэн: ${migrated}\n⏭ Давхардал: ${skipped}\n❌ Алдаа: ${errors}`);
+};
+
+
+// ─── ТӨЛӨЛТ ЗАСАХ / ЦУЦЛАХ / AUDIT ──────────────────────────────────────────
+
+// Audit log бичих
+async function writeAuditLog(action, paymentId, docNum, custId, before, after, reason) {
+  try {
+    await addDoc(collection(db, 'auditLogs'), {
+      action, paymentId, documentNumber:docNum, customerId:custId,
+      beforeData:before, afterData:after, reason:reason||'',
+      userId:currentUser.uid||currentUser.email,
+      userName:currentUser.email,
+      timestamp:serverTimestamp()
+    });
+  } catch(e) { console.warn('Audit log error:', e); }
+}
+
+// Засах modal нээх
+window.openEditPayment = (id) => {
+  const pm = payments.find(p => p.id === id);
+  if(!pm){ alert('Төлөлт олдсонгүй'); return; }
+  if(pm.isCancelled){ alert('Цуцлагдсан төлөлтийг засах боломжгүй'); return; }
+  document.getElementById('ep2-id').value   = id;
+  document.getElementById('ep2-docnum').textContent = pm.documentNumber || '—';
+  document.getElementById('ep2-date').value  = pm.paymentDate || '';
+  document.getElementById('ep2-amt').value   = pm.amount || 0;
+  document.getElementById('ep2-method').value= pm.paymentType || 'cash';
+  document.getElementById('ep2-note').value  = pm.note || '';
+  document.getElementById('ep2-reason').value= '';
+  // Customer select
+  const cs = document.getElementById('ep2-cust');
+  cs.innerHTML = '<option value="">-- Сонгох --</option>' +
+    customers.map(c=>`<option value="${c.id}" ${c.id===pm.customerId?'selected':''}>${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');
+  openModal('edit-payment-modal');
+};
+
+// Засвар хадгалах
+window.saveEditPayment = async () => {
+  const id     = document.getElementById('ep2-id').value; if(!id) return;
+  const reason = document.getElementById('ep2-reason').value.trim();
+  if(!reason){ alert('Засварын шалтгаан заавал оруулна уу'); return; }
+  const pm = payments.find(p=>p.id===id); if(!pm) return;
+  const newDate   = document.getElementById('ep2-date').value   || pm.paymentDate;
+  const newAmt    = parseInt(document.getElementById('ep2-amt').value) || pm.amount;
+  const newMethod = document.getElementById('ep2-method').value || pm.paymentType;
+  const newCustId = document.getElementById('ep2-cust').value   || pm.customerId;
+  const newNote   = document.getElementById('ep2-note').value   || '';
+  const newCust   = customers.find(c=>c.id===newCustId)||{};
+  const before    = { paymentDate:pm.paymentDate, amount:pm.amount, paymentType:pm.paymentType, customerId:pm.customerId };
+
+  try {
+    // Хуваарилсан борлуулалтуудын авлагыг буцааж шинэчлэх
+    for(const al of (pm.allocations||[])) {
+      const sale = sales.find(s=>s.id===al.saleId);
+      if(!sale) continue;
+      // Хуучин хуваарилалтыг буцаах
+      const restoredPaid = sale.paid - (al.allocatedAmount||0);
+      const restoredRecv = sale.recv + (al.allocatedAmount||0);
+      // Шинэ дүнг хэрэглэх
+      const newAlloc = Math.min(newAmt, restoredRecv);
+      await updateDoc(doc(db,'sales',sale.id), {
+        paid: restoredPaid + newAlloc,
+        recv: restoredRecv - newAlloc,
+        status: (restoredRecv - newAlloc) === 0 ? 'paid' : 'partial'
+      });
+    }
+    // Payment document шинэчлэх
+    const newAllocations = (pm.allocations||[]).map(al => ({
+      ...al, allocatedAmount: newAmt
+    }));
+    await updateDoc(doc(db,'payments',id), {
+      paymentDate: newDate,
+      amount:      newAmt,
+      paymentType: newMethod,
+      customerId:  newCustId,
+      customerName:newCust.name||pm.customerName,
+      customerCode:newCust.customerCode||pm.customerCode||'',
+      note:        newNote,
+      allocations: newAllocations,
+      updatedAt:   serverTimestamp(),
+      updatedBy:   currentUser.email
+    });
+    await writeAuditLog('payment_updated', id, pm.documentNumber, pm.customerId, before,
+      { paymentDate:newDate, amount:newAmt, paymentType:newMethod }, reason);
+    closeModal('edit-payment-modal');
+    alert('✅ Төлөлт амжилттай шинэчлэгдлээ!');
+  } catch(e){ alert('Алдаа: '+e.message); }
+};
+
+// Цуцлах баталгаажуулалт
+window.confirmCancelPayment = (id) => {
+  const pm = payments.find(p=>p.id===id); if(!pm) return;
+  const MLBLS={cash:'Бэлэн',transfer:'Дансаар',card:'Картаар',online:'Онлайн'};
+  document.getElementById('cp-id').value = id;
+  document.getElementById('cp-reason').value = '';
+  document.getElementById('cp-info').innerHTML = `
+    <div style="font-weight:600;margin-bottom:6px">Дараах төлөлтийг цуцлах гэж байна:</div>
+    <div>Баримт №: <b>${pm.documentNumber||'—'}</b></div>
+    <div>Огноо: <b>${pm.paymentDate}</b></div>
+    <div>Харилцагч: <b>${pm.customerName||'—'}</b></div>
+    <div>Дүн: <b style="color:var(--re)">${fmt(pm.amount)}</b></div>
+    <div>Төрөл: <b>${MLBLS[pm.paymentType]||pm.paymentType}</b></div>`;
+  openModal('cancel-payment-modal');
+};
+
+// Цуцлах гүйцэтгэх
+window.executeCancelPayment = async () => {
+  const id     = document.getElementById('cp-id').value; if(!id) return;
+  const reason = document.getElementById('cp-reason').value.trim();
+  if(!reason){ alert('Цуцлах шалтгаан заавал оруулна уу'); return; }
+  const pm = payments.find(p=>p.id===id); if(!pm) return;
+  try {
+    // Хуваарилсан борлуулалтын авлагыг буцаах
+    for(const al of (pm.allocations||[])) {
+      const sale = sales.find(s=>s.id===al.saleId);
+      if(!sale) continue;
+      const restoredPaid = Math.max(0, sale.paid - (al.allocatedAmount||0));
+      const restoredRecv = sale.total - restoredPaid;
+      await updateDoc(doc(db,'sales',sale.id), {
+        paid: restoredPaid, recv: restoredRecv,
+        status: restoredRecv===0?'paid':restoredPaid>0?'partial':'unpaid'
+      });
+    }
+    // Soft delete
+    await updateDoc(doc(db,'payments',id), {
+      status:             'cancelled',
+      isCancelled:        true,
+      cancelledAt:        serverTimestamp(),
+      cancelledBy:        currentUser.email,
+      cancellationReason: reason,
+      updatedAt:          serverTimestamp(),
+      updatedBy:          currentUser.email
+    });
+    await writeAuditLog('payment_cancelled', id, pm.documentNumber, pm.customerId,
+      { status:'active', amount:pm.amount }, { status:'cancelled' }, reason);
+    closeModal('cancel-payment-modal');
+    alert('✅ Төлөлт цуцлагдлаа. Авлагын үлдэгдэл шинэчлэгдлээ.');
+  } catch(e){ alert('Алдаа: '+e.message); }
+};
+
+// Төлөлтийн баримт хэвлэх (payments collection-с)
+window.printPaymentById = (id) => {
+  const pm = payments.find(p => p.id === id);
+  if(!pm) return;
+  // Фиктив sale obj үүсгэж openPaymentReceipt дуудах
+  const fakeSale = { id: pm.allocations?.[0]?.saleId||id, payments:[{
+    docNumber:pm.documentNumber, date:pm.paymentDate, amount:pm.amount,
+    method:pm.paymentType, note:pm.note
+  }]};
+  openPaymentReceipt(fakeSale.id, 0);
+};
+
+// Migration modal нээх
+window.openMigrationModal = () => {
+  document.getElementById('migration-status').innerHTML = '';
+  openModal('migration-modal');
+};
+
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 addSaleRow();
