@@ -324,7 +324,7 @@ tbody tr:hover td{background:var(--sur2)}
         </div>
       </div>
       <div class="cb np"><div class="tw"><table>
-        <thead><tr><th>Огноо</th><th>Харилцагч</th><th>Борлуулалт №</th><th>Бараa</th><th>Төлсөн дүн</th><th>Хэрэгсэл</th><th>Тэмдэглэл</th></tr></thead>
+        <thead><tr><th>Огноо</th><th>Баримт №</th><th>Харилцагч</th><th>Төлбөрийн төрөл</th><th>Төлсөн дүн</th><th>Холбосон баримт</th><th>Төлөв</th><th>Үйлдэл</th></tr></thead>
         <tbody id="rv-hist-tbody"></tbody>
       </table></div></div>
     </div>
@@ -2240,31 +2240,32 @@ window.renderRecvHistory = () => {
   if(!tbody) return;
 
   const MBADGE  = {cash:'bgr2',transfer:'bbl',card:'bpu',online:'bpu',credit:'bam2',bank:'bgr'};
-  const MLABELS2 = {cash:'Бэлэн',transfer:'Дансаар',card:'Карт',online:'Онлайн',credit:'Зээл',bank:'Банкны хуулга'};
+  const MLBLS2  = {cash:'Бэлэн',transfer:'Дансаар',card:'Карт',online:'Онлайн',credit:'Зээл',bank:'Банкны хуулга'};
 
-  // Шинэ payments collection
   const allPays = [];
+
+  // === Шинэ payments collection ===
   payments.forEach(pm => {
     if(from && pm.paymentDate < from) return;
     if(to   && pm.paymentDate > to)   return;
     if(custId && pm.customerId !== custId) return;
     allPays.push({
-      _id:      pm.id,
-      date:     pm.paymentDate,
-      docNum:   pm.documentNumber || '—',
-      custName: pm.customerName || '—',
-      method:   pm.paymentType || '—',
-      amount:   pm.amount || 0,
-      note:     pm.note || '',
-      status:   pm.status || 'active',
+      _id:         pm.id,
+      date:        pm.paymentDate || '',
+      docNum:      pm.documentNumber || '—',
+      custName:    pm.customerName || '—',
+      method:      pm.paymentType || '—',
+      amount:      pm.amount || 0,
+      note:        pm.note || '',
+      status:      pm.status || 'active',
       isCancelled: pm.isCancelled || false,
-      cancelReason: pm.cancellationReason || '',
+      cancelReason:pm.cancellationReason || '',
       allocations: pm.allocations || [],
-      source:   pm.source || 'manual'
+      source:      'new'
     });
   });
 
-  // Хуучин sales.payments array (migration хийгдээгүй)
+  // === Хуучин sales.payments array (migration хийгдээгүй) ===
   sales.forEach(s => {
     if(s.paymentsMigrated) return;
     if(custId && s.customerId !== custId) return;
@@ -2275,7 +2276,7 @@ window.renderRecvHistory = () => {
       if(to   && pm.date > to)   return;
       allPays.push({
         _id:      `legacy_${migKey}`,
-        date:     pm.date,
+        date:     pm.date || '',
         docNum:   pm.docNumber || s.docNumber || '—',
         custName: s.customerName || '—',
         method:   pm.method || '—',
@@ -2283,13 +2284,13 @@ window.renderRecvHistory = () => {
         note:     pm.note || '',
         status:   'active',
         isCancelled: false,
-        allocations: [{ saleId: s.id, saleDocumentNumber: s.docNumber }],
+        allocations: [{saleId:s.id, saleDocumentNumber:s.docNumber}],
         source:   'legacy'
       });
     });
   });
 
-  allPays.sort((a, b) => (b.date||'').localeCompare(a.date||''));
+  allPays.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
 
   if(allPays.length === 0) {
     tbody.innerHTML = '<tr><td colspan="8"><div class="empty">Төлөлтийн бүртгэл байхгүй</div></td></tr>';
@@ -2298,25 +2299,33 @@ window.renderRecvHistory = () => {
 
   tbody.innerHTML = allPays.map(p => {
     const cancelled = p.isCancelled || p.status === 'cancelled';
+    const isLegacy  = p.source === 'legacy';
+    const allocStr  = (p.allocations||[]).map(a => a.saleDocumentNumber || a.saleId?.slice(-6) || '—').join(', ');
+
     const statusBadge = cancelled
-      ? '<span class="ba bre">Цуцлагдсан</span>'
-      : '<span class="ba bgr">Идэвхтэй</span>';
-    const allocStr = (p.allocations||[]).map(a=>a.saleDocumentNumber||a.saleId?.slice(-6)||'—').join(', ');
-    const canEdit   = !cancelled && p.source !== 'legacy' && hasPerm('receivable_edit');
-    const canCancel = !cancelled && p.source !== 'legacy' && hasPerm('receivable_edit');
-    const canPrint  = hasPerm('receivable_print');
-    return `<tr style="${cancelled ? 'opacity:0.6;text-decoration:line-through' : ''}">
+      ? `<span class="ba bre">Цуцлагдсан</span>`
+      : `<span class="ba bgr">Идэвхтэй</span>`;
+
+    const canEdit   = !cancelled && !isLegacy && hasPerm('receivable_edit');
+    const canCancel = !cancelled && !isLegacy && hasPerm('receivable_edit');
+    const canPrint  = !isLegacy;
+
+    return `<tr style="${cancelled ? 'opacity:0.55;background:var(--sur2)' : ''}">
       <td style="font-size:11px;color:var(--tx3)">${p.date}</td>
-      <td style="font-family:monospace;font-size:11px;color:var(--pu)">${p.docNum}</td>
-      <td style="font-weight:500">${p.custName}</td>
-      <td><span class="ba ${MBADGE[p.method]||'bgr2'}">${MLABELS2[p.method]||p.method}</span></td>
-      <td style="color:var(--gr);font-weight:700;text-align:right">${fmt(p.amount)}</td>
+      <td style="font-family:monospace;font-size:11px;color:var(--pu);font-weight:600">${p.docNum}</td>
+      <td style="font-weight:500;font-size:13px">${p.custName}</td>
+      <td><span class="ba ${MBADGE[p.method]||'bgr2'}">${MLBLS2[p.method]||p.method}</span></td>
+      <td style="color:var(--gr);font-weight:700;text-align:right;font-size:13px">${fmt(p.amount)}</td>
       <td style="font-size:11px;color:var(--tx3)">${allocStr}</td>
-      <td>${statusBadge}${cancelled?'<br><span style="font-size:10px;color:var(--re)">'+p.cancelReason+'</span>':''}</td>
+      <td>
+        ${statusBadge}
+        ${cancelled ? `<div style="font-size:10px;color:var(--re);margin-top:2px">${p.cancelReason}</div>` : ''}
+      </td>
       <td style="white-space:nowrap">
-        ${canPrint?`<button class="btn bg bxs" onclick="printPaymentById('${p._id}')" title="Хэвлэх"><i class="ti ti-printer"></i></button>`:''}
-        ${canEdit?`<button class="btn bg bxs" onclick="openEditPayment('${p._id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
-        ${canCancel?`<button class="btn bd2 bxs" onclick="confirmCancelPayment('${p._id}')" title="Цуцлах"><i class="ti ti-ban"></i></button>`:''}
+        ${canPrint   ? `<button class="btn bg bxs" onclick="printPaymentById('${p._id}')" title="Хэвлэх"><i class="ti ti-printer"></i></button>` : ''}
+        ${canEdit    ? `<button class="btn bg bxs" onclick="openEditPayment('${p._id}')" title="Засах"><i class="ti ti-edit"></i></button>` : ''}
+        ${canCancel  ? `<button class="btn bd2 bxs" onclick="confirmCancelPayment('${p._id}')" title="Цуцлах"><i class="ti ti-ban"></i></button>` : ''}
+        ${isLegacy   ? `<span style="font-size:10px;color:var(--tx3)" title="Migration хийгдэх хэрэгтэй">Хуучин</span>` : ''}
       </td>
     </tr>`;
   }).join('');
@@ -4788,14 +4797,47 @@ window.executeCancelPayment = async () => {
 
 // Төлөлтийн баримт хэвлэх (payments collection-с)
 window.printPaymentById = (id) => {
+  // Legacy ID шалгах
+  if(id.startsWith('legacy_')) {
+    // sales.payments array-аас олох
+    const parts = id.replace('legacy_', '').split('_');
+    const idx2  = parseInt(parts[parts.length - 1]);
+    const saleId= parts.slice(0, -1).join('_');
+    const sale  = sales.find(s => s.id === saleId);
+    if(!sale) { alert('Борлуулалт олдсонгүй'); return; }
+    openPaymentReceipt(saleId, idx2);
+    return;
+  }
+  // Шинэ payment
   const pm = payments.find(p => p.id === id);
-  if(!pm) return;
-  // Фиктив sale obj үүсгэж openPaymentReceipt дуудах
-  const fakeSale = { id: pm.allocations?.[0]?.saleId||id, payments:[{
-    docNumber:pm.documentNumber, date:pm.paymentDate, amount:pm.amount,
-    method:pm.paymentType, note:pm.note
-  }]};
-  openPaymentReceipt(fakeSale.id, 0);
+  if(!pm) { alert('Төлөлт олдсонгүй'); return; }
+  const saleId = pm.allocations?.[0]?.saleId;
+  const sale   = saleId ? sales.find(s => s.id === saleId) : null;
+  // Фиктив sale объект дотор pm дамжуулах
+  const fakeSale = {
+    id: saleId || id,
+    docNumber: pm.allocations?.[0]?.saleDocumentNumber || '—',
+    customerName: pm.customerName,
+    customerReg:  '',
+    customerPhone:'',
+    customerCode: pm.customerCode || '',
+    payments: [{
+      docNumber: pm.documentNumber,
+      date:      pm.paymentDate,
+      amount:    pm.amount,
+      method:    pm.paymentType,
+      note:      pm.note || ''
+    }]
+  };
+  // Temporary override
+  const origSales = window._tempSale;
+  if(!sales.find(s => s.id === saleId)) {
+    sales.push(fakeSale);
+    openPaymentReceipt(fakeSale.id, 0);
+    sales.pop();
+  } else {
+    openPaymentReceipt(saleId, 0);
+  }
 };
 
 // Migration modal нээх
