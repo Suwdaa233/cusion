@@ -1096,11 +1096,20 @@ tbody tr:hover td{background:var(--sur2)}
       </div>
     </div>
     <div id="link-recv-list" style="display:none">
-      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Авлагын жагсаалт</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:13px;font-weight:600">Авлагын жагсаалт</div>
+        <button class="btn bg bxs" onclick="autoAllocateFIFO()" style="font-size:11px" title="Хамгийн хуучин авлагаас эхлэн автоматаар хуваарилах">
+          <i class="ti ti-sort-ascending"></i>FIFO автомат
+        </button>
+      </div>
       <div class="tw"><table style="font-size:12px">
-        <thead><tr><th>Огноо</th><th>Борлуулалт №</th><th>Нийт</th><th>Өмнө төлсөн</th><th>Авлага</th><th>Энэ удаа</th></tr></thead>
+        <thead><tr>
+          <th style="width:36px;text-align:center"><input type="checkbox" id="lk-chk-all" onchange="document.querySelectorAll('[id^=lk-chk-]:not(#lk-chk-all)').forEach(c=>{c.checked=this.checked;onLinkChkChange(c.id.replace('lk-chk-',''))})"></th>
+          <th>Огноо</th><th>Борлуулалт №</th><th style="text-align:right">Нийт</th><th style="text-align:right">Өмнө төлсөн</th><th style="text-align:right">Авлага</th><th style="text-align:right">Энэ удаа</th>
+        </tr></thead>
         <tbody id="link-recv-tbody"></tbody>
       </table></div>
+      <div id="link-total-display" style="margin-top:8px;padding:8px 12px;background:var(--sur2);border-radius:var(--r)"></div>
       <div style="margin-top:10px;padding:10px;background:var(--pul);border-radius:var(--r);font-size:13px;display:flex;justify-content:space-between">
         <span>Нийт хуваарилсан:</span><span id="link-total-alloc" style="font-weight:700;color:var(--pu)">0₮</span>
       </div>
@@ -2274,6 +2283,7 @@ window.renderRecvHistory = () => {
       if(payments.some(p => p.migrationKey === migKey)) return;
       if(from && pm.date < from) return;
       if(to   && pm.date > to)   return;
+      const pmCancelled = pm.cancelled === true || pm.status === 'cancelled' || pm.isCancelled === true;
       allPays.push({
         _id:         `legacy_${migKey}`,
         _saleId:     s.id,
@@ -2284,8 +2294,11 @@ window.renderRecvHistory = () => {
         method:      pm.method || '—',
         amount:      pm.amount || 0,
         note:        pm.note || '',
-        status:      'active',
-        isCancelled: false,
+        status:      pmCancelled ? 'cancelled' : 'active',
+        isCancelled: pmCancelled,
+        cancelReason: pm.cancellationReason || '',
+        cancelledAt:  pm.cancelledAt || '',
+        cancelledBy:  pm.cancelledBy || '',
         allocations: [{saleId:s.id, saleDocumentNumber:s.docNumber, allocatedAmount:pm.amount}],
         source:      'legacy',
         _sale:       s,
@@ -2929,7 +2942,14 @@ window.renderTransactions=()=>{
   const type=document.getElementById('txn-type-filter')?.value||'';
   const status=document.getElementById('txn-status-filter')?.value||'';
   const search=(document.getElementById('txn-search')?.value||'').toLowerCase();
-  let list=bankTxns;
+  // bankTransactionId-гаар давхар мөрийг нэгтгэх — эх гүйлгээ л харагдана
+  const seenIds = new Set();
+  let list = bankTxns.filter(t => {
+    const key = t.id;
+    if(seenIds.has(key)) return false;
+    seenIds.add(key);
+    return true;
+  });
   if(accId)list=list.filter(t=>t.accountId===accId);
   if(from)list=list.filter(t=>t.date>=from);
   if(to)list=list.filter(t=>t.date<=to);
@@ -2976,50 +2996,253 @@ window.openLinkModal=(txnId)=>{
   document.getElementById('link-recv-list').style.display='none';
   openModal('link-modal');
 };
-window.loadCustReceivables=()=>{
-  const custId=document.getElementById('link-cust-sel').value;
-  if(!custId){document.getElementById('link-recv-list').style.display='none';return;}
-  const custSales=sales.filter(s=>s.customerId===custId&&s.recv>0);
-  document.getElementById('link-recv-list').style.display='block';
-  if(custSales.length===0){document.getElementById('link-recv-tbody').innerHTML='<tr><td colspan="6"><div class="empty">Нээлттэй авлага байхгүй</div></td></tr>';return;}
-  const maxAlloc=currentLinkTxn?.unlinkedAmount||currentLinkTxn?.income||0;
-  document.getElementById('link-recv-tbody').innerHTML=custSales.map(s=>`<tr>
-    <td>${s.date}</td><td style="font-family:monospace;font-size:11px">${s.id.slice(-6).toUpperCase()}</td>
-    <td>${fmt(s.total)}</td><td style="color:var(--gr)">${fmt(s.paid)}</td><td style="color:var(--am);font-weight:600">${fmt(s.recv)}</td>
-    <td><input type="number" id="lk-amt-${s.id}" placeholder="0" max="${Math.min(s.recv,maxAlloc)}" style="width:100px;font-size:12px;padding:4px 8px;border:1px solid var(--bd);border-radius:var(--r)" oninput="calcLinkTotal()"></td>
+window.loadCustReceivables = () => {
+  const custId = document.getElementById('link-cust-sel').value;
+  const recvDiv = document.getElementById('link-recv-list');
+  if(!custId) { if(recvDiv) recvDiv.style.display = 'none'; return; }
+
+  const custSales = sales.filter(s => s.customerId === custId && s.recv > 0)
+    .sort((a, b) => {
+      if(a.date !== b.date) return a.date.localeCompare(b.date);
+      return (a.docNumber||'').localeCompare(b.docNumber||'');
+    });
+
+  if(recvDiv) recvDiv.style.display = 'block';
+  const credit = currentLinkTxn?.income || currentLinkTxn?.credit || 0;
+  const prevLinked = currentLinkTxn?.linkedAmount || 0;
+  const maxAlloc = (currentLinkTxn?.unlinkedAmount ?? credit) - prevLinked;
+
+  const tbody = document.getElementById('link-recv-tbody');
+  if(!tbody) return;
+
+  if(custSales.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Нээлттэй авлага байхгүй</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = custSales.map(s => `<tr id="lk-row-${s.id}">
+    <td style="text-align:center">
+      <input type="checkbox" id="lk-chk-${s.id}" onchange="onLinkChkChange('${s.id}')" style="width:16px;height:16px;cursor:pointer">
+    </td>
+    <td style="font-size:11px;color:var(--tx3)">${s.date}</td>
+    <td style="font-family:monospace;font-size:11px;color:var(--pu)">${s.docNumber||s.id.slice(-6).toUpperCase()}</td>
+    <td style="text-align:right">${fmt(s.total)}</td>
+    <td style="text-align:right;color:var(--gr)">${fmt(s.paid)}</td>
+    <td style="text-align:right;color:var(--am);font-weight:600">${fmt(s.recv)}</td>
+    <td>
+      <input type="number" id="lk-amt-${s.id}" placeholder="0" min="0" max="${Math.min(s.recv, maxAlloc)}"
+        style="width:110px;font-size:12px;padding:4px 8px;border:1px solid var(--bd);border-radius:var(--r)"
+        oninput="calcLinkTotal()" disabled>
+    </td>
   </tr>`).join('');
+
   calcLinkTotal();
 };
-window.calcLinkTotal=()=>{
-  const custId=document.getElementById('link-cust-sel').value;
-  const custSales=sales.filter(s=>s.customerId===custId&&s.recv>0);
-  let total=0;custSales.forEach(s=>{total+=parseFloat(document.getElementById('lk-amt-'+s.id)?.value||0);});
-  const el=document.getElementById('link-total-alloc');if(el){el.textContent=fmt(total);el.style.color=total>(currentLinkTxn?.unlinkedAmount||0)?'var(--re)':'var(--pu)';}
+
+window.onLinkChkChange = (saleId) => {
+  const chk = document.getElementById('lk-chk-' + saleId);
+  const amtInput = document.getElementById('lk-amt-' + saleId);
+  const sale = sales.find(s => s.id === saleId);
+  if(!chk || !amtInput || !sale) return;
+  if(chk.checked) {
+    amtInput.disabled = false;
+    amtInput.value = amtInput.value || Math.min(sale.recv, getRemainingAlloc()).toFixed(0);
+  } else {
+    amtInput.disabled = true;
+    amtInput.value = '';
+  }
+  calcLinkTotal();
 };
-window.saveLinkage=async()=>{
-  if(!currentLinkTxn)return;
-  const custId=document.getElementById('link-cust-sel').value;
-  if(!custId){alert('Харилцагч сонгоно уу');return;}
-  const custSales=sales.filter(s=>s.customerId===custId&&s.recv>0);
-  const allocs=custSales.map(s=>({saleId:s.id,amount:parseFloat(document.getElementById('lk-amt-'+s.id)?.value||0)})).filter(a=>a.amount>0);
-  if(!allocs.length){alert('Дүн оруулна уу');return;}
-  const totalAlloc=allocs.reduce((a,x)=>a+x.amount,0);
-  const unlinked=currentLinkTxn.unlinkedAmount||currentLinkTxn.income;
-  if(totalAlloc>unlinked){alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) нь холбоогүй үлдэгдлээс (${fmt(unlinked)}) их байна`);return;}
-  try{
-    const cust=customers.find(c=>c.id===custId);
-    for(const alloc of allocs){
-      const sale=sales.find(s=>s.id===alloc.saleId);
-      const actual=Math.min(alloc.amount,sale.recv);
-      const pm={date:currentLinkTxn.date,amount:actual,method:'transfer',note:currentLinkTxn.description,source:'bank',bankTxnId:currentLinkTxn.id};
-      await updateDoc(doc(db,'sales',alloc.saleId),{paid:sale.paid+actual,recv:sale.recv-actual,status:(sale.recv-actual)===0?'paid':'partial',payments:[...(sale.payments||[]),pm]});
-      await addDoc(collection(db,'bankLinks'),{txnId:currentLinkTxn.id,accountId:currentLinkTxn.accountId,saleId:alloc.saleId,customerId:custId,customerName:cust?.name||'',amount:actual,date:currentLinkTxn.date,description:currentLinkTxn.description,linkedAt:serverTimestamp(),linkedBy:currentUser.email});
+
+function getRemainingAlloc() {
+  const credit = currentLinkTxn?.income || currentLinkTxn?.credit || 0;
+  const used = Array.from(document.querySelectorAll('[id^="lk-amt-"]'))
+    .reduce((a, inp) => a + (parseFloat(inp.value)||0), 0);
+  return Math.max(0, credit - used);
+}
+
+window.autoAllocateFIFO = () => {
+  // Бүх input-г цэвэрлэх
+  document.querySelectorAll('[id^="lk-chk-"]').forEach(chk => { chk.checked = false; });
+  document.querySelectorAll('[id^="lk-amt-"]').forEach(inp => { inp.value = ''; inp.disabled = true; });
+
+  const credit = currentLinkTxn?.income || currentLinkTxn?.credit || 0;
+  const custId = document.getElementById('link-cust-sel').value;
+  const custSales = sales.filter(s => s.customerId === custId && s.recv > 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.docNumber||'').localeCompare(b.docNumber||''));
+
+  let remaining = credit;
+  for(const s of custSales) {
+    if(remaining <= 0) break;
+    const alloc = Math.min(s.recv, remaining);
+    const chk = document.getElementById('lk-chk-' + s.id);
+    const inp = document.getElementById('lk-amt-' + s.id);
+    if(chk && inp) {
+      chk.checked = true;
+      inp.disabled = false;
+      inp.value = Math.round(alloc);
+      remaining -= alloc;
     }
-    const newLinked=(currentLinkTxn.linkedAmount||0)+totalAlloc;
-    const newUnlinked=unlinked-totalAlloc;
-    await updateDoc(doc(db,'bankTxns',currentLinkTxn.id),{linkedAmount:newLinked,unlinkedAmount:newUnlinked,status:newUnlinked<=0?'linked':'partial'});
-    closeModal('link-modal');alert('Авлагатай холбоос амжилттай хадгалагдлаа!');
-  }catch(e){alert('Алдаа: '+e.message);}
+  }
+  calcLinkTotal();
+};
+window.calcLinkTotal = () => {
+  const credit = currentLinkTxn?.income || currentLinkTxn?.credit || 0;
+  const total = Array.from(document.querySelectorAll('[id^="lk-amt-"]'))
+    .reduce((a, inp) => a + (parseFloat(inp.value)||0), 0);
+  const remaining = Math.max(0, credit - total);
+  const el = document.getElementById('link-total-display');
+  if(el) {
+    el.innerHTML = `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:13px">
+        <span>Нийт орлого: <b style="color:var(--gr)">${fmt(credit)}</b></span>
+        <span>Хуваарилсан: <b style="color:var(--pu)">${fmt(total)}</b></span>
+        <span>Үлдэгдэл: <b style="color:${remaining>0?'var(--am)':'var(--gr)'}">${fmt(remaining)}</b></span>
+      </div>`;
+  }
+  const saveBtn = document.getElementById('link-save-btn');
+  if(saveBtn) saveBtn.disabled = total <= 0 || total > credit + 0.01;
+};
+window.saveLinkage = async () => {
+  if(!currentLinkTxn) return;
+  const custId = document.getElementById('link-cust-sel').value;
+  if(!custId) { alert('Харилцагч сонгоно уу'); return; }
+
+  const custSales = sales.filter(s => s.customerId === custId && s.recv > 0);
+  const allocs = custSales
+    .map(s => ({
+      saleId: s.id,
+      saleDocumentNumber: s.docNumber || s.id.slice(-6).toUpperCase(),
+      allocatedAmount: parseFloat(document.getElementById('lk-amt-' + s.id)?.value || 0)
+    }))
+    .filter(a => a.allocatedAmount > 0);
+
+  if(!allocs.length) { alert('Хуваарилах дүн оруулна уу'); return; }
+
+  const totalAlloc = allocs.reduce((a, x) => a + x.allocatedAmount, 0);
+  const unlinked = currentLinkTxn.unlinkedAmount ?? currentLinkTxn.income ?? 0;
+
+  if(totalAlloc > unlinked + 0.01) {
+    alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) нь холбоогүй үлдэгдлээс (${fmt(unlinked)}) их байна`);
+    return;
+  }
+
+  const cust = customers.find(c => c.id === custId) || {};
+  const txnId = currentLinkTxn.id;
+
+  try {
+    await runTransaction(db, async (tx) => {
+      // 1. Банкны гүйлгээг унших
+      const txnRef = doc(db, 'bankTxns', txnId);
+      const txnSnap = await tx.get(txnRef);
+      if(!txnSnap.exists()) throw new Error('Банкны гүйлгээ олдсонгүй');
+
+      // 2. Давхар payment шалгах
+      const existingPaySnap = await getDocs(
+        query(collection(db, 'payments'), where('bankTransactionId', '==', txnId))
+      );
+      let paymentRef;
+      let isUpdate = false;
+
+      if(!existingPaySnap.empty) {
+        // Аль хэдийн payment байна — update горим
+        paymentRef = doc(db, 'payments', existingPaySnap.docs[0].id);
+        isUpdate = true;
+      } else {
+        // Шинэ payment үүсгэх
+        paymentRef = doc(collection(db, 'payments'));
+      }
+
+      const tpDocNum = isUpdate
+        ? existingPaySnap.docs[0].data().documentNumber
+        : await getNextDocNum('payment');
+
+      // 3. Payment document хадгалах
+      const payData = {
+        documentNumber:   tpDocNum,
+        customerId:       custId,
+        customerCode:     cust.customerCode || '',
+        customerName:     cust.name || '',
+        paymentDate:      currentLinkTxn.date,
+        amount:           totalAlloc,
+        paymentType:      'transfer',
+        bankAccountId:    currentLinkTxn.accountId || '',
+        bankTransactionId:txnId,
+        description:      currentLinkTxn.description || '',
+        note:             '',
+        allocations:      allocs,
+        status:           'active',
+        isCancelled:      false,
+        source:           'bank_import',
+        updatedAt:        serverTimestamp(),
+        updatedBy:        currentUser.email
+      };
+      if(!isUpdate) {
+        payData.createdAt  = serverTimestamp();
+        payData.createdBy  = currentUser.email;
+        tx.set(paymentRef, payData);
+      } else {
+        tx.update(paymentRef, payData);
+      }
+
+      // 4. Sale-уудын paid/recv шинэчлэх
+      for(const al of allocs) {
+        const saleRef = doc(db, 'sales', al.saleId);
+        const saleSnap = await tx.get(saleRef);
+        if(!saleSnap.exists()) continue;
+        const s = saleSnap.data();
+        // Хэрэв update горим бол хуучин allocation-г буцаах
+        if(isUpdate) {
+          const oldAllocs = existingPaySnap.docs[0].data().allocations || [];
+          const oldAlloc = oldAllocs.find(a => a.saleId === al.saleId);
+          if(oldAlloc) {
+            const restoredPaid = Math.max(0, (s.paid||0) - oldAlloc.allocatedAmount);
+            const restoredRecv = (s.total||0) - restoredPaid;
+            tx.update(saleRef, { paid: restoredPaid, recv: restoredRecv });
+          }
+        }
+        const curPaid = isUpdate
+          ? Math.max(0, (saleSnap.data().paid||0) - ((existingPaySnap.docs[0].data().allocations||[]).find(a=>a.saleId===al.saleId)?.allocatedAmount||0))
+          : (s.paid||0);
+        const newPaid = curPaid + al.allocatedAmount;
+        const newRecv = Math.max(0, (s.total||0) - newPaid);
+        tx.update(saleRef, {
+          paid:   newPaid,
+          recv:   newRecv,
+          status: newRecv === 0 ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid'
+        });
+      }
+
+      // 5. Bank transaction шинэчлэх (давхар мөр үүсгэхгүй)
+      const prevLinked = txnSnap.data().linkedAmount || 0;
+      const newLinked = isUpdate ? totalAlloc : prevLinked + totalAlloc;
+      const credit = currentLinkTxn.income || currentLinkTxn.credit || 0;
+      const newUnlinked = Math.max(0, credit - newLinked);
+      const linkStatus = newUnlinked <= 0 ? 'linked' : newLinked > 0 ? 'partial' : 'unlinked';
+
+      tx.update(txnRef, {
+        linkedAmount:   newLinked,
+        unlinkedAmount: newUnlinked,
+        linkStatus:     linkStatus,
+        status:         linkStatus === 'linked' ? 'linked' : linkStatus === 'partial' ? 'partial' : 'unlinked',
+        paymentId:      paymentRef.id,
+        linkedCustomerId:custId,
+        updatedAt:      serverTimestamp(),
+        updatedBy:      currentUser.email
+      });
+    });
+
+    // Audit log
+    await writeAuditLog('bank_linked', txnId, txnId.slice(-8), custId,
+      { linkedAmount: currentLinkTxn.linkedAmount || 0 },
+      { linkedAmount: totalAlloc, allocations: allocs }, 'Банкны холболт');
+
+    closeModal('link-modal');
+    alert(`✅ Авлагатай амжилттай холболоо!\nНийт: ${fmt(totalAlloc)}`);
+  } catch(e) {
+    alert('Алдаа: ' + e.message);
+    console.error('saveLinkage error:', e);
+  }
 };
 
 // ─── LINKS LIST ───────────────────────────────────────────────────────────────
