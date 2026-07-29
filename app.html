@@ -2430,33 +2430,30 @@ window.renderReport = () => {
 window.openInvoice = id => {
   const sale=sales.find(s=>s.id===id); if(!sale) return;
   const cust=customers.find(c=>c.id===sale.customerId)||{};
-  const loc=locations.find(l=>l.id===sale.locationId)||{};
   const dn=new Date(sale.date).toLocaleDateString('mn-MN',{year:'numeric',month:'2-digit',day:'2-digit'});
   const printDate=new Date().toLocaleDateString('mn-MN');
   const PTYPES={cash:'Бэлэн',transfer:'Дансаар',credit:'Зээл',card:'Картаар',online:'Онлайн',mixed:'Хосолсон'};
   const docNum=getDocNumDisplay(sale);
   const payLabel=PTYPES[sale.paymentType]||PTYPES[sale.payType]||PTYPES[sale.method]||'—';
   const defBank=getDefaultBank('MNT')||{};
-  const docNote=sale.note||sale.notes||sale.remark||'';
   const userLabel=currentUser?.email||'—';
-  // Барааны мөр
+  const docNote=sale.note||sale.notes||sale.remark||'';
   const rows=(sale.items||[]).map(it=>{
     const p=products.find(x=>x.id===it.pid)||{};
     const lineTotal=it.lineTotal||it.sub||0;
-    // Баркод: snapshot → productBarcode → product lookup
     const barcode=it.barcode||it.productBarcode||p.barcode||'—';
-    let discDisplay='—';
-    if(it.discountType==='percent'&&it.discountValue) discDisplay=it.discountValue+'%';
-    else if(it.discountType==='amount'&&it.discountAmount) discDisplay=it.discountAmount.toLocaleString()+'₮';
-    else if(it.discType==='percent'&&it.discVal) discDisplay=it.discVal+'%';
-    else if(it.discType==='amount'&&it.discVal) discDisplay=it.discVal.toLocaleString()+'₮';
+    let dd='—';
+    if(it.discountType==='percent'&&it.discountValue) dd=it.discountValue+'%';
+    else if(it.discountType==='amount'&&it.discountAmount) dd=it.discountAmount.toLocaleString()+'₮';
+    else if(it.discType==='percent'&&it.discVal) dd=it.discVal+'%';
+    else if(it.discType==='amount'&&it.discVal) dd=it.discVal.toLocaleString()+'₮';
     return `<tr>
       <td style="width:24%">${(it.label||'').replace('·',' ')}</td>
       <td class="c" style="width:9%">${it.productCode||p.sku||'—'}</td>
       <td class="c" style="width:10%;font-family:monospace;font-size:6.5pt">${barcode}</td>
       <td class="c" style="width:6%">${it.qty||1}</td>
       <td class="r" style="width:11%">${(it.price||0).toLocaleString()}</td>
-      <td class="c" style="width:9%;color:${discDisplay!=='—'?'#080':'#aaa'}">${discDisplay}</td>
+      <td class="c" style="width:9%;color:${dd!=='—'?'#080':'#aaa'}">${dd}</td>
       <td class="r" style="width:31%;font-weight:700">${lineTotal.toLocaleString()} ₮</td>
     </tr>`;
   }).join('');
@@ -2472,12 +2469,13 @@ window.openInvoice = id => {
       .a4-bottom{height:149mm;background:#fff;border-top:0.3pt dashed #ccc}
       .logo{font-family:'Georgia','Times New Roman',serif;font-size:13pt;font-weight:400;color:#000;letter-spacing:0.5px;line-height:1}
       .doc-title{font-size:10pt;font-weight:bold;color:#000;line-height:1.2;text-align:center}
-      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2.5mm}
+      .two-col{display:grid;grid-template-columns:1fr 1fr;gap:3mm;margin-bottom:2mm}
       .col-box{border:0.4pt solid #999;padding:1.8mm 2.5mm}
       .col-title{font-size:7pt;font-weight:bold;text-transform:uppercase;letter-spacing:0.3px;border-bottom:0.4pt solid #ccc;margin-bottom:1mm;padding-bottom:0.5mm;color:#333}
       .info-row{display:flex;margin-bottom:0.6mm;gap:1mm}
       .info-lbl{font-size:7.5pt;color:#555;min-width:20mm;flex-shrink:0}
       .info-val{font-size:7.5pt;font-weight:600;color:#000;word-break:break-word}
+      .note-line{font-size:7.5pt;margin-bottom:1.5mm;line-height:1.5;word-wrap:break-word}
       table.doc-table{width:100%;border-collapse:collapse;font-size:7.5pt;margin-bottom:1.5mm;table-layout:fixed}
       table.doc-table th{background:#1a1a1a;color:#fff;padding:1.5mm 2mm;border:0.4pt solid #1a1a1a;font-size:7pt;font-weight:700;text-align:left;white-space:nowrap}
       table.doc-table td{border:0.4pt solid #bbb;padding:1.2mm 2mm;vertical-align:middle}
@@ -2501,7 +2499,7 @@ window.openInvoice = id => {
       .print-guide{position:fixed;top:12mm;right:4mm;background:#fff8dc;border:1px solid #cca030;padding:5px 8px;border-radius:4px;font-size:8px;color:#664400;line-height:1.6;z-index:98}
 </style></head><body>
   <button class="print-btn no-print" onclick="window.print()">🖨 Хэвлэх (A4)</button>
-  <div class="print-guide no-print">📄 A4 · Portrait<br>Margins: None</div>
+  <div class="print-guide no-print">📄 A4 · Portrait · Margins: None</div>
   <div class="a4-wrap"><div class="page">
     <div style="display:flex;align-items:center;gap:3mm;margin-bottom:2mm">
       <div class="logo" style="flex-shrink:0">femmora</div>
@@ -2526,7 +2524,7 @@ window.openInvoice = id => {
         <div class="info-row"><span class="info-lbl">Огноо:</span><span class="info-val">${dn}</span></div>
       </div>
     </div>
-    ${docNote?`<div style="font-size:7.5pt;margin-bottom:2mm;line-height:1.5;word-wrap:break-word"><b>Тэмдэглэл:</b> ${docNote}</div>`:""}
+    ${docNote?`<div class="note-line"><b>Тэмдэглэл:</b> ${docNote}</div>`:''}
     <table class="doc-table">
       <colgroup><col style="width:24%"><col style="width:9%"><col style="width:10%"><col style="width:6%"><col style="width:11%"><col style="width:9%"><col style="width:31%"></colgroup>
       <thead><tr>
