@@ -1180,7 +1180,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/fireba
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, updateDoc, deleteDoc,
-  getDocs, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc, runTransaction
+  getDocs, onSnapshot, query, where, orderBy, serverTimestamp, getDoc, setDoc, writeBatch, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // ⬇️ FIREBASE CONFIG - ЭНД ӨӨРИЙН CONFIG ОРУУЛНА УУ
@@ -2971,8 +2971,19 @@ window.renderTransactions=()=>{
     <td style="color:${(t.unlinkedAmount||0)>0?'var(--am)':'var(--tx3)'}">${fmt(t.unlinkedAmount||0)}</td>
     <td>${stBadge[t.status]||t.status}</td>
     <td style="white-space:nowrap">
-      ${t.income>0&&t.status!=='linked'&&t.status!=='other'?`<button class="btn bs bxs" onclick="openLinkModal('${t.id}')"><i class="ti ti-link"></i>Холбох</button>`:''}
-      ${t.income>0&&t.status!=='linked'?`<button class="btn bg bxs" onclick="markAsOther('${t.id}')"><i class="ti ti-tag"></i>Бусад</button>`:''}
+      ${t.income > 0 && t.status !== 'other' ? `
+        <button class="btn bs bxs" onclick="openLinkModal('${t.id}')" title="${t.status==='linked'?'Холболт засах':'Авлагад холбох'}">
+          <i class="ti ti-link"></i>${t.status==='linked'||t.status==='partial'?'Засах':'Холбох'}
+        </button>` : ''}
+      ${t.status==='linked'||t.status==='partial' ? `
+        <button class="btn bxs" style="background:var(--am);color:#fff;border:none" onclick="unlinkBankTxn('${t.id}')" title="Холболт салгах">
+          <i class="ti ti-unlink"></i>Салгах
+        </button>` : ''}
+      ${t.income > 0 && t.status !== 'linked' && t.status !== 'partial' ? `
+        <button class="btn bg bxs" onclick="markAsOther('${t.id}')"><i class="ti ti-tag"></i>Бусад</button>` : ''}
+      <button class="btn bg bxs" onclick="editBankTxnNote('${t.id}')" title="Тайлбар засах">
+        <i class="ti ti-edit"></i>
+      </button>
     </td>
   </tr>`).join('');
 };
@@ -3108,22 +3119,24 @@ window.saveLinkage = async () => {
   const custId = document.getElementById('link-cust-sel').value;
   if(!custId) { alert('Харилцагч сонгоно уу'); return; }
 
-  const custSales = sales.filter(s => s.customerId === custId && s.recv > 0);
-  const allocs = custSales
-    .map(s => ({
-      saleId: s.id,
-      saleDocumentNumber: s.docNumber || s.id.slice(-6).toUpperCase(),
-      allocatedAmount: parseFloat(document.getElementById('lk-amt-' + s.id)?.value || 0)
-    }))
-    .filter(a => a.allocatedAmount > 0);
+  const allocs = Array.from(document.querySelectorAll('[id^="lk-amt-"]'))
+    .map(inp => {
+      const saleId = inp.id.replace('lk-amt-', '');
+      const chk = document.getElementById('lk-chk-' + saleId);
+      const amt = parseFloat(inp.value || 0);
+      return { saleId, saleDocumentNumber: inp.dataset.docnum || saleId.slice(-6).toUpperCase(), allocatedAmount: amt, checked: chk?.checked };
+    })
+    .filter(a => a.checked && a.allocatedAmount > 0);
 
-  if(!allocs.length) { alert('Хуваарилах дүн оруулна уу'); return; }
+  if(!allocs.length) { alert('Авлага сонгоод дүн оруулна уу'); return; }
 
   const totalAlloc = allocs.reduce((a, x) => a + x.allocatedAmount, 0);
-  const unlinked = currentLinkTxn.unlinkedAmount ?? currentLinkTxn.income ?? 0;
+  const credit = currentLinkTxn.income || currentLinkTxn.credit || 0;
+  const prevLinked = currentLinkTxn.linkedAmount || 0;
+  const maxAlloc = credit - prevLinked;
 
-  if(totalAlloc > unlinked + 0.01) {
-    alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) нь холбоогүй үлдэгдлээс (${fmt(unlinked)}) их байна`);
+  if(totalAlloc > maxAlloc + 0.01) {
+    alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) нь холбоогүй үлдэгдлээс (${fmt(maxAlloc)}) их байна`);
     return;
   }
 
@@ -3131,114 +3144,106 @@ window.saveLinkage = async () => {
   const txnId = currentLinkTxn.id;
 
   try {
-    await runTransaction(db, async (tx) => {
-      // 1. Банкны гүйлгээг унших
-      const txnRef = doc(db, 'bankTxns', txnId);
-      const txnSnap = await tx.get(txnRef);
-      if(!txnSnap.exists()) throw new Error('Банкны гүйлгээ олдсонгүй');
+    // === БҮГД READ ЭХЛЭЭД ===
+    const txnRef  = doc(db, 'bankTxns', txnId);
 
-      // 2. Давхар payment шалгах
-      const existingPaySnap = await getDocs(
-        query(collection(db, 'payments'), where('bankTransactionId', '==', txnId))
-      );
-      let paymentRef;
-      let isUpdate = false;
+    // Давхар payment шалгах
+    const existingPaySnap = await getDocs(
+      query(collection(db, 'payments'), where('bankTransactionId', '==', txnId))
+    );
+    const isUpdate   = !existingPaySnap.empty;
+    const paymentRef = isUpdate
+      ? doc(db, 'payments', existingPaySnap.docs[0].id)
+      : doc(collection(db, 'payments'));
 
-      if(!existingPaySnap.empty) {
-        // Аль хэдийн payment байна — update горим
-        paymentRef = doc(db, 'payments', existingPaySnap.docs[0].id);
-        isUpdate = true;
-      } else {
-        // Шинэ payment үүсгэх
-        paymentRef = doc(collection(db, 'payments'));
-      }
+    // Бүх sale-уудыг эхлээд read хийх
+    const saleRefs  = allocs.map(a => doc(db, 'sales', a.saleId));
+    const saleSnaps = await Promise.all(saleRefs.map(r => getDoc(r)));
 
-      const tpDocNum = isUpdate
-        ? existingPaySnap.docs[0].data().documentNumber
-        : await getNextDocNum('payment');
+    // txnSnap
+    const txnSnap = await getDoc(txnRef);
+    if(!txnSnap.exists()) throw new Error('Банкны гүйлгээ олдсонгүй');
 
-      // 3. Payment document хадгалах
-      const payData = {
-        documentNumber:   tpDocNum,
-        customerId:       custId,
-        customerCode:     cust.customerCode || '',
-        customerName:     cust.name || '',
-        paymentDate:      currentLinkTxn.date,
-        amount:           totalAlloc,
-        paymentType:      'transfer',
-        bankAccountId:    currentLinkTxn.accountId || '',
-        bankTransactionId:txnId,
-        description:      currentLinkTxn.description || '',
-        note:             '',
-        allocations:      allocs,
-        status:           'active',
-        isCancelled:      false,
-        source:           'bank_import',
-        updatedAt:        serverTimestamp(),
-        updatedBy:        currentUser.email
-      };
-      if(!isUpdate) {
-        payData.createdAt  = serverTimestamp();
-        payData.createdBy  = currentUser.email;
-        tx.set(paymentRef, payData);
-      } else {
-        tx.update(paymentRef, payData);
-      }
+    // DocNum
+    const tpDocNum = isUpdate
+      ? existingPaySnap.docs[0].data().documentNumber
+      : await getNextDocNum('payment');
 
-      // 4. Sale-уудын paid/recv шинэчлэх
-      for(const al of allocs) {
-        const saleRef = doc(db, 'sales', al.saleId);
-        const saleSnap = await tx.get(saleRef);
-        if(!saleSnap.exists()) continue;
-        const s = saleSnap.data();
-        // Хэрэв update горим бол хуучин allocation-г буцаах
-        if(isUpdate) {
-          const oldAllocs = existingPaySnap.docs[0].data().allocations || [];
-          const oldAlloc = oldAllocs.find(a => a.saleId === al.saleId);
-          if(oldAlloc) {
-            const restoredPaid = Math.max(0, (s.paid||0) - oldAlloc.allocatedAmount);
-            const restoredRecv = (s.total||0) - restoredPaid;
-            tx.update(saleRef, { paid: restoredPaid, recv: restoredRecv });
-          }
-        }
-        const curPaid = isUpdate
-          ? Math.max(0, (saleSnap.data().paid||0) - ((existingPaySnap.docs[0].data().allocations||[]).find(a=>a.saleId===al.saleId)?.allocatedAmount||0))
-          : (s.paid||0);
-        const newPaid = curPaid + al.allocatedAmount;
-        const newRecv = Math.max(0, (s.total||0) - newPaid);
-        tx.update(saleRef, {
-          paid:   newPaid,
-          recv:   newRecv,
-          status: newRecv === 0 ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid'
-        });
-      }
+    // === ДАРАА НЬ WRITE BATCH ===
+    const batch = writeBatch(db);
 
-      // 5. Bank transaction шинэчлэх (давхар мөр үүсгэхгүй)
-      const prevLinked = txnSnap.data().linkedAmount || 0;
-      const newLinked = isUpdate ? totalAlloc : prevLinked + totalAlloc;
-      const credit = currentLinkTxn.income || currentLinkTxn.credit || 0;
-      const newUnlinked = Math.max(0, credit - newLinked);
-      const linkStatus = newUnlinked <= 0 ? 'linked' : newLinked > 0 ? 'partial' : 'unlinked';
+    // Payment document
+    const payData = {
+      documentNumber:    tpDocNum,
+      customerId:        custId,
+      customerCode:      cust.customerCode || '',
+      customerName:      cust.name || '',
+      paymentDate:       currentLinkTxn.date,
+      amount:            totalAlloc,
+      paymentType:       'transfer',
+      bankAccountId:     currentLinkTxn.accountId || '',
+      bankTransactionId: txnId,
+      description:       currentLinkTxn.description || '',
+      note:              '',
+      allocations:       allocs,
+      status:            'active',
+      isCancelled:       false,
+      source:            'bank_import',
+      updatedAt:         serverTimestamp(),
+      updatedBy:         currentUser.email
+    };
+    if(!isUpdate) {
+      payData.createdAt = serverTimestamp();
+      payData.createdBy = currentUser.email;
+      batch.set(paymentRef, payData);
+    } else {
+      batch.update(paymentRef, payData);
+    }
 
-      tx.update(txnRef, {
-        linkedAmount:   newLinked,
-        unlinkedAmount: newUnlinked,
-        linkStatus:     linkStatus,
-        status:         linkStatus === 'linked' ? 'linked' : linkStatus === 'partial' ? 'partial' : 'unlinked',
-        paymentId:      paymentRef.id,
-        linkedCustomerId:custId,
-        updatedAt:      serverTimestamp(),
-        updatedBy:      currentUser.email
+    // Sale-уудыг шинэчлэх
+    const oldAllocs = isUpdate ? (existingPaySnap.docs[0].data().allocations || []) : [];
+    saleSnaps.forEach((snap, i) => {
+      if(!snap.exists()) return;
+      const s       = snap.data();
+      const newAlloc = allocs[i].allocatedAmount;
+      const oldAlloc = oldAllocs.find(a => a.saleId === allocs[i].saleId)?.allocatedAmount || 0;
+      const basePaid = isUpdate ? Math.max(0, (s.paid||0) - oldAlloc) : (s.paid||0);
+      const newPaid  = basePaid + newAlloc;
+      const newRecv  = Math.max(0, (s.total||0) - newPaid);
+      batch.update(saleRefs[i], {
+        paid:   newPaid,
+        recv:   newRecv,
+        status: newRecv === 0 ? 'paid' : newPaid > 0 ? 'partial' : 'unpaid'
       });
     });
 
+    // Bank transaction шинэчлэх
+    const newLinked   = isUpdate ? totalAlloc : prevLinked + totalAlloc;
+    const newUnlinked = Math.max(0, credit - newLinked);
+    const linkStatus  = newUnlinked <= 0 ? 'linked' : newLinked > 0 ? 'partial' : 'unlinked';
+    batch.update(txnRef, {
+      linkedAmount:    newLinked,
+      unlinkedAmount:  newUnlinked,
+      linkStatus:      linkStatus,
+      status:          linkStatus === 'linked' ? 'linked' : linkStatus === 'partial' ? 'partial' : 'unlinked',
+      paymentId:       paymentRef.id,
+      linkedCustomerId:custId,
+      updatedAt:       serverTimestamp(),
+      updatedBy:       currentUser.email
+    });
+
+    await batch.commit();
+
     // Audit log
-    await writeAuditLog('bank_linked', txnId, txnId.slice(-8), custId,
-      { linkedAmount: currentLinkTxn.linkedAmount || 0 },
-      { linkedAmount: totalAlloc, allocations: allocs }, 'Банкны холболт');
+    await addDoc(collection(db, 'auditLogs'), {
+      action: 'bank_linked', bankTransactionId: txnId,
+      customerId: custId, totalAlloc,
+      allocations: allocs, isUpdate,
+      userId: currentUser.email, timestamp: serverTimestamp()
+    });
 
     closeModal('link-modal');
-    alert(`✅ Авлагатай амжилттай холболоо!\nНийт: ${fmt(totalAlloc)}`);
+    alert(`✅ Амжилттай холбоолоо!\nНийт: ${fmt(totalAlloc)}`);
   } catch(e) {
     alert('Алдаа: ' + e.message);
     console.error('saveLinkage error:', e);
@@ -5160,6 +5165,99 @@ window.executeCancelPayment = async () => {
       alert(`✅ Төлөлт цуцлагдлаа! ${fmt(pm.amount)}-ийн авлага буцаан тооцогдлоо.`);
     } catch(e) { alert('Алдаа: '+e.message); }
   }
+};
+
+
+// ─── БАНКНЫ ХОЛБОЛТ САЛГАХ ────────────────────────────────────────────────────
+window.unlinkBankTxn = async (txnId) => {
+  const txn = bankTxns.find(t => t.id === txnId);
+  if(!txn) { alert('Гүйлгээ олдсонгүй'); return; }
+  const reason = prompt(`Холболт салгах шалтгаан:\n(${txn.description}):`);
+  if(!reason) return;
+
+  try {
+    // Холбосон payment олох
+    const pmSnap = await getDocs(query(collection(db,'payments'), where('bankTransactionId','==',txnId)));
+    
+    if(!pmSnap.empty) {
+      const pmDoc = pmSnap.docs[0];
+      const pm = pmDoc.data();
+      
+      // Batch write
+      const batch = writeBatch(db);
+      
+      // Sale-уудын авлагыг буцаах
+      for(const al of (pm.allocations || [])) {
+        if(!al.saleId) continue;
+        const saleSnap = await getDoc(doc(db,'sales',al.saleId));
+        if(!saleSnap.exists()) continue;
+        const s = saleSnap.data();
+        const rPaid = Math.max(0,(s.paid||0)-(al.allocatedAmount||0));
+        const rRecv = (s.total||0)-rPaid;
+        batch.update(doc(db,'sales',al.saleId),{
+          paid:rPaid, recv:rRecv,
+          status: rRecv===0?'paid':rPaid>0?'partial':'unpaid'
+        });
+      }
+      
+      // Payment soft cancel
+      batch.update(doc(db,'payments',pmDoc.id),{
+        status:'cancelled', isCancelled:true,
+        cancelledAt:serverTimestamp(), cancelledBy:currentUser.email,
+        cancellationReason:`Банкны холболт салгагдсан: ${reason}`,
+        updatedAt:serverTimestamp(), updatedBy:currentUser.email
+      });
+      
+      // Bank transaction reset
+      batch.update(doc(db,'bankTxns',txnId),{
+        linkedAmount:   0,
+        unlinkedAmount: txn.income || txn.credit || 0,
+        linkStatus:     'unlinked',
+        status:         'unlinked',
+        paymentId:      null,
+        linkedCustomerId:null,
+        updatedAt:      serverTimestamp(),
+        updatedBy:      currentUser.email
+      });
+      
+      await batch.commit();
+    } else {
+      // Payment байхгүй — зүгээр банк txn reset
+      await updateDoc(doc(db,'bankTxns',txnId),{
+        linkedAmount:   0,
+        unlinkedAmount: txn.income || txn.credit || 0,
+        linkStatus:     'unlinked',
+        status:         'unlinked',
+        paymentId:      null,
+        linkedCustomerId:null,
+        updatedAt:      serverTimestamp(),
+        updatedBy:      currentUser.email
+      });
+    }
+    
+    // Audit log
+    await addDoc(collection(db,'auditLogs'),{
+      action:'bank_unlinked', bankTransactionId:txnId,
+      reason, userId:currentUser.email, timestamp:serverTimestamp()
+    });
+    
+    alert('✅ Холболт салгагдлаа. Авлага буцаан тооцогдлоо.');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+// Банкны гүйлгээний тайлбар засах
+window.editBankTxnNote = async (txnId) => {
+  const txn = bankTxns.find(t => t.id === txnId);
+  if(!txn) return;
+  const newNote = prompt('Гүйлгээний тайлбар засах:', txn.description || txn.note || '');
+  if(newNote === null) return;
+  try {
+    await updateDoc(doc(db,'bankTxns',txnId),{
+      description: newNote, note: newNote,
+      updatedAt:serverTimestamp(), updatedBy:currentUser.email
+    });
+    alert('✅ Тайлбар шинэчлэгдлээ!');
+  } catch(e) { alert('Алдаа: '+e.message); }
 };
 
 
