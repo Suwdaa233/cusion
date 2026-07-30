@@ -2945,6 +2945,7 @@ window.renderTransactions=()=>{
   // bankTransactionId-гаар давхар мөрийг нэгтгэх — эх гүйлгээ л харагдана
   const seenIds = new Set();
   let list = bankTxns.filter(t => {
+    if(t.isDeleted || t.status === 'deleted') return false;
     const key = t.id;
     if(seenIds.has(key)) return false;
     seenIds.add(key);
@@ -2970,24 +2971,31 @@ window.renderTransactions=()=>{
     <td style="color:var(--gr)">${t.linkedAmount?fmt(t.linkedAmount):'—'}</td>
     <td style="color:${(t.unlinkedAmount||0)>0?'var(--am)':'var(--tx3)'}">${fmt(t.unlinkedAmount||0)}</td>
     <td>${stBadge[t.status]||t.status}</td>
-    <td style="white-space:nowrap">
+        <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap;padding:4px">
       ${t.income > 0 && t.status !== 'other' ? `
-        <button class="btn bs bxs" onclick="openLinkModal('${t.id}')" title="${t.status==='linked'?'Холболт засах':'Авлагад холбох'}">
+        <button class="btn bs bxs" onclick="openLinkModal('${t.id}')"
+          title="${t.status==='linked'||t.status==='partial'?'Холболт засах':'Авлагад холбох'}" style="font-size:11px">
           <i class="ti ti-link"></i>${t.status==='linked'||t.status==='partial'?'Засах':'Холбох'}
         </button>` : ''}
       ${t.status==='linked'||t.status==='partial' ? `
-        <button class="btn bxs" style="background:var(--am);color:#fff;border:none" onclick="unlinkBankTxn('${t.id}')" title="Холболт салгах">
+        <button class="btn bxs" style="background:var(--am);color:#fff;border:none;font-size:11px"
+          onclick="unlinkBankTxn('${t.id}')" title="Холболт салгах">
           <i class="ti ti-unlink"></i>Салгах
         </button>` : ''}
       ${t.income > 0 && t.status !== 'linked' && t.status !== 'partial' ? `
-        <button class="btn bg bxs" onclick="markAsOther('${t.id}')"><i class="ti ti-tag"></i>Бусад</button>` : ''}
-      <button class="btn bg bxs" onclick="editBankTxnNote('${t.id}')" title="Тайлбар засах">
+        <button class="btn bg bxs" onclick="markAsOther('${t.id}')" style="font-size:11px">
+          <i class="ti ti-tag"></i>Бусад
+        </button>` : ''}
+      <button class="btn bg bxs" onclick="editBankTxnNote('${t.id}')" title="Тайлбар засах" style="font-size:11px">
         <i class="ti ti-edit"></i>
       </button>
+      ${t.status !== 'linked' && t.status !== 'partial' ? `
+        <button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px">
+          <i class="ti ti-trash"></i>
+        </button>` : ''}
     </td>
   </tr>`).join('');
-};
-window.clearTxnFilter=()=>{clearToLastMonth('txn-from','txn-to');['txn-acc-filter','txn-type-filter','txn-status-filter','txn-search'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderTransactions();};
+};window.clearTxnFilter=()=>{clearToLastMonth('txn-from','txn-to');['txn-acc-filter','txn-type-filter','txn-status-filter','txn-search'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderTransactions();};
 window.markAsOther=async(txnId)=>{const reason=prompt('Орлогын төрөл / тайлбар:');if(!reason)return;await updateDoc(doc(db,'bankTxns',txnId),{status:'other',otherNote:reason});};
 
 // ─── LINK MODAL ───────────────────────────────────────────────────────────────
@@ -3042,6 +3050,7 @@ window.loadCustReceivables = () => {
     <td style="text-align:right;color:var(--am);font-weight:600">${fmt(s.recv)}</td>
     <td>
       <input type="number" id="lk-amt-${s.id}" placeholder="0" min="0" max="${Math.min(s.recv, maxAlloc)}"
+        data-docnum="${s.docNumber||s.id.slice(-6).toUpperCase()}"
         style="width:110px;font-size:12px;padding:4px 8px;border:1px solid var(--bd);border-radius:var(--r)"
         oninput="calcLinkTotal()" disabled>
     </td>
@@ -5257,6 +5266,29 @@ window.editBankTxnNote = async (txnId) => {
       updatedAt:serverTimestamp(), updatedBy:currentUser.email
     });
     alert('✅ Тайлбар шинэчлэгдлээ!');
+  } catch(e) { alert('Алдаа: '+e.message); }
+};
+
+
+window.deleteBankTxn = async (txnId) => {
+  const txn = bankTxns.find(t => t.id === txnId);
+  if(!txn) return;
+  if(txn.status === 'linked' || txn.status === 'partial') {
+    alert('Холбогдсон гүйлгээг устгахгүй. Эхлээд холболтыг салгана уу.');
+    return;
+  }
+  if(!confirm(`"${txn.description||txn.date}" гүйлгээг устгах уу?\n\nЭнэ үйлдлийг буцаах боломжгүй.`)) return;
+  try {
+    await updateDoc(doc(db,'bankTxns',txnId), {
+      status: 'deleted', isDeleted: true,
+      deletedAt: serverTimestamp(), deletedBy: currentUser.email
+    });
+    await addDoc(collection(db,'auditLogs'),{
+      action:'bank_txn_deleted', bankTransactionId:txnId,
+      description:txn.description, amount:txn.income||txn.expense,
+      userId:currentUser.email, timestamp:serverTimestamp()
+    });
+    alert('✅ Гүйлгээ устгагдлаа.');
   } catch(e) { alert('Алдаа: '+e.message); }
 };
 
