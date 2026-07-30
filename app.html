@@ -902,6 +902,49 @@ tbody tr:hover td{background:var(--sur2)}
   </div>
 </div>
 
+<!-- EDIT BANK TRANSACTION MODAL -->
+<div class="modal-ov" id="edit-bank-txn-modal">
+  <div class="modal" style="max-width:520px">
+    <div class="mh">
+      <span><i class="ti ti-edit"></i> Банкны гүйлгээ засах</span>
+      <button class="btn bg bxs" onclick="closeModal('edit-bank-txn-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div class="fg">
+        <div class="fl"><label>Огноо <span style="color:var(--re)">*</span></label>
+          <input type="date" id="ebt-date">
+        </div>
+        <div class="fl"><label>Банкны данс</label>
+          <select id="ebt-account" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">-- Данс сонгох --</option>
+          </select>
+        </div>
+        <div class="fl"><label>Орлого ₮</label>
+          <input type="number" id="ebt-income" min="0" placeholder="0">
+        </div>
+        <div class="fl"><label>Зарлага ₮</label>
+          <input type="number" id="ebt-expense" min="0" placeholder="0">
+        </div>
+        <div class="fl"><label>Харьцсан данс</label>
+          <input type="text" id="ebt-counter" placeholder="Харьцсан данс">
+        </div>
+        <div class="fl" style="grid-column:1/-1"><label>Гүйлгээний утга <span style="color:var(--re)">*</span></label>
+          <input type="text" id="ebt-desc" placeholder="Гүйлгээний утга">
+        </div>
+      </div>
+      <div style="background:var(--sur2);border-radius:var(--r);padding:8px 12px;margin-top:8px;font-size:12px;color:var(--tx3)">
+        ⚠ Холбогдсон гүйлгээний дүн өөрчлөхөд авлагын тооцоонд нөлөөлнө.
+        Холболтыг эхлээд салгаж, дараа дүнг засна уу.
+      </div>
+      <input type="hidden" id="ebt-id">
+      <div style="display:flex;gap:8px;margin-top:12px">
+        <button class="btn bp" onclick="saveEditBankTxn()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('edit-bank-txn-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- EDIT SALE MODAL -->
 <div class="modal-ov" id="edit-sale-modal" style="align-items:flex-start;overflow-y:auto;padding:16px">
   <div class="modal" style="max-width:860px;width:100%;margin:auto">
@@ -2971,51 +3014,18 @@ window.renderTransactions=()=>{
     <td style="color:var(--gr)">${t.linkedAmount?fmt(t.linkedAmount):'—'}</td>
     <td style="color:${(t.unlinkedAmount||0)>0?'var(--am)':'var(--tx3)'}">${fmt(t.unlinkedAmount||0)}</td>
     <td>${stBadge[t.status]||t.status}</td>
-        <td style="white-space:nowrap;display:flex;gap:4px;flex-wrap:wrap;padding:4px">
-      ${t.income > 0 && t.status !== 'other' ? `
-        <button class="btn bs bxs" onclick="openLinkModal('${t.id}')"
-          title="${t.status==='linked'||t.status==='partial'?'Холболт засах':'Авлагад холбох'}" style="font-size:11px">
-          <i class="ti ti-link"></i>${t.status==='linked'||t.status==='partial'?'Засах':'Холбох'}
-        </button>` : ''}
-      ${t.status==='linked'||t.status==='partial' ? `
-        <button class="btn bxs" style="background:var(--am);color:#fff;border:none;font-size:11px"
-          onclick="unlinkBankTxn('${t.id}')" title="Холболт салгах">
-          <i class="ti ti-unlink"></i>Салгах
-        </button>` : ''}
-      ${t.income > 0 && t.status !== 'linked' && t.status !== 'partial' ? `
-        <button class="btn bg bxs" onclick="markAsOther('${t.id}')" style="font-size:11px">
-          <i class="ti ti-tag"></i>Бусад
-        </button>` : ''}
-      <button class="btn bg bxs" onclick="editBankTxnNote('${t.id}')" title="Тайлбар засах" style="font-size:11px">
-        <i class="ti ti-edit"></i>
-      </button>
-      ${t.status !== 'linked' && t.status !== 'partial' ? `
-        <button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px">
-          <i class="ti ti-trash"></i>
-        </button>` : ''}
+        <td style="white-space:nowrap">
+      ${t.income > 0 && t.status !== 'linked' && t.status !== 'partial' ?
+        `<button class="btn bs bxs" onclick="openLinkModal('${t.id}')" title="Авлагад холбох" style="font-size:11px"><i class="ti ti-link"></i>Холбох</button>` : ''}
+      ${t.status === 'linked' || t.status === 'partial' ?
+        `<button class="btn bs bxs" onclick="openLinkModal('${t.id}')" title="Холболт засах" style="font-size:11px"><i class="ti ti-link"></i>Засах</button>
+         <button class="btn bxs" style="background:var(--am);color:#fff;border:none;font-size:11px" onclick="unlinkBankTxn('${t.id}')" title="Холболт салгах"><i class="ti ti-unlink"></i>Салгах</button>` : ''}
+      <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Гүйлгээ засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
+      ${t.status !== 'linked' && t.status !== 'partial' ?
+        `<button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>` : ''}
     </td>
   </tr>`).join('');
-};window.clearTxnFilter=()=>{clearToLastMonth('txn-from','txn-to');['txn-acc-filter','txn-type-filter','txn-status-filter','txn-search'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderTransactions();};
-window.markAsOther=async(txnId)=>{const reason=prompt('Орлогын төрөл / тайлбар:');if(!reason)return;await updateDoc(doc(db,'bankTxns',txnId),{status:'other',otherNote:reason});};
-
-// ─── LINK MODAL ───────────────────────────────────────────────────────────────
-window.openLinkModal=(txnId)=>{
-  currentLinkTxn=bankTxns.find(t=>t.id===txnId);if(!currentLinkTxn)return;
-  const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=`${a.bankName} — ${a.accountNumber}`;});
-  document.getElementById('link-txn-info').innerHTML=`
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px">
-      <div><div style="font-size:10px;color:var(--tx3)">Банкны данс</div><div style="font-weight:500">${accMap[currentLinkTxn.accountId]||'—'}</div></div>
-      <div><div style="font-size:10px;color:var(--tx3)">Огноо</div><div style="font-weight:500">${currentLinkTxn.date}</div></div>
-      <div><div style="font-size:10px;color:var(--tx3)">Нийт орлого</div><div style="font-weight:700;color:var(--gr)">${fmt(currentLinkTxn.income)}</div></div>
-      <div><div style="font-size:10px;color:var(--tx3)">Холбоогүй үлдэгдэл</div><div style="font-weight:700;color:var(--am)">${fmt(currentLinkTxn.unlinkedAmount||currentLinkTxn.income)}</div></div>
-    </div>
-    <div style="margin-top:8px;font-size:12px;color:var(--tx2)">${currentLinkTxn.description}</div>`;
-  const custSel=document.getElementById('link-cust-sel');
-  custSel.innerHTML='<option value="">-- Харилцагч сонгох --</option>'+customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
-  document.getElementById('link-recv-list').style.display='none';
-  openModal('link-modal');
-};
-window.loadCustReceivables = () => {
+};window.loadCustReceivables = () => {
   const custId = document.getElementById('link-cust-sel').value;
   const recvDiv = document.getElementById('link-recv-list');
   if(!custId) { if(recvDiv) recvDiv.style.display = 'none'; return; }
@@ -5255,19 +5265,6 @@ window.unlinkBankTxn = async (txnId) => {
 };
 
 // Банкны гүйлгээний тайлбар засах
-window.editBankTxnNote = async (txnId) => {
-  const txn = bankTxns.find(t => t.id === txnId);
-  if(!txn) return;
-  const newNote = prompt('Гүйлгээний тайлбар засах:', txn.description || txn.note || '');
-  if(newNote === null) return;
-  try {
-    await updateDoc(doc(db,'bankTxns',txnId),{
-      description: newNote, note: newNote,
-      updatedAt:serverTimestamp(), updatedBy:currentUser.email
-    });
-    alert('✅ Тайлбар шинэчлэгдлээ!');
-  } catch(e) { alert('Алдаа: '+e.message); }
-};
 
 
 window.deleteBankTxn = async (txnId) => {
@@ -5290,6 +5287,59 @@ window.deleteBankTxn = async (txnId) => {
     });
     alert('✅ Гүйлгээ устгагдлаа.');
   } catch(e) { alert('Алдаа: '+e.message); }
+};
+
+
+// ─── БАНКНЫ ГҮЙЛГЭЭ ЗАСАХ ────────────────────────────────────────────────────
+window.editBankTxnFull = (id) => {
+  const txn = bankTxns.find(t => t.id === id);
+  if(!txn) { alert('Гүйлгээ олдсонгүй'); return; }
+  document.getElementById('ebt-id').value    = id;
+  document.getElementById('ebt-date').value  = txn.date || '';
+  document.getElementById('ebt-income').value  = txn.income || 0;
+  document.getElementById('ebt-expense').value = txn.expense || 0;
+  document.getElementById('ebt-counter').value = txn.counterAccount || '';
+  document.getElementById('ebt-desc').value  = txn.description || '';
+  // Банкны данс dropdown
+  const sel = document.getElementById('ebt-account');
+  sel.innerHTML = '<option value="">-- Данс сонгох --</option>' +
+    bankAccounts.filter(a => a.active !== false).map(a =>
+      `<option value="${a.id}" ${a.id === txn.accountId ? 'selected' : ''}>${a.bankName} — ${a.accountNumber}</option>`
+    ).join('');
+  openModal('edit-bank-txn-modal');
+};
+
+window.saveEditBankTxn = async () => {
+  const id   = document.getElementById('ebt-id').value; if(!id) return;
+  const txn  = bankTxns.find(t => t.id === id);
+  const date = document.getElementById('ebt-date').value;
+  const desc = document.getElementById('ebt-desc').value.trim();
+  if(!date || !desc) { alert('Огноо болон гүйлгээний утга заавал оруулна уу'); return; }
+  const income  = parseFloat(document.getElementById('ebt-income').value)  || 0;
+  const expense = parseFloat(document.getElementById('ebt-expense').value) || 0;
+  const counter = document.getElementById('ebt-counter').value.trim();
+  const accId   = document.getElementById('ebt-account').value || txn?.accountId || '';
+  // Холбогдсон гүйлгээний дүн өөрчлөхийг анхааруулах
+  if((txn?.status === 'linked' || txn?.status === 'partial') &&
+     (income !== (txn.income||0) || expense !== (txn.expense||0))) {
+    if(!confirm('Холбогдсон гүйлгээний дүн өөрчлөгдөж байна.\nЭнэ нь авлагын тооцоонд нөлөөлж болно.\nҮргэлжлүүлэх үү?')) return;
+  }
+  try {
+    await updateDoc(doc(db, 'bankTxns', id), {
+      date, description: desc, income, expense,
+      counterAccount: counter, accountId: accId,
+      unlinkedAmount: Math.max(0, income - (txn?.linkedAmount||0)),
+      updatedAt: serverTimestamp(), updatedBy: currentUser.email
+    });
+    await addDoc(collection(db, 'auditLogs'), {
+      action: 'bank_txn_edited', bankTransactionId: id,
+      before: { date:txn?.date, description:txn?.description, income:txn?.income, expense:txn?.expense },
+      after:  { date, description:desc, income, expense },
+      userId: currentUser.email, timestamp: serverTimestamp()
+    });
+    closeModal('edit-bank-txn-modal');
+    alert('✅ Гүйлгээ амжилттай шинэчлэгдлээ!');
+  } catch(e) { alert('Алдаа: ' + e.message); }
 };
 
 
