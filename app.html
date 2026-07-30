@@ -177,7 +177,14 @@ tbody tr:hover td{background:var(--sur2)}
 <div class="main">
 <div class="topbar">
   <div class="topbar-title" id="sec-title">Дашборд</div>
-  <div class="topbar-right">
+  <div class="topbar-right" style="display:flex;align-items:center;gap:8px">
+    <div style="display:flex;align-items:center;gap:6px;background:var(--sur2);border-radius:var(--r);padding:4px 10px">
+      <i class="ti ti-calendar" style="font-size:13px;color:var(--pu)"></i>
+      <label style="font-size:11px;color:var(--tx3);margin:0">Тайлант сар:</label>
+      <input type="month" id="global-month"
+        style="font-size:12px;font-weight:600;border:none;background:transparent;color:var(--tx);cursor:pointer;outline:none"
+        onchange="onGlobalMonthChange(this.value)">
+    </div>
     <span id="top-date" style="font-size:12px;color:var(--tx3)"></span>
   </div>
 </div>
@@ -1251,33 +1258,8 @@ let currentUser = null;
 
 // ─── НЭГДСЭН HELPER ФУНКЦУУД ─────────────────────────────────────────────────
 
-function getLastMonthRange() {
-  const now = new Date();
-  const y = now.getFullYear(), m = now.getMonth(); // 0-based
-  const lastM = m === 0 ? 12 : m;
-  const lastY = m === 0 ? y - 1 : y;
-  const lastDay = new Date(lastY, lastM, 0).getDate();
-  return {
-    from: `${lastY}-${String(lastM).padStart(2,'0')}-01`,
-    to:   `${lastY}-${String(lastM).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`
-  };
-}
 
-function initDateRange(fromId, toId) {
-  const {from, to} = getLastMonthRange();
-  const f = document.getElementById(fromId);
-  const t = document.getElementById(toId);
-  if(f && !f.value) f.value = from;
-  if(t && !t.value) t.value = to;
-}
 
-function clearToLastMonth(fromId, toId) {
-  const {from, to} = getLastMonthRange();
-  const f = document.getElementById(fromId);
-  const t = document.getElementById(toId);
-  if(f) f.value = from;
-  if(t) t.value = to;
-}
 
 function getDocNumDisplay(doc) {
   if(!doc) return '—';
@@ -1481,7 +1463,9 @@ onAuthStateChanged(auth, async user => {
   document.getElementById('loading-ov').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
 
-  initDates();
+  // Нэгдсэн тайлант сар тохируулах
+  const _initYm = getDefaultYearMonth();
+  applyReportingPeriod(_initYm);
   // Эрхийн тохиргоо ачаалах + needsUidLink шалгах
   await loadCurrentPermissions(user.uid);
   await linkUserUidIfNeeded(user);
@@ -1576,15 +1560,6 @@ function canEdit(perm) {
   ) && Object.values(currentPermissions).some(v => v === true);
 }
 
-function initDates(){
-  const t = today();
-  ['s-date','in-date','out-date','d-date-filter'].forEach(id=>{
-    const el=document.getElementById(id); if(el) el.value=t;
-  });
-  document.getElementById('pm-date').value = t;
-  document.getElementById('top-date').textContent = new Date().toLocaleDateString('mn-MN',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
-  setThisMonth();
-}
 
 // ─── NAV ─────────────────────────────────────────────────────────────────────
 window.goSec = (name, btn) => {
@@ -5341,6 +5316,110 @@ window.saveEditBankTxn = async () => {
     alert('✅ Гүйлгээ амжилттай шинэчлэгдлээ!');
   } catch(e) { alert('Алдаа: ' + e.message); }
 };
+
+
+// ─── ТАЙЛАНТ САРЫН НЭГДСЭН HELPER ───────────────────────────────────────────
+
+// localStorage-аас сар унших (default: өнгөрсөн сар)
+function getDefaultYearMonth() {
+  const saved = localStorage.getItem('reportingMonth');
+  if(saved && /^\d{4}-\d{2}$/.test(saved)) return saved;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(); // 0-based
+  if(m === 0) return `${y-1}-12`;
+  return `${y}-${String(m).padStart(2,'0')}`;
+}
+
+// Тайлант сарын from/to range авах
+// Өнгөрсөн сар → бүтэн сар; одоогийн сар → эхнээс өнөөдөр
+function getReportingPeriodRange(yearMonth) {
+  if(!yearMonth) yearMonth = getDefaultYearMonth();
+  const [y, m] = yearMonth.split('-').map(Number);
+  const from = `${yearMonth}-01`;
+  const now = new Date();
+  const isCurrentMonth = now.getFullYear() === y && now.getMonth() + 1 === m;
+  let to;
+  if(isCurrentMonth) {
+    // Одоогийн сар: өнөөдөр хүртэл
+    to = now.toISOString().slice(0, 10);
+  } else {
+    // Өнгөрсөн сар: бүтэн сарын сүүлийн өдөр
+    const lastDay = new Date(y, m, 0).getDate(); // Leap year зөв
+    to = `${yearMonth}-${String(lastDay).padStart(2,'0')}`;
+  }
+  return { from, to, yearMonth };
+}
+
+// Бүх date input-уудыг нэгдсэн саруудаар бөглөх
+const DATE_PAIRS = [
+  ['d-from', 'd-to'],
+  ['s-from', 's-to'],
+  ['rv-date-from', 'rv-date-to'],
+  ['ph-from', 'ph-to'],
+  ['ldg-from', 'ldg-to'],
+  ['rec-from', 'rec-to'],
+  ['il-from', 'il-to'],
+  ['txn-from', 'txn-to'],
+  ['lnk-from', 'lnk-to'],
+  ['rp-from', 'rp-to'],
+];
+
+function applyReportingPeriod(yearMonth) {
+  const { from, to } = getReportingPeriodRange(yearMonth);
+  DATE_PAIRS.forEach(([fId, tId]) => {
+    const fEl = document.getElementById(fId);
+    const tEl = document.getElementById(tId);
+    if(fEl) fEl.value = from;
+    if(tEl) tEl.value = to;
+  });
+  // rec-date (тооцоо нийлэлтийн огноо) — сарын сүүлийн өдөр
+  const recDate = document.getElementById('rec-date');
+  if(recDate) {
+    const { to: lastDay } = getReportingPeriodRange(yearMonth);
+    recDate.value = lastDay;
+  }
+  // Global month input
+  const gmEl = document.getElementById('global-month');
+  if(gmEl) gmEl.value = yearMonth;
+}
+
+// Global сар солих handler
+window.onGlobalMonthChange = (yearMonth) => {
+  if(!yearMonth) return;
+  localStorage.setItem('reportingMonth', yearMonth);
+  applyReportingPeriod(yearMonth);
+  // Одоо харагдаж байгаа хэсгийг refresh хийх
+  const activeBtn = document.querySelector('.ni.on');
+  const secName   = activeBtn?.onclick?.toString().match(/goSec\('(\w+)'/)?.[1] || '';
+  if(secName === 'sales')      renderSalesTable();
+  if(secName === 'receivable') renderRecvSummary();
+  if(secName === 'bank')       renderTransactions();
+  if(secName === 'report')     renderReport?.();
+};
+
+// initDateRange-г global period-оор override хийх
+function initDateRange(fromId, toId) {
+  const ym = document.getElementById('global-month')?.value || getDefaultYearMonth();
+  const { from, to } = getReportingPeriodRange(ym);
+  const f = document.getElementById(fromId);
+  const t = document.getElementById(toId);
+  if(f && !f.value) f.value = from;
+  if(t && !t.value) t.value = to;
+}
+
+function clearToLastMonth(fromId, toId) {
+  const ym = document.getElementById('global-month')?.value || getDefaultYearMonth();
+  const { from, to } = getReportingPeriodRange(ym);
+  const f = document.getElementById(fromId);
+  const t = document.getElementById(toId);
+  if(f) f.value = from;
+  if(t) t.value = to;
+}
+
+function initDates() {
+  const ym = getDefaultYearMonth();
+  applyReportingPeriod(ym);
+}
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
