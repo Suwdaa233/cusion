@@ -524,8 +524,7 @@ tbody tr:hover td{background:var(--sur2)}
       <div class="fg">
         <div class="fl"><label>Нэр</label><input type="text" id="p-name" placeholder="Cusion пудр"></div>
         <div class="fl"><label>Хувилбар / Өнгө</label><input type="text" id="p-var"></div>
-        <div class="fl"><label>SKU</label><input type="text" id="p-sku"></div>
-        <div class="fl"><label>Баркод</label><input type="text" id="p-barcode" placeholder="1234567890123" maxlength="20" style="font-family:monospace"></div>
+        <div class="fl"><label>Барааны код</label><input type="text" id="p-barcode" placeholder="Баркод эсвэл SKU" style="font-family:monospace"></div>
       </div>
       <div class="fg">
         <div class="fl"><label>Борлуулалтын үнэ (₮)</label><input type="number" id="p-price"></div>
@@ -1771,8 +1770,7 @@ window.submitSale = async () => {
     return {
       pid:r.pid,
       label:`${p?.name}·${p?.variant}`,
-      productCode:p?.sku||'',
-      barcode:p?.barcode||'',
+      barcode:p?.barcode||p?.sku||'',
       price:r.price,qty:r.qty,
       discountType:r.discType||'none',
       discountValue:r.discVal||0,
@@ -2042,26 +2040,27 @@ window.delCustomer = async id => { if(!confirm('Устгах уу?'))return; awa
 
 // ─── PRODUCTS ────────────────────────────────────────────────────────────────
 window.addProduct = async () => {
-  if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
+  if(!hasPerm('inventory_create')){alert('Бараа нэмэх эрх байхгүй байна');return;}
   const name=document.getElementById('p-name').value.trim();
   const variant=document.getElementById('p-variant').value.trim();
-  const sku=document.getElementById('p-sku').value.trim();
   const barcode=document.getElementById('p-barcode')?.value.trim()||'';
   if(!name||!variant){alert('Нэр болон хувилбар оруулна уу');return;}
-  // Баркод давхардах шалгалт
+  // Давхардах шалгалт
   if(barcode && products.some(p=>p.barcode&&p.barcode===barcode)){
-    alert(`Тэр баркод (${barcode}) аль хэдийн бүртгэгдсэн байна!\nБараа: ${products.find(p=>p.barcode===barcode)?.name||'—'}`);
+    alert(`Тэр код (${barcode}) аль хэдийн бүртгэгдсэн!\nБараа: ${products.find(p=>p.barcode===barcode)?.name||'—'}`);
     return;
   }
   await addDoc(collection(db,'products'),{
-    name,variant,sku,barcode,
+    name, variant,
+    sku: barcode,
+    barcode,
     price:parseInt(document.getElementById('p-price').value)||0,
     cost:parseInt(document.getElementById('p-cost').value)||0,
     color:document.getElementById('p-color').value,
     note:document.getElementById('p-note').value.trim(),
-    createdBy:currentUser.email,createdAt:serverTimestamp()
+    createdBy:currentUser.email, createdAt:serverTimestamp()
   });
-  ['p-name','p-variant','p-sku','p-barcode','p-price','p-cost','p-note'].forEach(id=>{
+  ['p-name','p-variant','p-barcode','p-price','p-cost','p-note'].forEach(id=>{
     const el=document.getElementById(id);if(el)el.value='';
   });
   document.getElementById('p-color').value='#534AB7';
@@ -2388,19 +2387,17 @@ window.renderProducts = () => {
   if(q) list=list.filter(p=>
     (p.name||'').toLowerCase().includes(q)||
     (p.variant||'').toLowerCase().includes(q)||
-    (p.sku||'').toLowerCase().includes(q)||
-    (p.barcode||'').toLowerCase().includes(q)
+    (p.barcode||p.sku||'').toLowerCase().includes(q)
   );
   if(list.length===0){
-    tbody.innerHTML=`<tr><td colspan="9"><div class="empty"><i class="ti ti-box"></i>${q?'Хайлтын үр дүн олдсонгүй':'Бараа байхгүй'}</div></td></tr>`;
+    tbody.innerHTML=`<tr><td colspan="8"><div class="empty"><i class="ti ti-box"></i>${q?'Хайлтын үр дүн олдсонгүй':'Бараа байхгүй'}</div></td></tr>`;
     return;
   }
   tbody.innerHTML=list.map(p=>`<tr>
     <td><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${p.color||'#ccc'};border:1px solid var(--bd)"></span></td>
     <td style="font-weight:500">${p.name}</td>
     <td>${p.variant}</td>
-    <td style="font-size:11px;color:var(--tx2);font-family:monospace">${p.sku||'—'}</td>
-    <td style="font-size:11px;color:var(--tx2);font-family:monospace">${p.barcode||'—'}</td>
+    <td style="font-size:11px;color:var(--tx2);font-family:monospace">${p.barcode||p.sku||'—'}</td>
     <td style="font-weight:500">${fmt(p.price)}</td>
     <td style="color:var(--tx3)">${fmt(p.cost||0)}</td>
     <td style="font-size:11px;color:var(--tx3)">${p.note||'—'}</td>
@@ -2472,7 +2469,7 @@ window.openInvoice = id => {
   const rows=(sale.items||[]).map(it=>{
     const p=products.find(x=>x.id===it.pid)||{};
     const lineTotal=it.lineTotal||it.sub||0;
-    const barcode=it.barcode||it.productBarcode||p.barcode||'—';
+    const barcode=it.barcode||p.barcode||p.sku||'—';
     let dd='—';
     if(it.discountType==='percent'&&it.discountValue) dd=it.discountValue+'%';
     else if(it.discountType==='amount'&&it.discountAmount) dd=it.discountAmount.toLocaleString()+'₮';
@@ -2480,8 +2477,7 @@ window.openInvoice = id => {
     else if(it.discType==='amount'&&it.discVal) dd=it.discVal.toLocaleString()+'₮';
     return `<tr>
       <td style="width:24%">${(it.label||'').replace('·',' ')}</td>
-      <td class="c" style="width:9%">${it.productCode||p.sku||'—'}</td>
-      <td class="c" style="width:10%;font-family:monospace;font-size:6.5pt">${barcode}</td>
+      <td class="c" style="width:12%;font-family:monospace">${it.barcode||it.productCode||p.barcode||p.sku||'—'}</td>
       <td class="c" style="width:6%">${it.qty||1}</td>
       <td class="r" style="width:11%">${(it.price||0).toLocaleString()}</td>
       <td class="c" style="width:9%;color:${dd!=='—'?'#080':'#aaa'}">${dd}</td>
@@ -2557,18 +2553,18 @@ window.openInvoice = id => {
     </div>
     ${docNote?`<div class="note-line"><b>Тэмдэглэл:</b> ${docNote}</div>`:''}
     <table class="doc-table">
-      <colgroup><col style="width:24%"><col style="width:9%"><col style="width:10%"><col style="width:6%"><col style="width:11%"><col style="width:9%"><col style="width:31%"></colgroup>
+      <colgroup><col style="width:28%"><col style="width:12%"><col style="width:7%"><col style="width:12%"><col style="width:10%"><col style="width:31%"></colgroup>
       <thead><tr>
-        <th>Барааны нэр</th><th class="c">Барааны код</th><th class="c">Баркод</th>
+        <th>Барааны нэр</th><th class="c">Барааны код</th>
         <th class="c">Тоо ш</th><th class="r">Нэгж үнэ</th><th class="c">Хөнгөлөлт</th><th class="r">Нийт дүн</th>
       </tr></thead>
       <tbody>${rows}</tbody>
       <tfoot>
-        ${totDiscount>0?`<tr style="font-size:7pt;background:#fafafa"><td colspan="6" class="r" style="color:#666;padding:1mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1mm 2mm">${totSubtotal.toLocaleString()} ₮</td></tr><tr style="font-size:7pt;background:#f0fff0"><td colspan="6" class="r" style="color:#080;padding:1mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1mm 2mm">-${totDiscount.toLocaleString()} ₮</td></tr>`:''}
-        <tr class="total-row"><td colspan="6" class="r" style="font-size:8.5pt">Төлөх нийт дүн:</td><td class="r" style="font-size:8.5pt">${totFinal.toLocaleString()} ₮</td></tr>
-        <tr class="meta-row"><td colspan="6" class="r">Төлбөрийн төрөл:</td><td style="font-weight:700">${payLabel}</td></tr>
-        <tr class="meta-row"><td colspan="6" class="r">Төлсөн дүн:</td><td class="r" style="font-weight:700">${sale.paid.toLocaleString()} ₮</td></tr>
-        <tr class="meta-row"><td colspan="6" class="r">Үлдэгдэл:</td><td class="r" style="font-weight:700">${sale.recv.toLocaleString()} ₮</td></tr>
+        ${totDiscount>0?`<tr style="font-size:7pt;background:#fafafa"><td colspan="5" class="r" style="color:#666;padding:1mm 2mm">Барааны нийт дүн:</td><td class="r" style="color:#666;padding:1mm 2mm">${totSubtotal.toLocaleString()} ₮</td></tr><tr style="font-size:7pt;background:#f0fff0"><td colspan="5" class="r" style="color:#080;padding:1mm 2mm">Нийт хөнгөлөлт:</td><td class="r" style="color:#080;padding:1mm 2mm">-${totDiscount.toLocaleString()} ₮</td></tr>`:''}
+        <tr class="total-row"><td colspan="5" class="r" style="font-size:8.5pt">Төлөх нийт дүн:</td><td class="r" style="font-size:8.5pt">${totFinal.toLocaleString()} ₮</td></tr>
+        <tr class="meta-row"><td colspan="5" class="r">Төлбөрийн төрөл:</td><td style="font-weight:700">${payLabel}</td></tr>
+        <tr class="meta-row"><td colspan="5" class="r">Төлсөн дүн:</td><td class="r" style="font-weight:700">${sale.paid.toLocaleString()} ₮</td></tr>
+        <tr class="meta-row"><td colspan="5" class="r">Үлдэгдэл:</td><td class="r" style="font-weight:700">${sale.recv.toLocaleString()} ₮</td></tr>
       </tfoot>
     </table>
     <div class="amount-words">Дүн үсгээр: ${numToWords(sale.total)}</div>
@@ -2979,7 +2975,7 @@ window.renderTransactions=()=>{
   const tbody=document.getElementById('txn-tbody');if(!tbody)return;
   const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=a.bankName+' '+a.accountNumber;});
   const stBadge={unlinked:'<span class="ba bre">Холбоогүй</span>',partial:'<span class="ba bam2">Хэсэгчлэн</span>',linked:'<span class="ba bgr">Бүрэн холбосон</span>',other:'<span class="ba bgr2">Бусад орлого</span>',expense:'<span class="ba bgr2">Зарлага</span>'};
-  if(list.length===0){tbody.innerHTML='<tr><td colspan="9"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
   tbody.innerHTML=list.map(t=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
     <td style="font-size:11px">${accMap[t.accountId]||'—'}</td>
