@@ -5423,6 +5423,11 @@ function initDates() {
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+// Борлуулалт, орлого, зарлага, шилжүүлэлтийн огноог өнөөдрөөр
+['s-date','in-date','out-date'].forEach(id => {
+  const el = document.getElementById(id);
+  if(el && !el.value) el.value = today();
+});
 addSaleRow();
 addInRow();
 addOutRow();
@@ -5430,15 +5435,6 @@ addTransferRow();
 if(document.getElementById('tr-date')) document.getElementById('tr-date').value=today();
 // Байршлын буруу нэр засах
 setTimeout(()=>{ if(typeof fixLocationNames==='function') fixLocationNames(); }, 3000);
-(function(){
-  const lr=getLastMonthRange();
-  [['d-from','d-to'],['s-from','s-to'],['ph-from','ph-to'],
-   ['txn-from','txn-to'],['lnk-from','lnk-to']].forEach(([f,t])=>{
-    const fe=document.getElementById(f),te=document.getElementById(t);
-    if(fe&&!fe.value)fe.value=lr.from;
-    if(te&&!te.value)te.value=lr.to;
-  });
-})();
 </script>
 </body>
 </html
