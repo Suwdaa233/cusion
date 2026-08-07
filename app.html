@@ -716,6 +716,7 @@ tbody tr:hover td{background:var(--sur2)}
     <div class="card">
       <div class="ch" style="flex-wrap:wrap;gap:8px">
         <span class="ct"><i class="ti ti-link"></i>Авлага холболтын түүх</span>
+        <button class="btn bg bxs admin-only" onclick="autoLinkQpay()" style="font-size:11px;background:var(--pu);color:#fff;border:none" title="QPay орлогыг Хүргэлт харилцагчид автоматаар холбох"><i class="ti ti-bolt"></i>QPay автомат</button>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
           <select id="lnk-acc" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх данс</option></select>
           <select id="lnk-cust" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх харилцагч</option></select>
@@ -726,7 +727,8 @@ tbody tr:hover td{background:var(--sur2)}
           <button class="btn bg bxs" onclick="clearLinkFilter()">Цэвэрлэх</button>
         </div>
       </div>
-      <div class="cb np"><div class="tw"><table>
+      <div class="cb np">
+        <div class="mg" id="lnk-summary" style="margin:0 0 10px"></div><div class="tw"><table>
         <thead><tr><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Харилцагч</th><th>Борлуулалт №</th><th>Холбосон дүн</th><th>Холболт хийсэн</th><th>Үйлдэл</th></tr></thead>
         <tbody id="lnk-tbody"></tbody>
       </table></div></div>
@@ -3331,6 +3333,15 @@ window.renderLinks = () => {
     unlinked: '<span class="ba bre">Холбоогүй</span>'
   };
 
+  // Нийт дүн
+  const totalLinked = linked.reduce((a,l) => a + (l.amount||0), 0);
+  const totalCredit = linked.reduce((a,l) => a + (l.credit||0), 0);
+  const sumEl = document.getElementById('lnk-summary');
+  if(sumEl) sumEl.innerHTML = linked.length > 0 ? `
+    <div class="mc"><div class="ml">Нийт холболт</div><div class="mv pu">${linked.length} ш</div></div>
+    <div class="mc"><div class="ml">Нийт холбогдсон дүн</div><div class="mv gr">${fmt(totalLinked)}</div></div>
+    <div class="mc"><div class="ml">Банкны нийт орлого</div><div class="mv am">${fmt(totalCredit)}</div></div>` : '';
+
   tbody.innerHTML = linked
     .sort((a,b) => (b.date||'').localeCompare(a.date||''))
     .map(l => `<tr>
@@ -5539,6 +5550,138 @@ window.openLinkModal = (txnId) => {
   const totalEl = document.getElementById('link-total-display');
   if(totalEl) totalEl.innerHTML = '';
   openModal('link-modal');
+};
+
+
+// ─── QPAY АВТО ХОЛБОЛТ ───────────────────────────────────────────────────────
+// MN020005005219470836 дансны 'qpay' гүйлгээг Хүргэлт харилцагчид автоматаар холбох
+const QPAY_ACCOUNT_NUMBER = 'MN020005005219470836';
+const QPAY_KEYWORD        = 'qpay';
+const QPAY_CUST_NAME      = 'Хүргэлт';
+
+window.autoLinkQpay = async () => {
+  // Хүргэлт харилцагч олох
+  const hurgelt = customers.find(c =>
+    c.name?.toLowerCase().includes('хүргэлт') ||
+    c.name?.toLowerCase().includes('hurgelt')
+  );
+  if(!hurgelt) { alert('Хүргэлт харилцагч олдсонгүй'); return; }
+
+  // QPay данс олох
+  const qpayAcc = bankAccounts.find(a =>
+    (a.accountNumber||'').replace(/\s/g,'') === QPAY_ACCOUNT_NUMBER.replace(/\s/g,'')
+  );
+
+  // QPay орлогын гүйлгээг олох
+  const qpayTxns = bankTxns.filter(t => {
+    if(t.income <= 0) return false;
+    if(t.status === 'linked') return false;
+    if(t.isDeleted) return false;
+    // Данс шалгах
+    if(qpayAcc && t.accountId !== qpayAcc.id) return false;
+    // QPay keyword шалгах
+    const desc = (t.description || '').toLowerCase();
+    return desc.includes(QPAY_KEYWORD);
+  });
+
+  if(qpayTxns.length === 0) {
+    alert('Холбох QPay гүйлгээ олдсонгүй\n(Аль хэдийн холбогдсон эсвэл QPay гүйлгээ байхгүй)');
+    return;
+  }
+
+  if(!confirm(`${qpayTxns.length} QPay гүйлгээг "${hurgelt.name}" харилцагчид холбох уу?\n\nНийт дүн: ${fmt(qpayTxns.reduce((a,t)=>a+t.income,0))}`)) return;
+
+  let success = 0, failed = 0;
+  const tpDocBase = await getNextDocNum('payment');
+
+  for(const txn of qpayTxns) {
+    try {
+      // Давхар payment шалгах
+      const existingSnap = await getDocs(
+        query(collection(db,'payments'), where('bankTransactionId','==',txn.id))
+      );
+      const isUpdate = !existingSnap.empty;
+      const payRef = isUpdate
+        ? doc(db,'payments',existingSnap.docs[0].id)
+        : doc(collection(db,'payments'));
+
+      // FIFO — хамгийн хуучин авлагад хуваарилах
+      const custSales = sales.filter(s => s.customerId === hurgelt.id && s.recv > 0)
+        .sort((a,b) => a.date.localeCompare(b.date));
+
+      const allocations = [];
+      let remaining = txn.income;
+      for(const s of custSales) {
+        if(remaining <= 0) break;
+        const alloc = Math.min(s.recv, remaining);
+        allocations.push({
+          saleId: s.id,
+          saleDocumentNumber: s.docNumber || s.id.slice(-6).toUpperCase(),
+          allocatedAmount: alloc
+        });
+        remaining -= alloc;
+      }
+
+      const payData = {
+        documentNumber:    isUpdate ? existingSnap.docs[0].data().documentNumber : tpDocBase,
+        customerId:        hurgelt.id,
+        customerCode:      hurgelt.customerCode || '',
+        customerName:      hurgelt.name,
+        paymentDate:       txn.date,
+        amount:            txn.income,
+        paymentType:       'transfer',
+        bankAccountId:     txn.accountId || '',
+        bankTransactionId: txn.id,
+        description:       txn.description || 'QPay орлого',
+        note:              'QPay автомат холболт',
+        allocations:       allocations,
+        status:            'active',
+        isCancelled:       false,
+        source:            'bank_import',
+        updatedAt:         serverTimestamp(),
+        updatedBy:         currentUser.email
+      };
+      if(!isUpdate) { payData.createdAt = serverTimestamp(); payData.createdBy = currentUser.email; }
+
+      // Batch write
+      const batch = writeBatch(db);
+      if(isUpdate) batch.update(payRef, payData);
+      else batch.set(payRef, payData);
+
+      // Sale-уудын paid/recv шинэчлэх
+      for(const al of allocations) {
+        const sale = sales.find(s => s.id === al.saleId);
+        if(!sale) continue;
+        const newPaid = sale.paid + al.allocatedAmount;
+        const newRecv = Math.max(0, sale.total - newPaid);
+        batch.update(doc(db,'sales',al.saleId), {
+          paid: newPaid, recv: newRecv,
+          status: newRecv===0?'paid':newPaid>0?'partial':'unpaid'
+        });
+      }
+
+      // Bank txn шинэчлэх
+      const linkedAmt = txn.income - remaining;
+      batch.update(doc(db,'bankTxns',txn.id), {
+        linkedAmount:    linkedAmt,
+        unlinkedAmount:  remaining,
+        linkStatus:      remaining <= 0 ? 'linked' : 'partial',
+        status:          remaining <= 0 ? 'linked' : 'partial',
+        paymentId:       payRef.id,
+        linkedCustomerId:hurgelt.id,
+        updatedAt:       serverTimestamp(),
+        updatedBy:       currentUser.email
+      });
+
+      await batch.commit();
+      success++;
+    } catch(e) {
+      console.error('QPay auto-link error:', txn.id, e);
+      failed++;
+    }
+  }
+
+  alert(`✅ QPay авто холболт дууслаа!\nАмжилттай: ${success}\nАлдаа: ${failed}`);
 };
 
 
