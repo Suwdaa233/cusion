@@ -3281,29 +3281,70 @@ window.saveLinkage = async () => {
 };
 
 // ─── LINKS LIST ───────────────────────────────────────────────────────────────
-window.renderLinks=()=>{
-  const accId=document.getElementById('lnk-acc')?.value||'';
-  const custId=document.getElementById('lnk-cust')?.value||'';
-  const from=document.getElementById('lnk-from')?.value||'';
-  const to=document.getElementById('lnk-to')?.value||'';
-  let list=bankLinks;
-  if(accId)list=list.filter(l=>l.accountId===accId);
-  if(custId)list=list.filter(l=>l.customerId===custId);
-  if(from)list=list.filter(l=>l.date>=from);
-  if(to)list=list.filter(l=>l.date<=to);
-  const tbody=document.getElementById('lnk-tbody');if(!tbody)return;
-  const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=a.bankName+' '+a.accountNumber;});
-  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Холболт байхгүй</div></td></tr>';return;}
-  tbody.innerHTML=list.map(l=>`<tr>
-    <td style="font-size:11px;color:var(--tx3)">${l.date}</td>
-    <td style="font-size:11px">${accMap[l.accountId]||'—'}</td>
-    <td style="font-size:11px">${(l.description||'').slice(0,30)}</td>
-    <td style="font-weight:500">${l.customerName}</td>
-    <td style="font-family:monospace;font-size:11px">${l.saleId?.slice(-6).toUpperCase()}</td>
-    <td style="color:var(--gr);font-weight:600">${fmt(l.amount)}</td>
-    <td style="font-size:11px;color:var(--tx3)">${l.linkedAt?.toDate?l.linkedAt.toDate().toLocaleDateString('mn-MN'):'—'}</td>
-    <td><button class="btn bd2 bxs" onclick="reverseLink('${l.id}')"><i class="ti ti-arrow-back"></i>Буцаах</button></td>
-  </tr>`).join('');
+window.renderLinks = () => {
+  const accId  = document.getElementById('lnk-acc')?.value  || '';
+  const custId = document.getElementById('lnk-cust')?.value || '';
+  const from   = document.getElementById('lnk-from')?.value || '';
+  const to     = document.getElementById('lnk-to')?.value   || '';
+  const tbody  = document.getElementById('lnk-tbody'); if(!tbody) return;
+
+  // payments collection-с bank_import эх сурвалжтай + bankTxns-с
+  const linked = [];
+
+  // payments collection-с (bank_import)
+  payments.filter(pm => {
+    if(pm.isCancelled || pm.status === 'cancelled') return false;
+    if(!pm.bankTransactionId) return false;
+    if(custId && pm.customerId !== custId) return false;
+    if(from && (pm.paymentDate||'') < from) return false;
+    if(to   && (pm.paymentDate||'') > to)   return false;
+    return true;
+  }).forEach(pm => {
+    const txn = bankTxns.find(t => t.id === pm.bankTransactionId) || {};
+    if(accId && txn.accountId !== accId) return;
+    linked.push({
+      date:       pm.paymentDate || '',
+      accountId:  txn.accountId || '',
+      description:pm.description || txn.description || '—',
+      custName:   pm.customerName || '—',
+      custId:     pm.customerId,
+      amount:     pm.amount || 0,
+      credit:     txn.income || 0,
+      linkStatus: txn.linkStatus || txn.status || '—',
+      paymentId:  pm.id,
+      txnId:      pm.bankTransactionId,
+      allocations:pm.allocations || []
+    });
+  });
+
+  const accMap = {};
+  bankAccounts.forEach(a => { accMap[a.id] = a.bankName + ' — ' + a.accountNumber; });
+
+  if(linked.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Холболт байхгүй</div></td></tr>';
+    return;
+  }
+
+  const LBADGE = {
+    linked:   '<span class="ba bgr">Бүрэн холбосон</span>',
+    partial:  '<span class="ba bam2">Хэсэгчлэн</span>',
+    unlinked: '<span class="ba bre">Холбоогүй</span>'
+  };
+
+  tbody.innerHTML = linked
+    .sort((a,b) => (b.date||'').localeCompare(a.date||''))
+    .map(l => `<tr>
+      <td style="font-size:11px;color:var(--tx3)">${l.date}</td>
+      <td style="font-size:11px">${accMap[l.accountId]||'—'}</td>
+      <td style="font-size:11px">${(l.description||'').slice(0,30)}</td>
+      <td style="font-weight:500">${l.custName}</td>
+      <td style="text-align:right;color:var(--gr);font-weight:600">${fmt(l.amount)}</td>
+      <td>${LBADGE[l.linkStatus]||l.linkStatus}</td>
+      <td style="white-space:nowrap">
+        <button class="btn bg bxs" onclick="openLinkModal('${l.txnId}')" style="font-size:11px" title="Засах"><i class="ti ti-edit"></i></button>
+        <button class="btn bd2 bxs" onclick="unlinkBankTxn('${l.txnId}')" style="font-size:11px" title="Салгах"><i class="ti ti-unlink"></i></button>
+      </td>
+    </tr>`).join('');
 };
 window.clearLinkFilter=()=>{clearToLastMonth('lnk-from','lnk-to');['lnk-acc','lnk-cust'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});renderLinks();};
 window.reverseLink=async(linkId)=>{
