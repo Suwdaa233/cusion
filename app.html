@@ -290,6 +290,15 @@ tbody tr:hover td{background:var(--sur2)}
     <button class="tb" onclick="showRTab('reconcile',this)"><i class="ti ti-file-check"></i>Тооцоо нийлэлт</button>
   </div>
   <div id="rt-summary" class="r-tab">
+    <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
+      <div class="fl"><label style="font-size:11px">Эхлэх огноо</label>
+        <input type="date" id="rv-date-from" onchange="renderRecvSummary()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
+      </div>
+      <div class="fl"><label style="font-size:11px">Дуусах огноо</label>
+        <input type="date" id="rv-date-to" onchange="renderRecvSummary()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
+      </div>
+      <button class="btn bg bxs" onclick="clearToLastMonth('rv-date-from','rv-date-to');renderRecvSummary()" style="font-size:11px"><i class="ti ti-refresh"></i>Сэргээх</button>
+    </div>
     <div class="mg" id="rv-metrics"></div>
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin-bottom:16px" id="rv-by-method"></div>
     <div class="card">
@@ -697,7 +706,7 @@ tbody tr:hover td{background:var(--sur2)}
           <button class="btn bg bxs" onclick="clearTxnFilter()">Цэвэрлэх</button>
         </div>
       </div>
-      <div class="cb np"><div class="tw"><table>
+      <div class="cb np"><div class="mg" id="txn-summary" style="margin:0 0 10px"></div><div class="tw"><table>
         <thead><tr><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Орлого</th><th>Зарлага</th><th>Холбосон</th><th>Холбоогүй</th><th>Статус</th><th>Үйлдэл</th></tr></thead>
         <tbody id="txn-tbody"></tbody>
       </table></div></div>
@@ -2173,22 +2182,41 @@ window.renderSalesTable = () => {
 window.clearSalesFilter = () => { clearToLastMonth('s-from','s-to'); const cf=document.getElementById('s-filter-cust');if(cf)cf.value=''; renderSalesTable(); };
 
 window.renderRecvSummary = () => {
-  const totalR=sales.reduce((a,s)=>a+s.recv,0), totalP=sales.reduce((a,s)=>a+s.paid,0), totalS=sales.reduce((a,s)=>a+s.total,0);
+  const from = document.getElementById('rv-date-from')?.value || '';
+  const to   = document.getElementById('rv-date-to')?.value   || '';
+  let list = sales.filter(s => {
+    const pt = s.paymentType||s.payType||s.method||'';
+    const hasRecv = pt==='credit' || s.recv>0 || s.paid>0;
+    if(!hasRecv) return false;
+    if(from && s.date < from) return false;
+    if(to   && s.date > to)   return false;
+    return true;
+  });
+  const totalS=list.reduce((a,s)=>a+s.total,0);
+  const totalP=list.reduce((a,s)=>a+s.paid,0);
+  const totalR=list.reduce((a,s)=>a+s.recv,0);
   document.getElementById('rv-metrics').innerHTML=`
     <div class="mc"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalS)}</div></div>
     <div class="mc"><div class="ml">Нийт орлого</div><div class="mv gr">${fmt(totalP)}</div></div>
     <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalR)}</div></div>
-    <div class="mc"><div class="ml">Авлагын хувь</div><div class="mv ${totalS>0&&totalR/totalS>0.3?'re':'am'}">${totalS>0?Math.round(totalR/totalS*100):0}%</div></div>
-  `;
-  const byM={};
-  sales.forEach(s=>{ if(!byM[s.method])byM[s.method]={total:0,paid:0,recv:0,count:0}; byM[s.method].total+=s.total;byM[s.method].paid+=s.paid;byM[s.method].recv+=s.recv;byM[s.method].count++; });
-  document.getElementById('rv-by-method').innerHTML=Object.entries(byM).map(([m,v])=>`<div class="mc"><div class="ml">${MLABELS[m]||m} <span class="ba ${MBADGE[m]||'bgr2'}">${v.count}</span></div><div style="font-size:14px;font-weight:700">${fmt(v.total)}</div><div class="ms gr">Орлого: ${fmt(v.paid)}</div><div class="ms am">Авлага: ${fmt(v.recv)}</div></div>`).join('');
+    <div class="mc"><div class="ml">Авлагын хувь</div><div class="mv ${totalS>0&&totalR/totalS>0.3?'re':'gr'}">${totalS>0?((totalR/totalS)*100).toFixed(1):'0'}%</div></div>`;
+  // Харилцагчаар бүлэглэх
   const byC={};
-  sales.forEach(s=>{ if(!byC[s.customerId])byC[s.customerId]={name:s.customerName,total:0,paid:0,recv:0,lastDate:''}; byC[s.customerId].total+=s.total;byC[s.customerId].paid+=s.paid;byC[s.customerId].recv+=s.recv; if(s.date>byC[s.customerId].lastDate)byC[s.customerId].lastDate=s.date; });
-  const tbody=document.getElementById('rv-by-cust'); if(!tbody) return;
-  const rows=Object.values(byC).sort((a,b)=>b.recv-a.recv);
-  tbody.innerHTML=rows.length===0?'<tr><td colspan="5"><div class="empty">Мэдээлэл байхгүй</div></td></tr>':
-    rows.map(r=>`<tr><td style="font-weight:500">${r.name}</td><td>${fmt(r.total)}</td><td style="color:var(--gr);font-weight:500">${fmt(r.paid)}</td><td style="color:${r.recv>0?'var(--am)':'var(--gr)'};font-weight:600">${fmt(r.recv)}</td><td style="font-size:11px;color:var(--tx3)">${r.lastDate}</td></tr>`).join('');
+  list.forEach(s=>{
+    if(!byC[s.customerId]) byC[s.customerId]={name:s.customerName||'—',total:0,paid:0,recv:0,last:''};
+    byC[s.customerId].total+=s.total; byC[s.customerId].paid+=s.paid; byC[s.customerId].recv+=s.recv;
+    if(!byC[s.customerId].last||s.date>byC[s.customerId].last) byC[s.customerId].last=s.date;
+  });
+  const tbody=document.getElementById('rv-by-cust');
+  if(tbody) tbody.innerHTML=Object.entries(byC)
+    .sort((a,b)=>b[1].recv-a[1].recv)
+    .map(([cid,d])=>`<tr>
+      <td style="font-weight:500">${d.name}</td>
+      <td style="text-align:right">${fmt(d.total)}</td>
+      <td style="text-align:right;color:var(--gr)">${fmt(d.paid)}</td>
+      <td style="text-align:right;font-weight:700;color:${d.recv>0?'var(--am)':'var(--gr)'}">${fmt(d.recv)}</td>
+      <td style="font-size:11px;color:var(--tx3)">${d.last||'—'}</td>
+    </tr>`).join('') || '<tr><td colspan="5"><div class="empty">Авлага байхгүй</div></td></tr>';
 };
 
 window.renderRecvDetail = () => {
@@ -2976,6 +3004,18 @@ window.renderTransactions=()=>{
   const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=a.bankName+' '+a.accountNumber;});
   const stBadge={unlinked:'<span class="ba bre">Холбоогүй</span>',partial:'<span class="ba bam2">Хэсэгчлэн</span>',linked:'<span class="ba bgr">Бүрэн холбосон</span>',other:'<span class="ba bgr2">Бусад орлого</span>',expense:'<span class="ba bgr2">Зарлага</span>'};
   if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
+  // Нийт дүн тооцоолох
+  const totalInc  = list.reduce((a,t)=>a+(t.income||0), 0);
+  const totalExp  = list.reduce((a,t)=>a+(t.expense||0), 0);
+  const totalLink = list.reduce((a,t)=>a+(t.linkedAmount||0), 0);
+  const totalUnlnk= list.reduce((a,t)=>a+(t.unlinkedAmount||0), 0);
+  // Summary хэсэг
+  const sumEl = document.getElementById('txn-summary');
+  if(sumEl) sumEl.innerHTML = `
+    <div class="mc"><div class="ml">Нийт орлого</div><div class="mv gr">${fmt(totalInc)}</div></div>
+    <div class="mc"><div class="ml">Нийт зарлага</div><div class="mv re">${fmt(totalExp)}</div></div>
+    <div class="mc"><div class="ml">Холбогдсон</div><div class="mv pu">${fmt(totalLink)}</div></div>
+    <div class="mc"><div class="ml">Холбогдоогүй</div><div class="mv am">${fmt(totalUnlnk)}</div></div>`;
   tbody.innerHTML=list.map(t=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
     <td style="font-size:11px">${accMap[t.accountId]||'—'}</td>
@@ -5416,6 +5456,49 @@ function initDates() {
   const ym = getDefaultYearMonth();
   applyReportingPeriod(ym);
 }
+
+
+// ─── БАНКНЫ ХОЛБОЛТЫН MODAL ───────────────────────────────────────────────────
+window.openLinkModal = (txnId) => {
+  const txn = bankTxns.find(t => t.id === txnId);
+  if(!txn) { alert('Гүйлгээ олдсонгүй'); return; }
+  currentLinkTxn = txn;
+  // Modal мэдээлэл бөглөх
+  const accEl = document.getElementById('link-txn-info');
+  if(accEl) {
+    const acc = bankAccounts.find(a => a.id === txn.accountId) || {};
+    accEl.innerHTML = `
+      <div style="font-size:12px;font-weight:600">${acc.bankName||'—'} — ${acc.accountNumber||'—'}</div>
+      <div style="font-size:12px;color:var(--tx2);margin-top:2px">${txn.description||'—'}</div>
+      <div style="display:flex;gap:12px;margin-top:4px;font-size:12px">
+        <span>Орлого: <b style="color:var(--gr)">${fmt(txn.income||0)}</b></span>
+        <span>Холбогдсон: <b style="color:var(--pu)">${fmt(txn.linkedAmount||0)}</b></span>
+        <span>Үлдэгдэл: <b style="color:var(--am)">${fmt(txn.unlinkedAmount??txn.income??0)}</b></span>
+      </div>`;
+  }
+  // Харилцагч dropdown
+  const custSel = document.getElementById('link-cust-sel');
+  if(custSel) {
+    custSel.innerHTML = '<option value="">-- Харилцагч сонгох --</option>' +
+      customers.filter(c=>c.active!==false).map(c=>
+        `<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`
+      ).join('');
+    // Хэрэв өмнө холбосон харилцагч байвал сонгох
+    if(txn.linkedCustomerId) {
+      custSel.value = txn.linkedCustomerId;
+      loadCustReceivables();
+    } else {
+      document.getElementById('link-recv-list').style.display = 'none';
+    }
+  }
+  // Save button reset
+  const saveBtn = document.getElementById('link-save-btn');
+  if(saveBtn) saveBtn.disabled = true;
+  // Total display reset
+  const totalEl = document.getElementById('link-total-display');
+  if(totalEl) totalEl.innerHTML = '';
+  openModal('link-modal');
+};
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
