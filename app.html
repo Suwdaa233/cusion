@@ -273,7 +273,8 @@ tbody tr:hover td{background:var(--sur2)}
         <button class="btn bg bxs" onclick="clearSalesFilter()">Цэвэрлэх</button>
       </div>
     </div>
-    <div class="cb np"><div class="tw"><table>
+    <div class="cb np">
+        <div class="mg" id="sales-total-row" style="margin:0 0 10px"></div><div class="tw"><table>
       <thead><tr><th>Огноо</th><th>Харилцагч</th><th>Байршил</th><th>Бараaнууд</th><th>Нийт</th><th>Авлага</th><th>Хэрэгсэл</th><th>Статус</th><th>Бүртгэсэн</th><th></th></tr></thead>
       <tbody id="s-tbody"></tbody>
     </table></div></div>
@@ -2164,6 +2165,16 @@ window.renderSalesTable = () => {
   if(custId) list=list.filter(s=>s.customerId===custId);
   const tbody=document.getElementById('s-tbody'); if(!tbody) return;
   if(list.length===0){tbody.innerHTML='<tr><td colspan="10"><div class="empty"><i class="ti ti-shopping-cart"></i>Борлуулалт байхгүй</div></td></tr>';return;}
+  // Нийт дүн тооцоолох
+  const totalSales  = list.reduce((a,s)=>a+(s.total||0), 0);
+  const totalPaid   = list.reduce((a,s)=>a+(s.paid||0), 0);
+  const totalRecv   = list.reduce((a,s)=>a+(s.recv||0), 0);
+  const sumEl = document.getElementById('sales-total-row');
+  if(sumEl) sumEl.innerHTML = list.length > 0 ? `
+    <div class="mc"><div class="ml">Нийт борлуулалт (${list.length})</div><div class="mv pu">${fmt(totalSales)}</div></div>
+    <div class="mc"><div class="ml">Нийт төлөгдсөн</div><div class="mv gr">${fmt(totalPaid)}</div></div>
+    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalRecv)}</div></div>` : '';
+
   tbody.innerHTML=list.map(s=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${s.date}</td>
     <td style="font-weight:500">${s.customerName}</td>
@@ -4382,6 +4393,25 @@ window.saveEditSale = async () => {
       _auditBefore: auditBefore,
       _auditAfter:  auditAfter
     });
+    // Төлбөрийн төрөл зээлээс бэлэн/дансаар солигдсон бол payments цуцлах
+    const oldPayType = sale.paymentType || sale.payType || sale.method || '';
+    if(oldPayType === 'credit' && newPayType !== 'credit') {
+      // Тухайн sale-тай холбоотой payments-г цуцлах
+      const relPays = payments.filter(pm =>
+        !pm.isCancelled &&
+        pm.allocations?.some(a => a.saleId === id)
+      );
+      for(const pm of relPays) {
+        try {
+          await updateDoc(doc(db,'payments',pm.id), {
+            status:'cancelled', isCancelled:true,
+            cancelledAt:serverTimestamp(), cancelledBy:currentUser.email,
+            cancellationReason:`Борлуулалтын төлбөрийн төрөл ${oldPayType}→${newPayType} болж өөрчлөгдсөн`,
+            updatedAt:serverTimestamp(), updatedBy:currentUser.email
+          });
+        } catch(e) { console.warn('Payment cancel error:', e); }
+      }
+    }
     closeModal('edit-sale-modal');
     // Амжилттай хадгалсаны дараа Preview автоматаар нээнэ
     setTimeout(() => openInvoice(id), 300);
@@ -5743,70 +5773,96 @@ window.autoLinkQpay = async () => {
 // ─── БОРЛУУЛАЛТ ХУУЛАХ ───────────────────────────────────────────────────────
 window.copySale = (id) => {
   const s = sales.find(x => x.id === id);
-  if(!s) return;
+  if(!s) { alert('Борлуулалт олдсонгүй'); return; }
 
-  // Борлуулалт хэсэг рүү шилжих
-  goSec('sales', document.querySelector('.ni[onclick*="sales"]'));
+  // Хуулах өгөгдлийг бэлтгэх
+  const copyData = {
+    customerId:   s.customerId,
+    customerName: s.customerName,
+    locationId:   s.locationId,
+    paymentType:  s.paymentType || s.method,
+    note:         s.note || '',
+    items:        JSON.parse(JSON.stringify(s.items || []))
+  };
+
+  // Edit sale modal-г хуулсан өгөгдлөөр нэмж дуусгах
+  // 1. Борлуулалт хэсэг рүү шилжих
+  const salesBtn = document.querySelector('.ni[onclick*="goSec(\'sales\'"]') ||
+                   document.querySelector('.ni[onclick*="sales"]');
+  goSec('sales', salesBtn);
 
   setTimeout(() => {
     // Харилцагч
     const custSel = document.getElementById('s-cust');
-    if(custSel && s.customerId) custSel.value = s.customerId;
+    if(custSel) { custSel.value = copyData.customerId; custSel.dispatchEvent(new Event('change')); }
 
     // Байршил
     const locSel = document.getElementById('s-loc');
-    if(locSel && s.locationId) locSel.value = s.locationId;
+    if(locSel && copyData.locationId) locSel.value = copyData.locationId;
 
     // Төлбөрийн төрөл
-    const methodSel = document.getElementById('s-method');
-    if(methodSel && (s.paymentType||s.method)) methodSel.value = s.paymentType||s.method;
+    const payEl = document.getElementById('s-method') || document.getElementById('s-pay-type');
+    if(payEl && copyData.paymentType) payEl.value = copyData.paymentType;
 
-    // Огноо — өнөөдөр (шинэ бүртгэл)
+    // Огноо — өнөөдөр (хэрэглэгч өөрчилж болно)
     const dateEl = document.getElementById('s-date');
     if(dateEl) dateEl.value = today();
 
     // Тэмдэглэл
-    const noteEl = document.getElementById('s-note') || document.getElementById('s-note2');
-    if(noteEl) noteEl.value = s.note || '';
+    const noteEl = document.getElementById('s-note');
+    if(noteEl) noteEl.value = copyData.note;
 
-    // Барааны мөрүүдийг цэвэрлэж хуулах
+    // Барааны мөрүүд
     const container = document.getElementById('sale-rows');
     if(container) container.innerHTML = '';
 
-    (s.items || []).forEach((it, i) => {
+    // Эхний мөр аль хэдийн байна (addSaleRow-оор үүссэн)
+    copyData.items.forEach((it, i) => {
       if(i > 0) addSaleRow();
       setTimeout(() => {
         const rows = document.querySelectorAll('.sale-row');
         const row = rows[i];
         if(!row) return;
-        // Бараа сонгох
-        const prodSel = row.querySelector('.sr-prod');
+        const prodSel = row.querySelector('[id^="s-prod-"], .sr-prod, select[id*="prod"]');
         if(prodSel && it.pid) {
           prodSel.value = it.pid;
           prodSel.dispatchEvent(new Event('change'));
         }
         setTimeout(() => {
-          // Тоо
-          const qtyEl = row.querySelector('.sr-qty');
-          if(qtyEl) { qtyEl.value = it.qty || 1; qtyEl.dispatchEvent(new Event('input')); }
-          // Үнэ
-          const priceEl = row.querySelector('.sr-price');
-          if(priceEl) { priceEl.value = it.price || 0; priceEl.dispatchEvent(new Event('input')); }
-          // Хөнгөлөлт
-          const discType = row.querySelector('.sr-disc-type');
-          const discVal  = row.querySelector('.sr-disc-val');
-          if(discType && it.discountType) discType.value = it.discountType;
-          if(discVal  && it.discountValue) { discVal.value = it.discountValue; discVal.dispatchEvent(new Event('input')); }
-          updateSalePreview();
-        }, 100);
-      }, i * 150);
+          const qEl    = row.querySelector('[id^="s-qty-"], .sr-qty, input[id*="qty"]');
+          const prEl   = row.querySelector('[id^="s-price-"], .sr-price, input[id*="price"]');
+          const dtEl   = row.querySelector('.sr-disc-type, select[id*="disc-type"]');
+          const dvEl   = row.querySelector('.sr-disc-val, input[id*="disc"]');
+          if(qEl)  { qEl.value = it.qty||1;        qEl.dispatchEvent(new Event('input')); }
+          if(prEl) { prEl.value = it.price||0;     prEl.dispatchEvent(new Event('input')); }
+          if(dtEl && it.discountType) dtEl.value = it.discountType;
+          if(dvEl && it.discountValue) { dvEl.value = it.discountValue; dvEl.dispatchEvent(new Event('input')); }
+          updateSalePreview?.();
+        }, 150);
+      }, i * 200);
     });
 
-    alert('✅ Өмнөх борлуулалт хуулагдлаа!\nОгноо, харилцагч, бараа мэдээллийг шалгаж засаарай.');
-  }, 200);
+    // Scroll to top
+    document.querySelector('.content')?.scrollTo(0, 0);
+    alert(`✅ "${s.docNumber||id.slice(-6)}" баримтыг хуулсан.\nМэдээллийг шалгаж засаад "Борлуулалт бүртгэх" дарна уу.`);
+  }, 300);
 };
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
+// Бүх number input дарахад автоматаар бүгдийг сонгох
+document.addEventListener('click', e => {
+  const el = e.target;
+  if(el.tagName === 'INPUT' && (el.type === 'number' || el.type === 'text')) {
+    el.select();
+  }
+}, true);
+document.addEventListener('focus', e => {
+  const el = e.target;
+  if(el.tagName === 'INPUT' && (el.type === 'number' || el.type === 'text')) {
+    setTimeout(() => el.select(), 0);
+  }
+}, true);
+
 // Борлуулалт, орлого, зарлага, шилжүүлэлтийн огноог өнөөдрөөр
 ['s-date','in-date','out-date'].forEach(id => {
   const el = document.getElementById(id);
