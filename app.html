@@ -2177,6 +2177,7 @@ window.renderSalesTable = () => {
     <td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="openInvoice('${s.id}')" title="Нэхэмжлэх"><i class="ti ti-file-invoice"></i></button>
       ${hasPerm('sales_edit')?`<button class="btn bg bxs" onclick="openEditSale('${s.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+      <button class="btn bg bxs" onclick="copySale('${s.id}')" title="Хуулж бүртгэх"><i class="ti ti-copy"></i></button>
       ${hasPerm('sales_delete')?`<button class="btn bd2 bxs" onclick="deleteSale('${s.id}')" title="Устгах"><i class="ti ti-trash"></i></button>`:''}
     </td>
   </tr>`).join('');
@@ -2186,39 +2187,94 @@ window.clearSalesFilter = () => { clearToLastMonth('s-from','s-to'); const cf=do
 window.renderRecvSummary = () => {
   const from = document.getElementById('rv-date-from')?.value || '';
   const to   = document.getElementById('rv-date-to')?.value   || '';
-  let list = sales.filter(s => {
-    const pt = s.paymentType||s.payType||s.method||'';
-    const hasRecv = pt==='credit' || s.recv>0 || s.paid>0;
-    if(!hasRecv) return false;
-    if(from && s.date < from) return false;
-    if(to   && s.date > to)   return false;
-    return true;
+
+  // Бүх зээлтэй харилцагчдыг олох (хугацаанаас үл хамааран)
+  const custIds = new Set();
+  sales.forEach(s => {
+    if(s.status === 'deleted' || s.status === 'void') return;
+    const pt = s.paymentType || s.payType || s.method || '';
+    if(pt === 'credit' || s.recv > 0 || s.paid > 0) custIds.add(s.customerId);
   });
-  const totalS=list.reduce((a,s)=>a+s.total,0);
-  const totalP=list.reduce((a,s)=>a+s.paid,0);
-  const totalR=list.reduce((a,s)=>a+s.recv,0);
-  document.getElementById('rv-metrics').innerHTML=`
-    <div class="mc"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalS)}</div></div>
-    <div class="mc"><div class="ml">Нийт орлого</div><div class="mv gr">${fmt(totalP)}</div></div>
-    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalR)}</div></div>
-    <div class="mc"><div class="ml">Авлагын хувь</div><div class="mv ${totalS>0&&totalR/totalS>0.3?'re':'gr'}">${totalS>0?((totalR/totalS)*100).toFixed(1):'0'}%</div></div>`;
-  // Харилцагчаар бүлэглэх
-  const byC={};
-  list.forEach(s=>{
-    if(!byC[s.customerId]) byC[s.customerId]={name:s.customerName||'—',total:0,paid:0,recv:0,last:''};
-    byC[s.customerId].total+=s.total; byC[s.customerId].paid+=s.paid; byC[s.customerId].recv+=s.recv;
-    if(!byC[s.customerId].last||s.date>byC[s.customerId].last) byC[s.customerId].last=s.date;
+
+  // Харилцагч бүрт calculateReceivableStatement дуудах
+  const rows = [];
+  let sumOpen = 0, sumDebit = 0, sumCredit = 0, sumClose = 0;
+
+  custIds.forEach(cid => {
+    const stmt = calculateReceivableStatement({
+      customerId: cid,
+      startDate:  from,
+      endDate:    to
+    });
+    // Эцсийн үлдэгдэл 0 бол харуулахгүй (авлага байхгүй)
+    if(stmt.closingBalance === 0 && stmt.openingBalance === 0 && stmt.periodDebits === 0) return;
+    const cust = customers.find(c => c.id === cid) || {};
+    rows.push({
+      custId:  cid,
+      name:    cust.name || sales.find(s=>s.customerId===cid)?.customerName || '—',
+      code:    cust.customerCode || '',
+      opening: stmt.openingBalance,
+      debit:   stmt.periodDebits,
+      credit:  stmt.periodCredits,
+      closing: stmt.closingBalance
+    });
+    sumOpen  += stmt.openingBalance;
+    sumDebit += stmt.periodDebits;
+    sumCredit+= stmt.periodCredits;
+    sumClose += stmt.closingBalance;
   });
-  const tbody=document.getElementById('rv-by-cust');
-  if(tbody) tbody.innerHTML=Object.entries(byC)
-    .sort((a,b)=>b[1].recv-a[1].recv)
-    .map(([cid,d])=>`<tr>
-      <td style="font-weight:500">${d.name}</td>
-      <td style="text-align:right">${fmt(d.total)}</td>
-      <td style="text-align:right;color:var(--gr)">${fmt(d.paid)}</td>
-      <td style="text-align:right;font-weight:700;color:${d.recv>0?'var(--am)':'var(--gr)'}">${fmt(d.recv)}</td>
-      <td style="font-size:11px;color:var(--tx3)">${d.last||'—'}</td>
-    </tr>`).join('') || '<tr><td colspan="5"><div class="empty">Авлага байхгүй</div></td></tr>';
+
+  // Эцсийн үлдэгдлээр эрэмбэлэх (их → бага)
+  rows.sort((a,b) => b.closing - a.closing);
+
+  // Metrics
+  document.getElementById('rv-metrics').innerHTML = `
+    <div class="mc"><div class="ml">Нийт эхний үлдэгдэл</div><div class="mv am">${fmt(sumOpen)}</div></div>
+    <div class="mc"><div class="ml">Тайлант борлуулалт</div><div class="mv pu">${fmt(sumDebit)}</div></div>
+    <div class="mc"><div class="ml">Тайлант төлөлт</div><div class="mv gr">${fmt(sumCredit)}</div></div>
+    <div class="mc"><div class="ml">Нийт эцсийн үлдэгдэл</div><div class="mv ${sumClose>0?'am':'gr'}">${fmt(sumClose)}</div></div>`;
+
+  const tbody = document.getElementById('rv-by-cust');
+  if(!tbody) return;
+  if(rows.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Авлага байхгүй</div></td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer" onclick="goToLedger('${r.custId}')">
+    <td style="font-size:11px;color:var(--tx3)">${r.code}</td>
+    <td style="font-weight:500">${r.name}</td>
+    <td style="text-align:right;color:var(--tx2)">${fmt(r.opening)}</td>
+    <td style="text-align:right;color:var(--pu)">${fmt(r.debit)}</td>
+    <td style="text-align:right;color:var(--gr)">${fmt(r.credit)}</td>
+    <td style="text-align:right;font-weight:700;color:${r.closing>0?'var(--am)':r.closing<0?'var(--re)':'var(--tx)'}">${fmt(r.closing)}</td>
+    <td><button class="btn bg bxs" style="font-size:10px" onclick="event.stopPropagation();goToLedger('${r.custId}')"><i class="ti ti-file-text"></i></button></td>
+  </tr>`).join('') + `
+  <tr style="background:var(--sur2);font-weight:700;border-top:2px solid var(--bd)">
+    <td colspan="2" style="padding:8px 10px">Нийт</td>
+    <td style="text-align:right;padding:8px 10px">${fmt(sumOpen)}</td>
+    <td style="text-align:right;padding:8px 10px;color:var(--pu)">${fmt(sumDebit)}</td>
+    <td style="text-align:right;padding:8px 10px;color:var(--gr)">${fmt(sumCredit)}</td>
+    <td style="text-align:right;padding:8px 10px;color:${sumClose>0?'var(--am)':'var(--gr)'}">${fmt(sumClose)}</td>
+    <td></td>
+  </tr>`;
+};
+
+// Дэлгэрэнгүй тайлан руу шилжих
+window.goToLedger = (custId) => {
+  const from = document.getElementById('rv-date-from')?.value || '';
+  const to   = document.getElementById('rv-date-to')?.value   || '';
+  // Авлагын тайлан таб руу
+  document.querySelector('[onclick*="showRTab"][onclick*="ldg"]')?.click();
+  setTimeout(() => {
+    const cSel = document.getElementById('ldg-cust');
+    if(cSel) { cSel.value = custId; }
+    const fEl = document.getElementById('ldg-from');
+    const tEl = document.getElementById('ldg-to');
+    if(fEl && from) fEl.value = from;
+    if(tEl && to)   tEl.value = to;
+    if(typeof renderLedger === 'function') renderLedger();
+  }, 100);
 };
 
 window.renderRecvDetail = () => {
@@ -5683,6 +5739,72 @@ window.autoLinkQpay = async () => {
   alert(`✅ QPay авто холболт дууслаа!\nАмжилттай: ${success}\nАлдаа: ${failed}`);
 };
 
+
+// ─── БОРЛУУЛАЛТ ХУУЛАХ ───────────────────────────────────────────────────────
+window.copySale = (id) => {
+  const s = sales.find(x => x.id === id);
+  if(!s) return;
+
+  // Борлуулалт хэсэг рүү шилжих
+  goSec('sales', document.querySelector('.ni[onclick*="sales"]'));
+
+  setTimeout(() => {
+    // Харилцагч
+    const custSel = document.getElementById('s-cust');
+    if(custSel && s.customerId) custSel.value = s.customerId;
+
+    // Байршил
+    const locSel = document.getElementById('s-loc');
+    if(locSel && s.locationId) locSel.value = s.locationId;
+
+    // Төлбөрийн төрөл
+    const methodSel = document.getElementById('s-method');
+    if(methodSel && (s.paymentType||s.method)) methodSel.value = s.paymentType||s.method;
+
+    // Огноо — өнөөдөр (шинэ бүртгэл)
+    const dateEl = document.getElementById('s-date');
+    if(dateEl) dateEl.value = today();
+
+    // Тэмдэглэл
+    const noteEl = document.getElementById('s-note') || document.getElementById('s-note2');
+    if(noteEl) noteEl.value = s.note || '';
+
+    // Барааны мөрүүдийг цэвэрлэж хуулах
+    const container = document.getElementById('sale-rows');
+    if(container) container.innerHTML = '';
+
+    (s.items || []).forEach((it, i) => {
+      if(i > 0) addSaleRow();
+      setTimeout(() => {
+        const rows = document.querySelectorAll('.sale-row');
+        const row = rows[i];
+        if(!row) return;
+        // Бараа сонгох
+        const prodSel = row.querySelector('.sr-prod');
+        if(prodSel && it.pid) {
+          prodSel.value = it.pid;
+          prodSel.dispatchEvent(new Event('change'));
+        }
+        setTimeout(() => {
+          // Тоо
+          const qtyEl = row.querySelector('.sr-qty');
+          if(qtyEl) { qtyEl.value = it.qty || 1; qtyEl.dispatchEvent(new Event('input')); }
+          // Үнэ
+          const priceEl = row.querySelector('.sr-price');
+          if(priceEl) { priceEl.value = it.price || 0; priceEl.dispatchEvent(new Event('input')); }
+          // Хөнгөлөлт
+          const discType = row.querySelector('.sr-disc-type');
+          const discVal  = row.querySelector('.sr-disc-val');
+          if(discType && it.discountType) discType.value = it.discountType;
+          if(discVal  && it.discountValue) { discVal.value = it.discountValue; discVal.dispatchEvent(new Event('input')); }
+          updateSalePreview();
+        }, 100);
+      }, i * 150);
+    });
+
+    alert('✅ Өмнөх борлуулалт хуулагдлаа!\nОгноо, харилцагч, бараа мэдээллийг шалгаж засаарай.');
+  }, 200);
+};
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 // Борлуулалт, орлого, зарлага, шилжүүлэлтийн огноог өнөөдрөөр
