@@ -3005,19 +3005,24 @@ window.renderTransactions=()=>{
   const tbody=document.getElementById('txn-tbody');if(!tbody)return;
   const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=a.bankName+' '+a.accountNumber;});
   const stBadge={unlinked:'<span class="ba bre">Холбоогүй</span>',partial:'<span class="ba bam2">Хэсэгчлэн</span>',linked:'<span class="ba bgr">Бүрэн холбосон</span>',other:'<span class="ba bgr2">Бусад орлого</span>',expense:'<span class="ba bgr2">Зарлага</span>'};
-  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
-  // Нийт дүн тооцоолох
+  // Нийт дүн тооцоолох — early return-ийн ӨМНӨ
   const totalInc  = list.reduce((a,t)=>a+(t.income||0), 0);
   const totalExp  = list.reduce((a,t)=>a+(t.expense||0), 0);
   const totalLink = list.reduce((a,t)=>a+(t.linkedAmount||0), 0);
   const totalUnlnk= list.reduce((a,t)=>a+(t.unlinkedAmount||0), 0);
-  // Summary хэсэг
   const sumEl = document.getElementById('txn-summary');
-  if(sumEl) sumEl.innerHTML = `
-    <div class="mc"><div class="ml">Нийт орлого</div><div class="mv gr">${fmt(totalInc)}</div></div>
-    <div class="mc"><div class="ml">Нийт зарлага</div><div class="mv re">${fmt(totalExp)}</div></div>
-    <div class="mc"><div class="ml">Холбогдсон</div><div class="mv pu">${fmt(totalLink)}</div></div>
-    <div class="mc"><div class="ml">Холбогдоогүй</div><div class="mv am">${fmt(totalUnlnk)}</div></div>`;
+  if(sumEl) {
+    if(list.length === 0) {
+      sumEl.innerHTML = '';
+    } else {
+      sumEl.innerHTML = `
+        <div class="mc"><div class="ml">Нийт орлого</div><div class="mv gr">${fmt(totalInc)}</div></div>
+        <div class="mc"><div class="ml">Нийт зарлага</div><div class="mv re">${fmt(totalExp)}</div></div>
+        <div class="mc"><div class="ml">Холбогдсон</div><div class="mv pu">${fmt(totalLink)}</div></div>
+        <div class="mc"><div class="ml">Холбогдоогүй</div><div class="mv am">${fmt(totalUnlnk)}</div></div>`;
+    }
+  }
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
   tbody.innerHTML=list.map(t=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
     <td style="font-size:11px">${accMap[t.accountId]||'—'}</td>
@@ -4786,21 +4791,17 @@ function toDateStr(val) {
 // { customerId, startDate, endDate, allSales, allPayments }
 // Буцааx: { openingBalance, periodDebits, periodCredits, closingBalance, rows }
 function calculateReceivableStatement({ customerId, startDate, endDate }) {
-  // Backward compatible: payments collection (шинэ) + sales.payments array (хуучин)
   const txns = [];
-  const processedSalePayments = new Set();
 
-  // === ШИНЭ: payments collection-с унших ===
+  // === ШИНЭ: payments collection — cancelled шалгана ===
   const custPayments = payments.filter(pm => {
-    if(pm.isCancelled || pm.status === 'cancelled') return false;
+    if(pm.isCancelled === true || pm.status === 'cancelled') return false;
     if(customerId && pm.customerId !== customerId) return false;
     return true;
   });
 
   custPayments.forEach(pm => {
-    // Хуваарилалт бүрийг гүйлгээ болгох
     (pm.allocations || [{ saleId:'', allocatedAmount: pm.amount }]).forEach(al => {
-      const sale = sales.find(s => s.id === al.saleId);
       txns.push({
         date:   toDateStr(pm.paymentDate),
         sort2:  toDateStr(pm.createdAt),
@@ -4812,40 +4813,38 @@ function calculateReceivableStatement({ customerId, startDate, endDate }) {
         paymentId: pm.id,
         saleId: al.saleId
       });
-      if(al.saleId) processedSalePayments.add(`${al.saleId}_migrated`);
     });
   });
 
-  // === ХУУЧИН: sales.payments array (migration хийгдээгүй) ===
+  // === ХУУЧИН: sales.payments array ===
   const custSales = sales.filter(s => {
-    if(s.status === 'deleted' || s.status === 'void') return false;
+    if(s.status === 'deleted' || s.status === 'void' || s.status === 'cancelled') return false;
     if(customerId && s.customerId !== customerId) return false;
     const pt = s.paymentType || s.payType || s.method || '';
     return pt === 'credit' || s.recv > 0 || s.paid > 0;
   });
 
   custSales.forEach(s => {
-    // Борлуулалтын дебет
     const d = toDateStr(s.date);
     txns.push({
-      date:  d, sort2: toDateStr(s.createdAt) || d,
+      date: d, sort2: toDateStr(s.createdAt) || d,
       docNum: s.docNumber || s.id?.slice(-6).toUpperCase() || '—',
-      desc:  'Зээлийн борлуулалт', type: 'Зээл',
+      desc: 'Зээлийн борлуулалт', type: 'Зээл',
       debit: s.total || 0, credit: 0, saleId: s.id
     });
 
-    // Хуучин payments array — migration хийгдсэн бол алгасах
     if(!s.paymentsMigrated) {
       (s.payments || []).forEach((pm, i) => {
+        // Цуцлагдсан хуучин төлөлт — алгасах
+        if(pm.cancelled === true || pm.status === 'cancelled' || pm.isCancelled === true) return;
         const migKey = `${s.id}_${i}`;
-        // Шинэ collection-д аль хэдийн байвал алгасах
         const alreadyMigrated = payments.some(p => p.migrationKey === migKey);
         if(alreadyMigrated) return;
         const pd = toDateStr(pm.date);
         txns.push({
-          date:  pd, sort2: pd,
+          date: pd, sort2: pd,
           docNum: pm.docNumber || s.docNumber || '—',
-          desc:  'Төлөлт (хуучин)', type: pm.method || '—',
+          desc: 'Төлөлт (хуучин)', type: pm.method || '—',
           debit: 0, credit: pm.amount || 0, saleId: s.id
         });
       });
@@ -4875,7 +4874,6 @@ function calculateReceivableStatement({ customerId, startDate, endDate }) {
   let periodDebits = 0, periodCredits = 0;
   periodTxns.forEach(t => { periodDebits += t.debit; periodCredits += t.credit; });
 
-  // Running balance
   let runBal = openingBalance;
   const rows = periodTxns.map((t, i) => {
     runBal += t.debit - t.credit;
@@ -4890,6 +4888,7 @@ function calculateReceivableStatement({ customerId, startDate, endDate }) {
     rows
   };
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 
