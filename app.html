@@ -3420,18 +3420,15 @@ window.renderTransactions=()=>{
     <td style="color:var(--re)">${t.expense?fmt(t.expense):''}</td>
     <td>${getClassBadge(t)}</td>
         <td style="white-space:nowrap">
-      ${(() => {
-        const cs = getTxnLinkStatus(t);
-        const isInc = (t.income||0) > 0;
-        if(cs === 'classified') {
-          return `<button class="btn bg bxs" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" style="font-size:11px"><i class="ti ti-edit"></i>Засах</button>
-                  <button class="btn bd2 bxs" onclick="removeClassification('${t.id}')" style="font-size:11px"><i class="ti ti-unlink"></i>Устгах</button>`;
-        }
-        return `<button class="btn bs bxs" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" style="font-size:11px"><i class="ti ti-link"></i>Холбох</button>`;
-      })()}
-      <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
-      ${t.status !== 'linked' && t.status !== 'partial' ?
-        `<button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>` : ''}
+      ${getTxnLinkStatus(t)==='classified'
+        ? `<span class="ba bgr" style="cursor:pointer" onclick="${(t.income||0)>0?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">Холбогдсон</span>`
+        : `<span class="ba bre" style="cursor:pointer;font-weight:600" onclick="${(t.income||0)>0?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">Холбох</span>`
+      }
+    </td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="${(t.income||0)>0?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" title="Холболт засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
+      <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Гүйлгээ засах" style="font-size:11px"><i class="ti ti-pencil"></i></button>
+      <button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>
     </td>    <td style="min-width:170px;padding:4px 6px">
       <div style="display:flex;flex-direction:column;gap:3px">
         ${getClassBadge(t)}
@@ -6593,11 +6590,23 @@ window.openIncLinkModal = (txnId) => {
   // Мэдээлэл
   const acc = bankAccounts.find(a => a.id === txn.accountId) || {};
   document.getElementById('inc-txn-info').innerHTML = `
-    <div style="font-weight:600">${acc.bankName||'—'} — ${acc.accountNumber||'—'}</div>
-    <div style="color:var(--tx2);margin-top:2px">${txn.description||'—'}</div>
-    <div style="display:flex;gap:16px;margin-top:4px">
-      <span>Огноо: <b>${txn.date}</b></span>
-      <span>Орлого: <b style="color:var(--gr)">${fmt(txn.income||0)}</b></span>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:6px">${acc.bankName||'—'} — ${acc.accountNumber||'—'}</div>
+    <div style="display:grid;grid-template-columns:120px 1fr 110px;gap:8px">
+      <div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Огноо</div>
+        <input type="date" id="inc-edit-date" value="${txn.date||''}"
+          style="width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Гүйлгээний утга</div>
+        <input type="text" id="inc-edit-desc" value="${txn.description||''}"
+          style="width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Орлого ₮</div>
+        <input type="number" id="inc-edit-amount" value="${txn.income||0}"
+          style="width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+      </div>
     </div>`;
   // CF dropdown
   const cfSel = document.getElementById('inc-cf-cat');
@@ -6613,23 +6622,15 @@ window.openIncLinkModal = (txnId) => {
   if(txn.linkedCustomerId) { custSel.value = txn.linkedCustomerId; loadIncReceivables(); }
   openModal('inc-link-modal');
 };
-
 window.loadIncReceivables = () => {
   const custId = document.getElementById('inc-link-cust').value;
   const txnId  = document.getElementById('inc-txn-id').value;
   const txn    = bankTxns.find(t => t.id === txnId) || {};
-  const recvList = document.getElementById('inc-recv-list');
-  // Авлага ачаалах
-  const cfSel = document.getElementById('inc-cf-cat');
-  if(custId && !cfSel.value) cfSel.value = 'Бараа борлуулсан, үйлчилгээ үзүүлсний орлого';
-  if(!custId) { recvList.style.display = 'none'; return; }
-  recvList.style.display = 'block';
-  const maxAlloc = txn.income || 0;
-  const custSales = sales.filter(s =>
-    s.customerId === custId && s.recv > 0 &&
-    s.status !== 'deleted' && s.status !== 'void' && s.status !== 'cancelled'
-  ).sort((a,b) => a.date.localeCompare(b.date));
+  const custSales = sales.filter(s => s.customerId === custId && s.recv > 0 && s.status !== 'deleted' && s.status !== 'cancelled').sort((a,b)=>a.date.localeCompare(b.date));
   const tbody = document.getElementById('inc-recv-tbody');
+  const recvList = document.getElementById('inc-recv-list');
+  if(!custId) { recvList.style.display='none'; return; }
+  recvList.style.display='block';
   tbody.innerHTML = custSales.length ? custSales.map(s => `<tr>
     <td><input type="checkbox" class="inc-chk" data-id="${s.id}" onchange="calcIncAlloc()"></td>
     <td style="font-size:11px">${s.date}</td>
@@ -6692,10 +6693,15 @@ window.saveIncLink = async () => {
   const totalAlloc = allocs.reduce((a,x)=>a+x.allocatedAmount, 0);
   if(totalAlloc > (txn?.income||0) + 0.01) { alert('Хуваарилсан дүн банкны орлогоос их байна.'); return; }
   try {
+    const editDate   = document.getElementById('inc-edit-date')?.value   || txn.date;
+    const editDesc   = document.getElementById('inc-edit-desc')?.value   || txn.description;
+    const editAmount = parseFloat(document.getElementById('inc-edit-amount')?.value) || txn.income;
     const batch = writeBatch(db);
-    // 1. cashFlowCategory хадгалах
+    // 1. cashFlowCategory + засварласан мэдээлэл хадгалах
     batch.update(doc(db,'bankTxns',txnId), {
-      cashFlowCategory: cfCat,
+      cashFlowCategory: cfCat, date: editDate,
+      description: editDesc, income: editAmount,
+      unlinkedAmount: Math.max(0, editAmount - (txn.linkedAmount||0)),
       classifiedAt: serverTimestamp(), classifiedBy: currentUser.email
     });
     // 2. Авлага хуваарилалт
@@ -6752,11 +6758,23 @@ window.openExpLinkModal = (txnId) => {
   document.getElementById('exp-txn-id').value = txnId;
   const acc = bankAccounts.find(a=>a.id===txn.accountId)||{};
   document.getElementById('exp-txn-info').innerHTML = `
-    <div style="font-weight:600">${acc.bankName||'—'} — ${acc.accountNumber||'—'}</div>
-    <div style="color:var(--tx2);margin-top:2px">${txn.description||'—'}</div>
-    <div style="display:flex;gap:16px;margin-top:4px">
-      <span>Огноо: <b>${txn.date}</b></span>
-      <span>Зарлага: <b style="color:var(--re)">${fmt(txn.expense||0)}</b></span>
+    <div style="font-size:11px;color:var(--tx3);margin-bottom:6px">${acc.bankName||'—'} — ${acc.accountNumber||'—'}</div>
+    <div style="display:grid;grid-template-columns:120px 1fr 110px;gap:8px">
+      <div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Огноо</div>
+        <input type="date" id="exp-edit-date" value="${txn.date||''}"
+          style="width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Гүйлгээний утга</div>
+        <input type="text" id="exp-edit-desc" value="${txn.description||''}"
+          style="width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+      </div>
+      <div>
+        <div style="font-size:10px;color:var(--tx3);margin-bottom:2px">Зарлага ₮</div>
+        <input type="number" id="exp-edit-amount" value="${txn.expense||0}"
+          style="width:100%;font-size:11px;padding:5px 7px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+      </div>
     </div>`;
   const expSel = document.getElementById('exp-cat');
   expSel.innerHTML = '<option value="">— Сонгох —</option>' +
@@ -6765,26 +6783,6 @@ window.openExpLinkModal = (txnId) => {
   cfSel.innerHTML = '<option value="">— Сонгох —</option>' +
     CASHFLOW_EXPENSE_CATS.map(c=>`<option value="${c}" ${txn.cashFlowCategory===c?'selected':''}>${c}</option>`).join('');
   openModal('exp-link-modal');
-};
-
-window.saveExpLink = async () => {
-  const txnId = document.getElementById('exp-txn-id').value; if(!txnId) return;
-  const expCat = document.getElementById('exp-cat').value;
-  const cfCat  = document.getElementById('exp-cf-cat').value;
-  if(!expCat || !cfCat) { alert('Зардлын төрөл болон Мөнгөн гүйлгээний үзүүлэлтийг хоёуланг нь сонгоно уу.'); return; }
-  try {
-    await updateDoc(doc(db,'bankTxns',txnId), {
-      expenseCategory: expCat, cashFlowCategory: cfCat,
-      classifiedAt: serverTimestamp(), classifiedBy: currentUser.email
-    });
-    await addDoc(collection(db,'auditLogs'),{
-      action:'expense_classified', bankTransactionId:txnId,
-      expenseCategory:expCat, cashFlowCategory:cfCat,
-      userId:currentUser.email, timestamp:serverTimestamp()
-    });
-    closeModal('exp-link-modal');
-    alert('✅ Зарлага амжилттай холбогдлоо!');
-  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
 
 // ─── АНГИЛАЛ УСТГАХ ──────────────────────────────────────────────────────────
