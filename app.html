@@ -163,6 +163,7 @@ tbody tr:hover td{background:var(--sur2)}
     <button class="ni" onclick="goSec('bank',this)"><i class="ti ti-building-bank"></i><span>Банкны хуулга</span></button>
     <div class="sb-sec">Тайлан</div>
     <button class="ni" onclick="goSec('report',this)"><i class="ti ti-chart-bar"></i><span>Тайлан</span></button>
+    <button class="ni" onclick="goSec('internal-report',this)" style="padding-left:32px;font-size:12px"><i class="ti ti-file-analytics"></i><span>Дотоод тайлан</span></button>
     <div class="sb-sec admin-only" style="display:none">Тохиргоо</div>
     <button class="ni admin-only" style="display:none" onclick="goSec('users',this)"><i class="ti ti-shield-lock"></i><span>Хэрэглэгчид</span></button>
   </div>
@@ -424,6 +425,59 @@ tbody tr:hover td{background:var(--sur2)}
   </div>
 
 
+</div>
+
+<!-- INTERNAL REPORT SECTION -->
+<div id="sec-internal-report" class="sec">
+  <!-- Огноо шүүлт -->
+  <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px">
+    <div class="fl"><label style="font-size:10px">Эхлэх огноо</label>
+      <input type="date" id="ir-from" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+    </div>
+    <div class="fl"><label style="font-size:10px">Дуусах огноо</label>
+      <input type="date" id="ir-to" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+    </div>
+    <button class="btn bg" onclick="setIRPeriod('month')"><i class="ti ti-calendar"></i>Энэ сар</button>
+    <button class="btn bg" onclick="setIRPeriod('year')"><i class="ti ti-calendar-stats"></i>Энэ жил</button>
+  </div>
+  <!-- 2 тайлангийн товч -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">
+    <div class="card" style="cursor:pointer;border:1.5px solid transparent;transition:border-color .2s" id="ir-pl-btn" onclick="showIRReport('pl')">
+      <div class="cb" style="display:flex;align-items:center;gap:12px;padding:16px">
+        <div style="width:44px;height:44px;border-radius:10px;background:var(--pul);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ti-chart-bar" style="font-size:22px;color:var(--pu)"></i>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:14px">Орлого үр дүнгийн тайлан</div>
+          <div style="font-size:11px;color:var(--tx3);margin-top:2px">P&L — борлуулалт, зардал, ашиг</div>
+        </div>
+      </div>
+    </div>
+    <div class="card" style="cursor:pointer;border:1.5px solid transparent;transition:border-color .2s" id="ir-cf-btn" onclick="showIRReport('cf')">
+      <div class="cb" style="display:flex;align-items:center;gap:12px;padding:16px">
+        <div style="width:44px;height:44px;border-radius:10px;background:var(--grl);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="ti ti-arrows-exchange" style="font-size:22px;color:var(--gr)"></i>
+        </div>
+        <div>
+          <div style="font-weight:600;font-size:14px">Мөнгөн гүйлгээний тайлан</div>
+          <div style="font-size:11px;color:var(--tx3);margin-top:2px">CF — орлого, зарлага, цэвэр гүйлгээ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Тайлангийн агуулга -->
+  <div id="ir-report-content" style="display:none">
+    <div class="card">
+      <div class="ch">
+        <span class="ct" id="ir-report-title"></span>
+        <div style="display:flex;gap:6px">
+          <button class="btn bg bxs" id="ir-export-btn" style="font-size:11px"><i class="ti ti-download"></i>CSV</button>
+          <button class="btn bg bxs" onclick="closeIRReport()" style="font-size:11px"><i class="ti ti-x"></i>Хаах</button>
+        </div>
+      </div>
+      <div class="cb" id="ir-report-body"></div>
+    </div>
+  </div>
 </div>
 
 <!-- INVOICE PRINT -->
@@ -1243,11 +1297,29 @@ tbody tr:hover td{background:var(--sur2)}
 
   <!-- PL REPORT -->
   <div id="rp-pl-div" style="display:none;margin-top:12px">
-    <div class="card"><div class="ch"><span class="ct"><i class="ti ti-chart-bar"></i>Орлогын дэлгэрэнгүй тайлан</span></div><div class="cb" id="rp-pl-body"></div></div>
+    <div class="card">
+      <div class="ch">
+        <span class="ct"><i class="ti ti-chart-bar"></i> Орлого үр дүнгийн тайлан</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn bg bxs" onclick="exportSalesCSV()" style="font-size:11px"><i class="ti ti-download"></i>CSV</button>
+          <button class="btn bg bxs" onclick="showReport('pl')" style="font-size:11px"><i class="ti ti-x"></i>Хаах</button>
+        </div>
+      </div>
+      <div class="cb" id="rp-pl-body"></div>
+    </div>
   </div>
   <!-- CF REPORT -->
   <div id="rp-cf-div" style="display:none;margin-top:12px">
-    <div class="card"><div class="ch"><span class="ct"><i class="ti ti-arrows-exchange"></i>Мөнгөн гүйлгээний тайлан</span></div><div class="cb" id="rp-cf-body"></div></div>
+    <div class="card">
+      <div class="ch">
+        <span class="ct"><i class="ti ti-arrows-exchange"></i> Мөнгөн гүйлгээний тайлан</span>
+        <div style="display:flex;gap:6px">
+          <button class="btn bg bxs" onclick="exportBankCSV()" style="font-size:11px"><i class="ti ti-download"></i>CSV</button>
+          <button class="btn bg bxs" onclick="showReport('cf')" style="font-size:11px"><i class="ti ti-x"></i>Хаах</button>
+        </div>
+      </div>
+      <div class="cb" id="rp-cf-body"></div>
+    </div>
   </div>
 </div>
 
@@ -1314,7 +1386,7 @@ const db = getFirestore(app);
 const MLABELS={cash:'Бэлнээр',card:'Картаар',transfer:'Дансаар',online:'Онлайн',credit:'Зээлээр',mixed:'Хосолсон'};
 const MBADGE={cash:'bgr2',card:'bbl',transfer:'bpu',online:'bte',credit:'bre',mixed:'bam2'};
 const LTYPES={store:'Дэлгүүр',warehouse:'Агуулах',online:'Онлайн',consign:'Консигнаци',other:'Бусад'};
-const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivable:'Авлага',inventory:'Бараа материал',customers:'Харилцагч',products:'Бараа',locations:'Байршил',bank:'Банкны хуулга',report:'Тайлан',users:'Хэрэглэгчид'};
+const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivable:'Авлага',inventory:'Бараа материал',customers:'Харилцагч',products:'Бараа',locations:'Байршил',bank:'Банкны хуулга',report:'Тайлан','internal-report':'Дотоод тайлан',users:'Хэрэглэгчид'};
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
 let currentUser = null;
@@ -1633,6 +1705,7 @@ window.goSec = (name, btn) => {
   if(btn) btn.classList.add('on');
   document.getElementById('sec-title').textContent = MTITLES[name]||name;
   if(name === 'users') loadUsers();
+  if(name === 'internal-report') initIRReport();
 };
   // showRTab defined below with full tab support
 window.showInvTab = (name, btn) => {
@@ -5986,10 +6059,69 @@ window.saveTxnCategory = async (txnId, type, value) => {
 
 // showReport helper
 window.showReport = (type) => {
-  document.getElementById('rp-pl-div').style.display = type==='pl' ? 'block' : 'none';
-  document.getElementById('rp-cf-div').style.display = type==='cf' ? 'block' : 'none';
-  if(type==='pl') renderPLReport();
-  if(type==='cf') renderCFReport();
+  const pl   = document.getElementById('rp-pl-div');
+  const cf   = document.getElementById('rp-cf-div');
+  const secRep = document.getElementById('sec-report');
+  if(!secRep) return;
+
+  // Бүх direct children card-уудыг олох (PL/CF биш)
+  const allCards = secRep.querySelectorAll(':scope > .card, :scope > div[style*="grid"]');
+  const metricsEl = secRep.querySelector('#rp-metrics');
+  const filterDiv = secRep.querySelector(':scope > div:first-child');
+
+  // Аль тайлан одоо нээлттэй байгааг шалгах
+  const plOpen = pl && pl.style.display === 'block';
+  const cfOpen = cf && cf.style.display === 'block';
+
+  // Toggle logic
+  const isToggleOff = (type === 'pl' && plOpen) || (type === 'cf' && cfOpen);
+
+  if(isToggleOff) {
+    // Хаах — бүх зүйл буцаж харагдана
+    if(pl) pl.style.display = 'none';
+    if(cf) cf.style.display = 'none';
+    allCards.forEach(el => el.style.display = '');
+    if(metricsEl) metricsEl.style.display = '';
+    // Товчнуудын highlight
+    document.querySelectorAll('#sec-report .btn').forEach(b => {
+      if(b.onclick?.toString().includes('showReport')) {
+        b.style.background = ''; b.style.color = ''; b.style.border = '';
+      }
+    });
+    return;
+  }
+
+  // Нээх — бусад нуух
+  if(pl) pl.style.display = 'none';
+  if(cf) cf.style.display = 'none';
+  allCards.forEach(el => el.style.display = 'none');
+  if(metricsEl) metricsEl.style.display = 'none';
+
+  // Сонгосон тайланг харуулах
+  if(type === 'pl' && pl) {
+    pl.style.display = 'block';
+    // Гарчиг шинэчлэх
+    const titleEl = pl.querySelector('.ct');
+    if(titleEl) titleEl.innerHTML = '<i class="ti ti-chart-bar"></i> Орлого үр дүнгийн тайлан';
+    renderPLReport();
+  }
+  if(type === 'cf' && cf) {
+    cf.style.display = 'block';
+    const titleEl = cf.querySelector('.ct');
+    if(titleEl) titleEl.innerHTML = '<i class="ti ti-arrows-exchange"></i> Мөнгөн гүйлгээний тайлан';
+    renderCFReport();
+  }
+
+  // Товчны highlight
+  document.querySelectorAll('#sec-report .btn').forEach(b => {
+    const isSame = (type==='pl' && b.onclick?.toString().includes("'pl'")) ||
+                   (type==='cf' && b.onclick?.toString().includes("'cf'"));
+    if(b.onclick?.toString().includes('showReport')) {
+      b.style.background = isSame ? 'var(--pu)' : '';
+      b.style.color      = isSame ? '#fff' : '';
+      b.style.border     = isSame ? 'none' : '';
+    }
+  });
 };
 
 // P&L Report
@@ -6154,6 +6286,178 @@ function downloadCSV(rows, filename) {
   a.click();
   URL.revokeObjectURL(a.href);
 }
+
+
+// ─── ДОТООД ТАЙЛАН ───────────────────────────────────────────────────────────
+window.initIRReport = () => {
+  // Global тайлант сарын огноог авах
+  const ym = document.getElementById('global-month')?.value || getDefaultYearMonth();
+  const { from, to } = getReportingPeriodRange(ym);
+  const fEl = document.getElementById('ir-from');
+  const tEl = document.getElementById('ir-to');
+  if(fEl && !fEl.value) fEl.value = from;
+  if(tEl && !tEl.value) tEl.value = to;
+  // Тайлан агуулга нуух
+  const cnt = document.getElementById('ir-report-content');
+  if(cnt) cnt.style.display = 'none';
+  // Товчны highlight цэвэрлэх
+  ['ir-pl-btn','ir-cf-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.borderColor = 'transparent';
+  });
+};
+
+window.setIRPeriod = (period) => {
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  let from = today.slice(0,7)+'-01', to = today;
+  if(period === 'year') { from = today.slice(0,4)+'-01-01'; }
+  const fEl = document.getElementById('ir-from');
+  const tEl = document.getElementById('ir-to');
+  if(fEl) fEl.value = from;
+  if(tEl) tEl.value = to;
+  // Хэрэв тайлан нээлттэй бол refresh
+  const cnt = document.getElementById('ir-report-content');
+  if(cnt && cnt.style.display !== 'none') {
+    const type = document.getElementById('ir-pl-btn')?.style.borderColor?.includes('534AB7') ? 'pl' : 'cf';
+    showIRReport(type);
+  }
+};
+
+window.showIRReport = (type) => {
+  const from = document.getElementById('ir-from')?.value || '';
+  const to   = document.getElementById('ir-to')?.value   || '';
+  const cnt  = document.getElementById('ir-report-content');
+  const body = document.getElementById('ir-report-body');
+  const title= document.getElementById('ir-report-title');
+  const expBtn = document.getElementById('ir-export-btn');
+  if(!cnt || !body) return;
+
+  // Товчны highlight
+  const plBtn = document.getElementById('ir-pl-btn');
+  const cfBtn = document.getElementById('ir-cf-btn');
+  if(plBtn) plBtn.style.borderColor = type==='pl' ? 'var(--pu)' : 'transparent';
+  if(cfBtn) cfBtn.style.borderColor = type==='cf' ? 'var(--gr)' : 'transparent';
+
+  cnt.style.display = 'block';
+
+  if(type === 'pl') {
+    if(title) title.innerHTML = '<i class="ti ti-chart-bar"></i> Орлого үр дүнгийн тайлан';
+    if(expBtn) expBtn.onclick = () => exportIRCSV('pl');
+    renderIRPLReport(from, to, body);
+  } else {
+    if(title) title.innerHTML = '<i class="ti ti-arrows-exchange"></i> Мөнгөн гүйлгээний тайлан';
+    if(expBtn) expBtn.onclick = () => exportIRCSV('cf');
+    renderIRCFReport(from, to, body);
+  }
+  // Тайлан руу scroll
+  cnt.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+window.closeIRReport = () => {
+  const cnt = document.getElementById('ir-report-content');
+  if(cnt) cnt.style.display = 'none';
+  ['ir-pl-btn','ir-cf-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.style.borderColor = 'transparent';
+  });
+};
+
+function renderIRPLReport(from, to, body) {
+  const txns = bankTxns.filter(t =>
+    (!from||t.date>=from) && (!to||t.date<=to) && !t.isDeleted && t.status!=='deleted'
+  );
+  const byExp = {};
+  txns.forEach(t => {
+    if(!t.expenseCategory) return;
+    byExp[t.expenseCategory] = (byExp[t.expenseCategory]||0) + (t.expense||0);
+  });
+  const salesList = sales.filter(s => (!from||s.date>=from) && (!to||s.date<=to) && s.status!=='deleted');
+  const totalRev  = salesList.reduce((a,s)=>a+(s.total||0),0);
+  const totalCost = salesList.reduce((a,s)=>a+(s.totalCost||s.items?.reduce((b,it)=>b+(it.costAmount||0),0)||0),0);
+  const grossProfit = totalRev - totalCost;
+  const totalExp  = EXPENSE_CATEGORIES.reduce((a,c)=>a+(byExp[c]||0),0);
+  const netProfit = grossProfit - totalExp;
+  function row(lbl,val,color,bold,indent){
+    const s=bold?'font-weight:700;':'', p=indent?'padding-left:24px;':'';
+    const c=val?`color:var(--${color||'tx'});`:'color:var(--tx3);';
+    return `<tr><td style="padding:6px 12px;${s}${p}">${lbl}</td><td style="padding:6px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
+  }
+  let html=`<div style="font-size:11px;color:var(--tx3);margin-bottom:8px">${from} — ${to}</div>`;
+  html+=`<table style="width:100%;border-collapse:collapse;font-size:13px">`;
+  html+=`<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right;width:180px">Дүн (₮)</th></tr></thead><tbody>`;
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">I. БОРЛУУЛАЛТЫН ОРЛОГО</td></tr>`;
+  html+=row('Борлуулалтын нийт орлого',totalRev,'pu',true);
+  html+=row('Борлуулалтын өртөг',totalCost,'re',false,true);
+  html+=row('НИЙТ АШИГ (GROSS PROFIT)',grossProfit,grossProfit>=0?'gr':'re',true);
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">II. ҮЙЛЛ АЖИЛЛАГААНЫ ЗАРДАЛ</td></tr>`;
+  EXPENSE_CATEGORIES.forEach(cat=>{html+=row(cat,byExp[cat]||0,'re',false,true);});
+  html+=row('НИЙТ ЗАРДАЛ',totalExp,'re',true);
+  html+=`<tr style="background:var(--pul);border-top:2px solid var(--pu)"><td style="padding:12px 14px;font-weight:800;font-size:15px">ЦЭВЭР АШИГ / АЛДАГДАЛ (NET PROFIT)</td><td style="padding:12px 14px;text-align:right;font-weight:800;font-size:15px;color:${netProfit>=0?'var(--gr)':'var(--re)'}">${fmt(netProfit)}</td></tr>`;
+  html+=`</tbody></table>`;
+  body.innerHTML = html;
+}
+
+function renderIRCFReport(from, to, body) {
+  const txns = bankTxns.filter(t =>
+    (!from||t.date>=from) && (!to||t.date<=to) && !t.isDeleted && t.status!=='deleted'
+  );
+  const byCF = {};
+  txns.forEach(t => {
+    if(!t.cashFlowCategory) return;
+    const amt = (t.income||0)>0 ? (t.income||0) : -(t.expense||0);
+    byCF[t.cashFlowCategory] = (byCF[t.cashFlowCategory]||0) + amt;
+  });
+  const totalInc = txns.reduce((a,t)=>a+(t.income||0),0);
+  const totalExp = txns.reduce((a,t)=>a+(t.expense||0),0);
+  const netCF    = totalInc - totalExp;
+  function row(lbl,val,color,bold,indent){
+    const s=bold?'font-weight:700;':'', p=indent?'padding-left:24px;':'';
+    const c=val?`color:var(--${color||'tx'});`:'color:var(--tx3);';
+    return `<tr><td style="padding:6px 12px;${s}${p}">${lbl}</td><td style="padding:6px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
+  }
+  let html=`<div style="font-size:11px;color:var(--tx3);margin-bottom:8px">${from} — ${to}</div>`;
+  html+=`<table style="width:100%;border-collapse:collapse;font-size:13px">`;
+  html+=`<thead><tr style="background:var(--gr);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right;width:180px">Дүн (₮)</th></tr></thead><tbody>`;
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">I. МӨНГӨН ОРЛОГО</td></tr>`;
+  CASHFLOW_INCOME_CATS.forEach(cat=>{html+=row(cat,byCF[cat]||0,'gr',false,true);});
+  html+=row('НИЙТ МӨНГӨН ОРЛОГО',totalInc,'gr',true);
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">II. МӨНГӨН ЗАРЛАГА</td></tr>`;
+  CASHFLOW_EXPENSE_CATS.forEach(cat=>{html+=row(cat,byCF[cat]||0,'re',false,true);});
+  html+=row('НИЙТ МӨНГӨН ЗАРЛАГА',totalExp,'re',true);
+  html+=`<tr style="background:var(--grl);border-top:2px solid var(--gr)"><td style="padding:12px 14px;font-weight:800;font-size:15px">ЦЭВЭР МӨНГӨН ГҮЙЛГЭЭ</td><td style="padding:12px 14px;text-align:right;font-weight:800;font-size:15px;color:${netCF>=0?'var(--gr)':'var(--re)'}">${fmt(netCF)}</td></tr>`;
+  html+=`</tbody></table>`;
+  body.innerHTML = html;
+}
+
+window.exportIRCSV = (type) => {
+  const from = document.getElementById('ir-from')?.value || '';
+  const to   = document.getElementById('ir-to')?.value   || '';
+  if(type==='pl') {
+    const rows = [['Үзүүлэлт','Дүн (₮)']];
+    const txns = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted);
+    const byExp={};
+    txns.forEach(t=>{if(t.expenseCategory&&t.expense>0) byExp[t.expenseCategory]=(byExp[t.expenseCategory]||0)+t.expense;});
+    const sl=sales.filter(s=>(!from||s.date>=from)&&(!to||s.date<=to)&&s.status!=='deleted');
+    const rev=sl.reduce((a,s)=>a+s.total,0), cost=sl.reduce((a,s)=>a+(s.totalCost||0),0);
+    rows.push(['Борлуулалтын орлого',rev],['Борлуулалтын өртөг',cost],['Нийт ашиг',rev-cost]);
+    EXPENSE_CATEGORIES.forEach(c=>rows.push([c,byExp[c]||0]));
+    rows.push(['Нийт зардал',Object.values(byExp).reduce((a,v)=>a+v,0)]);
+    rows.push(['Цэвэр ашиг',(rev-cost)-Object.values(byExp).reduce((a,v)=>a+v,0)]);
+    downloadCSV(rows,'pl_report.csv');
+  } else {
+    const rows=[['Үзүүлэлт','Дүн (₮)']];
+    const txns=bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted);
+    const byCF={};
+    txns.forEach(t=>{if(t.cashFlowCategory){const a=(t.income||0)>0?(t.income||0):-(t.expense||0);byCF[t.cashFlowCategory]=(byCF[t.cashFlowCategory]||0)+a;}});
+    const inc=txns.reduce((a,t)=>a+(t.income||0),0),exp=txns.reduce((a,t)=>a+(t.expense||0),0);
+    CASHFLOW_INCOME_CATS.forEach(c=>rows.push([c,byCF[c]||0]));
+    rows.push(['Нийт орлого',inc]);
+    CASHFLOW_EXPENSE_CATS.forEach(c=>rows.push([c,byCF[c]||0]));
+    rows.push(['Нийт зарлага',exp],['Цэвэр мөнгөн гүйлгээ',inc-exp]);
+    downloadCSV(rows,'cf_report.csv');
+  }
+};
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
