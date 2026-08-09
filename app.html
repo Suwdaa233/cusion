@@ -947,6 +947,16 @@ tbody tr:hover td{background:var(--sur2)}
         <div class="fl"><label>Харьцсан данс</label>
           <input type="text" id="ebt-counter" placeholder="Харьцсан данс">
         </div>
+        <div class="fl"><label>Зардлын төрөл <span style="font-size:10px;color:var(--tx3)">(Орлогын тайлан)</span></label>
+          <select id="ebt-expense-cat" style="font-size:12px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Сонгох —</option>
+          </select>
+        </div>
+        <div class="fl"><label>Мөнгөн гүйлгээний үзүүлэлт <span style="font-size:10px;color:var(--tx3)">(CF тайлан)</span></label>
+          <select id="ebt-cf-cat" style="font-size:12px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Сонгох —</option>
+          </select>
+        </div>
         <div class="fl" style="grid-column:1/-1"><label>Гүйлгээний утга <span style="color:var(--re)">*</span></label>
           <input type="text" id="ebt-desc" placeholder="Гүйлгээний утга">
         </div>
@@ -3122,11 +3132,18 @@ window.renderTransactions=()=>{
       ${t.status !== 'linked' && t.status !== 'partial' ?
         `<button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>` : ''}
     </td>
-    <td style="min-width:155px;padding:4px 6px">
+    <td style="min-width:160px;padding:4px 6px">
       <div style="display:flex;flex-direction:column;gap:3px">
-        ${(t.expense||0)>0 ? '<select onchange="saveTxnCategory(\''+t.id+'\',\'expense\',this.value)" style="font-size:10px;padding:2px 4px;border:1px solid var(--bd);border-radius:3px;width:100%;background:var(--sur);color:var(--tx)"><option value="">— Зардлын төрөл —</option>'+EXPENSE_CATEGORIES.map(c=>'<option value="'+c+'" '+(t.expenseCategory===c?'selected':'')+'>'+c+'</option>').join('')+'</select>' : ''}
-        <select onchange="saveTxnCategory('${t.id}','cashflow',this.value)" style="font-size:10px;padding:2px 4px;border:1px solid var(--bd);border-radius:3px;width:100%;background:var(--sur);color:var(--tx)">
-          <option value="">— Мөнгөн гүйлгээ —</option>
+        <select onchange="saveTxnCategory('${t.id}','expense',this.value)"
+          title="Зардлын төрөл — Орлогын тайланд"
+          style="font-size:10px;padding:2px 4px;border:1px solid var(--bd);border-radius:3px;width:100%;background:var(--sur);color:var(--tx)">
+          <option value="">📊 Зардлын төрөл...</option>
+          ${EXPENSE_CATEGORIES.map(c=>'<option value="'+c+'" '+(t.expenseCategory===c?'selected':'')+'>'+c+'</option>').join('')}
+        </select>
+        <select onchange="saveTxnCategory('${t.id}','cashflow',this.value)"
+          title="Мөнгөн гүйлгээний үзүүлэлт — CF тайланд"
+          style="font-size:10px;padding:2px 4px;border:1px solid var(--bd);border-radius:3px;width:100%;background:var(--sur);color:var(--tx)">
+          <option value="">💰 Мөнгөн гүйлгээ...</option>
           ${((t.income||0)>0?CASHFLOW_INCOME_CATS:CASHFLOW_EXPENSE_CATS).map(c=>'<option value="'+c+'" '+(t.cashFlowCategory===c?'selected':'')+'>'+c+'</option>').join('')}
         </select>
       </div>
@@ -5470,6 +5487,20 @@ window.editBankTxnFull = (id) => {
   document.getElementById('ebt-expense').value = txn.expense || 0;
   document.getElementById('ebt-counter').value = txn.counterAccount || '';
   document.getElementById('ebt-desc').value  = txn.description || '';
+  // Зардлын төрөл dropdown
+  const expCatSel = document.getElementById('ebt-expense-cat');
+  if(expCatSel) {
+    expCatSel.innerHTML = '<option value="">— Зардлын төрөл —</option>' +
+      EXPENSE_CATEGORIES.map(c => `<option value="${c}" ${txn.expenseCategory===c?'selected':''}>${c}</option>`).join('');
+  }
+  // Мөнгөн гүйлгээний үзүүлэлт dropdown
+  const cfCatSel = document.getElementById('ebt-cf-cat');
+  if(cfCatSel) {
+    const isIncome = (txn.income||0) > 0;
+    const cfCats = isIncome ? CASHFLOW_INCOME_CATS : CASHFLOW_EXPENSE_CATS;
+    cfCatSel.innerHTML = '<option value="">— Мөнгөн гүйлгээ —</option>' +
+      cfCats.map(c => `<option value="${c}" ${txn.cashFlowCategory===c?'selected':''}>${c}</option>`).join('');
+  }
   // Банкны данс dropdown
   const sel = document.getElementById('ebt-account');
   sel.innerHTML = '<option value="">-- Данс сонгох --</option>' +
@@ -5477,39 +5508,6 @@ window.editBankTxnFull = (id) => {
       `<option value="${a.id}" ${a.id === txn.accountId ? 'selected' : ''}>${a.bankName} — ${a.accountNumber}</option>`
     ).join('');
   openModal('edit-bank-txn-modal');
-};
-
-window.saveEditBankTxn = async () => {
-  const id   = document.getElementById('ebt-id').value; if(!id) return;
-  const txn  = bankTxns.find(t => t.id === id);
-  const date = document.getElementById('ebt-date').value;
-  const desc = document.getElementById('ebt-desc').value.trim();
-  if(!date || !desc) { alert('Огноо болон гүйлгээний утга заавал оруулна уу'); return; }
-  const income  = parseFloat(document.getElementById('ebt-income').value)  || 0;
-  const expense = parseFloat(document.getElementById('ebt-expense').value) || 0;
-  const counter = document.getElementById('ebt-counter').value.trim();
-  const accId   = document.getElementById('ebt-account').value || txn?.accountId || '';
-  // Холбогдсон гүйлгээний дүн өөрчлөхийг анхааруулах
-  if((txn?.status === 'linked' || txn?.status === 'partial') &&
-     (income !== (txn.income||0) || expense !== (txn.expense||0))) {
-    if(!confirm('Холбогдсон гүйлгээний дүн өөрчлөгдөж байна.\nЭнэ нь авлагын тооцоонд нөлөөлж болно.\nҮргэлжлүүлэх үү?')) return;
-  }
-  try {
-    await updateDoc(doc(db, 'bankTxns', id), {
-      date, description: desc, income, expense,
-      counterAccount: counter, accountId: accId,
-      unlinkedAmount: Math.max(0, income - (txn?.linkedAmount||0)),
-      updatedAt: serverTimestamp(), updatedBy: currentUser.email
-    });
-    await addDoc(collection(db, 'auditLogs'), {
-      action: 'bank_txn_edited', bankTransactionId: id,
-      before: { date:txn?.date, description:txn?.description, income:txn?.income, expense:txn?.expense },
-      after:  { date, description:desc, income, expense },
-      userId: currentUser.email, timestamp: serverTimestamp()
-    });
-    closeModal('edit-bank-txn-modal');
-    alert('✅ Гүйлгээ амжилттай шинэчлэгдлээ!');
-  } catch(e) { alert('Алдаа: ' + e.message); }
 };
 
 
@@ -5896,63 +5894,127 @@ window.showReport = (type) => {
 
 // P&L Report
 window.renderPLReport = () => {
-  const from = document.getElementById('rp-from')?.value||'';
-  const to   = document.getElementById('rp-to')?.value||'';
-  const txns = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted&&t.status!=='deleted');
+  const from = document.getElementById('rp-from')?.value || '';
+  const to   = document.getElementById('rp-to')?.value   || '';
+  const txns = bankTxns.filter(t =>
+    (!from || t.date >= from) && (!to || t.date <= to) &&
+    !t.isDeleted && t.status !== 'deleted'
+  );
+  // Зардлын ангиллаар нэгтгэх (expenseCategory)
   const byExp = {};
-  txns.forEach(t=>{ if(t.expenseCategory&&t.expense>0) byExp[t.expenseCategory]=(byExp[t.expenseCategory]||0)+t.expense; });
-  const totalSalesRevenue = sales.filter(s=>(!from||s.date>=from)&&(!to||s.date<=to)).reduce((a,s)=>a+s.total,0);
-  const totalExpenses = Object.values(byExp).reduce((a,v)=>a+v,0);
-  const grossProfit = totalSalesRevenue - totalExpenses;
-  let html = `<table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right">Дүн (₮)</th></tr></thead><tbody>`;
-  html += `<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;color:var(--tx2)">I. БОРЛУУЛАЛТЫН ОРЛОГО</td></tr>`;
-  html += row('Борлуулалтын орлого нийт', totalSalesRevenue, 'pu');
-  html += `<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;color:var(--tx2)">II. ҮЙЛЛ АЖИЛЛАГААНЫ ЗАРДАЛ</td></tr>`;
-  EXPENSE_CATEGORIES.forEach(cat => {
-    html += row(cat, byExp[cat]||0, 're');
+  txns.forEach(t => {
+    const cat = t.expenseCategory;
+    if(!cat) return;
+    const amt = (t.expense||0) > 0 ? (t.expense||0) : -(t.income||0);
+    if(amt === 0) return;
+    byExp[cat] = (byExp[cat]||0) + amt;
   });
-  html += row('Нийт зардал', totalExpenses, 're', true);
-  html += `<tr style="background:var(--pul)"><td style="padding:10px 12px;font-weight:800;font-size:14px">Нийт ашиг / алдагдал</td><td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px;color:${grossProfit>=0?'var(--gr)':'var(--re)'}">${fmt(grossProfit)}</td></tr>`;
-  html += '</tbody></table>';
-  function row(label, val, color, bold) {
-    color = color||'tx'; bold = bold||false;
+  // Борлуулалтын орлого
+  const salesList = sales.filter(s => (!from||s.date>=from) && (!to||s.date<=to));
+  const totalRev  = salesList.reduce((a,s) => a+(s.total||0), 0);
+  const totalCost = salesList.reduce((a,s) => a+(s.totalCost||0), 0);
+  const grossProfit = totalRev - totalCost;
+  const totalExp  = EXPENSE_CATEGORIES.reduce((a,c) => a+(byExp[c]||0), 0);
+  const netProfit = grossProfit - totalExp;
+  function row(lbl, val, color, bold, indent) {
     const s = bold ? 'font-weight:700;' : '';
-    return '<tr><td style="padding:6px 12px;'+s+'">' + label + '</td><td style="padding:6px 12px;text-align:right;'+s+'color:var(--'+color+')">' + (val?fmt(val):'') + '</td></tr>';
+    const pad = indent ? 'padding-left:24px;' : '';
+    const c = val !== 0 ? 'color:var(--'+(color||'tx')+');' : 'color:var(--tx3);';
+    return '<tr><td style="padding:5px 12px;'+s+pad+'">'+lbl+'</td><td style="padding:5px 12px;text-align:right;'+s+c+'">'+(val?fmt(val):'—')+'</td></tr>';
   }
-  document.getElementById('rp-pl-body').innerHTML = html;
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html += '<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right">Дүн (₮)</th></tr></thead><tbody>';
+  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. БОРЛУУЛАЛТЫН ОРЛОГО</td></tr>';
+  html += row('Борлуулалтын нийт орлого', totalRev, 'pu', true);
+  html += row('Борлуулалтын өртөг', totalCost, 're', false, true);
+  html += row('Нийт ашиг (Gross Profit)', grossProfit, grossProfit>=0?'gr':'re', true);
+  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">II. ҮЙЛЛ АЖИЛЛАГААНЫ ЗАРДАЛ</td></tr>';
+  EXPENSE_CATEGORIES.forEach(cat => {
+    html += row(cat, byExp[cat]||0, 're', false, true);
+  });
+  html += row('Нийт зардал', totalExp, 're', true);
+  html += '<tr style="background:var(--pul);border-top:2px solid var(--bd)"><td style="padding:10px 12px;font-weight:800;font-size:14px">Цэвэр ашиг / алдагдал (Net Profit)</td><td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px;color:'+(netProfit>=0?'var(--gr)':'var(--re)')+'">'+fmt(netProfit)+'</td></tr>';
+  html += '</tbody></table>';
+  const el = document.getElementById('rp-pl-body');
+  if(el) el.innerHTML = html;
 };
 
 // Cash Flow Report
 window.renderCFReport = () => {
-  const from = document.getElementById('rp-from')?.value||'';
-  const to   = document.getElementById('rp-to')?.value||'';
-  const txns = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted&&t.status!=='deleted');
+  const from = document.getElementById('rp-from')?.value || '';
+  const to   = document.getElementById('rp-to')?.value   || '';
+  const txns = bankTxns.filter(t =>
+    (!from || t.date >= from) && (!to || t.date <= to) &&
+    !t.isDeleted && t.status !== 'deleted'
+  );
+  // cashFlowCategory-аар нэгтгэх
   const byCF = {};
-  txns.forEach(t=>{
-    if(!t.cashFlowCategory) return;
-    const amt = t.income>0 ? t.income : -(t.expense||0);
-    byCF[t.cashFlowCategory] = (byCF[t.cashFlowCategory]||0) + amt;
+  txns.forEach(t => {
+    const cat = t.cashFlowCategory;
+    if(!cat) return;
+    const amt = (t.income||0) > 0 ? (t.income||0) : -(t.expense||0);
+    byCF[cat] = (byCF[cat]||0) + amt;
   });
-  const totalIncome  = txns.reduce((a,t)=>a+(t.income||0),0);
-  const totalExpense = txns.reduce((a,t)=>a+(t.expense||0),0);
-  const netCF = totalIncome - totalExpense;
-  let html = `<table style="width:100%;border-collapse:collapse;font-size:13px">
-    <thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right">Дүн (₮)</th></tr></thead><tbody>`;
-  html += `<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700">I. МӨНГӨН ОРЛОГО</td></tr>`;
-  CASHFLOW_INCOME_CATS.forEach(cat=>{ html += cfrow(cat, byCF[cat]||0,'gr'); });
-  html += cfrow('Нийт мөнгөн орлого', totalIncome, 'gr', true);
-  html += `<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700">II. МӨНГӨН ЗАРЛАГА</td></tr>`;
-  CASHFLOW_EXPENSE_CATS.forEach(cat=>{ html += cfrow(cat, byCF[cat]||0,'re'); });
-  html += cfrow('Нийт мөнгөн зарлага', totalExpense, 're', true);
-  html += `<tr style="background:var(--pul)"><td style="padding:10px 12px;font-weight:800;font-size:14px">Цэвэр мөнгөн гүйлгээ</td><td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px;color:${netCF>=0?'var(--gr)':'var(--re)'}">${fmt(netCF)}</td></tr>`;
-  html += '</tbody></table>';
-  function cfrow(label, val, color, bold) {
-    bold = bold||false;
+  const totalInc = txns.reduce((a,t) => a+(t.income||0), 0);
+  const totalExp = txns.reduce((a,t) => a+(t.expense||0), 0);
+  const netCF    = totalInc - totalExp;
+  function cfrow(lbl, val, color, bold, indent) {
     const s = bold ? 'font-weight:700;' : '';
-    return '<tr><td style="padding:6px 12px;'+s+'">' + label + '</td><td style="padding:6px 12px;text-align:right;'+s+'color:var(--'+color+')">' + (val?fmt(val):'') + '</td></tr>';
+    const pad = indent ? 'padding-left:24px;' : '';
+    const c = val !== 0 ? 'color:var(--'+(color||'tx')+');' : 'color:var(--tx3);';
+    return '<tr><td style="padding:5px 12px;'+s+pad+'">'+lbl+'</td><td style="padding:5px 12px;text-align:right;'+s+c+'">'+(val?fmt(val):'—')+'</td></tr>';
   }
-  document.getElementById('rp-cf-body').innerHTML = html;
+  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+  html += '<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right">Дүн (₮)</th></tr></thead><tbody>';
+  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. МӨНГӨН ОРЛОГО</td></tr>';
+  CASHFLOW_INCOME_CATS.forEach(cat => { html += cfrow(cat, byCF[cat]||0, 'gr', false, true); });
+  html += cfrow('Нийт мөнгөн орлого', totalInc, 'gr', true);
+  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">II. МӨНГӨН ЗАРЛАГА</td></tr>';
+  CASHFLOW_EXPENSE_CATS.forEach(cat => { html += cfrow(cat, byCF[cat]||0, 're', false, true); });
+  html += cfrow('Нийт мөнгөн зарлага', totalExp, 're', true);
+  html += '<tr style="background:var(--pul);border-top:2px solid var(--bd)"><td style="padding:10px 12px;font-weight:800;font-size:14px">Цэвэр мөнгөн гүйлгээ</td><td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px;color:'+(netCF>=0?'var(--gr)':'var(--re)')+'">'+fmt(netCF)+'</td></tr>';
+  html += '</tbody></table>';
+  const el = document.getElementById('rp-cf-body');
+  if(el) el.innerHTML = html;
+};
+
+
+window.saveEditBankTxn = async () => {
+  const id   = document.getElementById('ebt-id').value;     if(!id) return;
+  const txn  = bankTxns.find(t => t.id === id);
+  const date = document.getElementById('ebt-date').value;
+  const desc = document.getElementById('ebt-desc').value.trim();
+  if(!date || !desc) { alert('Огноо болон гүйлгээний утга заавал оруулна уу'); return; }
+  const income  = parseFloat(document.getElementById('ebt-income').value)  || 0;
+  const expense = parseFloat(document.getElementById('ebt-expense').value) || 0;
+  const counter = document.getElementById('ebt-counter').value.trim();
+  const accId   = document.getElementById('ebt-account').value || txn?.accountId || '';
+  const expCat  = document.getElementById('ebt-expense-cat')?.value || '';
+  const cfCat   = document.getElementById('ebt-cf-cat')?.value     || '';
+  if((txn?.status === 'linked' || txn?.status === 'partial') &&
+     (income !== (txn.income||0) || expense !== (txn.expense||0))) {
+    if(!confirm('Холбогдсон гүйлгээний дүн өөрчлөгдөж байна.\nВалидацид нөлөөлж болно. Үргэлжлүүлэх үү?')) return;
+  }
+  try {
+    await updateDoc(doc(db, 'bankTxns', id), {
+      date, description: desc, income, expense,
+      counterAccount:   counter,
+      accountId:        accId,
+      expenseCategory:  expCat || txn?.expenseCategory  || '',
+      cashFlowCategory: cfCat  || txn?.cashFlowCategory || '',
+      unlinkedAmount:   Math.max(0, income - (txn?.linkedAmount||0)),
+      updatedAt:        serverTimestamp(),
+      updatedBy:        currentUser.email
+    });
+    await addDoc(collection(db, 'auditLogs'), {
+      action:'bank_txn_edited', bankTransactionId:id,
+      before:{ date:txn?.date, description:txn?.description, income:txn?.income, expense:txn?.expense },
+      after:{ date, description:desc, income, expense, expCat, cfCat },
+      userId:currentUser.email, timestamp:serverTimestamp()
+    });
+    closeModal('edit-bank-txn-modal');
+    alert('✅ Гүйлгээ амжилттай шинэчлэгдлээ!');
+  } catch(e) { alert('Алдаа: ' + e.message); }
 };
 
 
