@@ -192,32 +192,58 @@ tbody tr:hover td{background:var(--sur2)}
 
 <!-- DASHBOARD -->
 <div id="sec-dashboard" class="sec on">
-  <!-- KPI filter -->
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
     <button class="btn bp bxs" onclick="setDashPeriod('today')">Өнөөдөр</button>
+    <button class="btn bg bxs" onclick="setDashPeriod('week')">7 хоног</button>
     <button class="btn bg bxs" onclick="setDashPeriod('month')">Энэ сар</button>
     <button class="btn bg bxs" onclick="setDashPeriod('year')">Энэ жил</button>
-    <input type="date" id="d-from" style="font-size:12px;padding:5px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
-    <span style="font-size:12px;color:var(--tx3)">—</span>
-    <input type="date" id="d-to" style="font-size:12px;padding:5px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
-    <button class="btn bg bxs" onclick="renderDashboard()"><i class="ti ti-filter"></i>Шүүх</button>
-    <span id="d-period-label" style="font-size:12px;color:var(--tx3)"></span>
+    <input type="date" id="d-from" onchange="renderDashboard()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
+    <span style="color:var(--tx3)">—</span>
+    <input type="date" id="d-to" onchange="renderDashboard()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
   </div>
-  <!-- 5 KPI cards -->
-  <div class="mg" id="d-metrics"></div>
-  <!-- Bottom: Top10 receivable + stock -->
-  <div style="display:grid;grid-template-columns:58% 40%;gap:14px">
-    <div class="card">
-      <div class="ch"><span class="ct"><i class="ti ti-users"></i>Өндөр авлагын үлдэгдэлтэй 10 харилцагч</span></div>
-      <div class="cb np"><div class="tw"><table>
-        <thead><tr><th style="width:30px">№</th><th>Харилцагч</th><th>Регистр</th><th style="text-align:right">Авлагын үлдэгдэл</th></tr></thead>
-        <tbody id="d-top-recv"></tbody>
-      </table></div></div>
+  <!-- KPI блокууд -->
+  <div class="mg" id="d-metrics" style="margin-bottom:14px"></div>
+  <!-- Sparkline chart -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct"><i class="ti ti-chart-line"></i>Борлуулалтын чиг хандлага</span>
+      <div id="d-chart-legend" style="font-size:11px;color:var(--tx3)"></div>
     </div>
-    <div class="card">
-      <div class="ch"><span class="ct"><i class="ti ti-package"></i>Барааны үлдэгдэл</span></div>
-      <div class="cb" id="d-stock" style="max-height:320px;overflow-y:auto"></div>
+    <div class="cb" style="padding:8px">
+      <svg id="d-sparkline" width="100%" height="120" style="display:block"></svg>
     </div>
+  </div>
+  <!-- 2 багана -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
+    <!-- Авлагын товчоо -->
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-alert-circle"></i>Авлагын товчоо</span></div>
+      <div class="cb np"><div class="tw">
+        <table style="font-size:12px">
+          <thead><tr><th>Харилцагч</th><th style="text-align:right">Авлага</th><th>Хугацаа</th></tr></thead>
+          <tbody id="d-recv-tbody"></tbody>
+        </table>
+      </div></div>
+    </div>
+    <!-- Top бараа -->
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-trending-up"></i>Борлуулалт ихтэй бараа</span></div>
+      <div class="cb np"><div class="tw">
+        <table style="font-size:12px">
+          <thead><tr><th>Бараа</th><th style="text-align:right">Тоо</th><th style="text-align:right">Дүн</th></tr></thead>
+          <tbody id="d-top-prod-tbody"></tbody>
+        </table>
+      </div></div>
+    </div>
+  </div>
+  <!-- Банкны данс -->
+  <div class="card">
+    <div class="ch"><span class="ct"><i class="ti ti-building-bank"></i>Банкны данс (өнөөдрийн байдлаар)</span></div>
+    <div class="cb np"><div class="tw">
+      <table style="font-size:12px">
+        <thead><tr><th>Банк</th><th>Данс</th><th style="text-align:right">Нийт орлого</th><th style="text-align:right">Нийт зарлага</th><th style="text-align:right">Үлдэгдэл</th></tr></thead>
+        <tbody id="d-bank-tbody"></tbody>
+      </table>
+    </div></div>
   </div>
 </div>
 
@@ -1205,6 +1231,7 @@ tbody tr:hover td{background:var(--sur2)}
     <button class="btn bg" onclick="setThisYear()"><i class="ti ti-calendar-stats"></i>Энэ жил</button>
     <button class="btn bg" onclick="showReport('pl')" style="background:var(--pu);color:#fff;border:none"><i class="ti ti-chart-bar"></i>Орлогын тайлан</button>
     <button class="btn bg" onclick="showReport('cf')"><i class="ti ti-arrows-exchange"></i>Мөнгөн гүйлгээ</button>
+    <button class="btn bg bxs" onclick="exportSalesCSV()" title="CSV татах"><i class="ti ti-download"></i>Export</button>
   </div>
   <div class="mg" id="rp-metrics"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
@@ -2121,63 +2148,127 @@ function statusBadge(s){
 }
 
 window.renderDashboard = () => {
-  const from = document.getElementById('d-from')?.value||'';
-  const to = document.getElementById('d-to')?.value||'';
+  const from = document.getElementById('d-from')?.value || '';
+  const to   = document.getElementById('d-to')?.value   || '';
 
-  // Filter sales by period for revenue KPIs
-  let filtered = sales;
-  if(from) filtered = filtered.filter(s=>s.date>=from);
-  if(to) filtered = filtered.filter(s=>s.date<=to);
+  const filtered = sales.filter(s =>
+    s.status !== 'deleted' && s.status !== 'void' &&
+    (!from || s.date >= from) && (!to || s.date <= to)
+  );
 
-  // KPI calculations
-  const totalSales = filtered.reduce((a,s)=>a+s.total,0);
-  const totalCost = filtered.reduce((a,s)=>a+(s.totalCost||s.items?.reduce((b,it)=>b+(it.costAmount||0),0)||0),0);
+  // ─── KPI ───
+  const totalSales  = filtered.reduce((a,s)=>a+(s.total||0),0);
+  const totalCost   = filtered.reduce((a,s)=>a+(s.totalCost||s.items?.reduce((b,it)=>b+(it.costAmount||0),0)||0),0);
   const totalProfit = totalSales - totalCost;
-  const totalRecv = sales.reduce((a,s)=>a+s.recv,0); // always current
-  const totalStockQty = products.reduce((a,p)=>a+locations.reduce((b,l)=>b+gst(p.id,l.id),0),0);
+  const totalPaid   = filtered.reduce((a,s)=>a+(s.paid||0),0);
+  const totalRecv   = sales.reduce((a,s)=>a+(s.recv||0),0); // бүх хугацааны авлага
+  const bankInc = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)).reduce((a,t)=>a+(t.income||0),0);
+  const bankExp = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)).reduce((a,t)=>a+(t.expense||0),0);
 
-  document.getElementById('d-metrics').innerHTML=`
+  const metricsEl = document.getElementById('d-metrics');
+  if(metricsEl) metricsEl.innerHTML = `
     <div class="mc"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalSales)}</div><div class="ms">${filtered.length} гүйлгээ</div></div>
-    <div class="mc"><div class="ml">Борлуулсан барааны өртөг</div><div class="mv">${fmt(totalCost)}</div></div>
-    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div><div class="ms">${totalSales>0?Math.round(totalProfit/totalSales*100):0}%</div></div>
-    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalRecv)}</div><div class="ms">${sales.filter(s=>s.recv>0).length} харилцагч</div></div>
-    <div class="mc"><div class="ml">Барааны үлдэгдэл</div><div class="mv">${totalStockQty.toLocaleString()}ш</div></div>
-  `;
+    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div><div class="ms">Өртөг: ${fmt(totalCost)}</div></div>
+    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalRecv)}</div><div class="ms">Төлсөн: ${fmt(totalPaid)}</div></div>
+    <div class="mc"><div class="ml">Мөнгөн орлого</div><div class="mv gr">${fmt(bankInc)}</div><div class="ms">Зарлага: ${fmt(bankExp)}</div></div>`;
 
-  // Top 10 receivable customers
-  const custRecv = {};
-  sales.forEach(s=>{
-    if(s.recv>0){
-      if(!custRecv[s.customerId]) custRecv[s.customerId]={name:s.customerName,reg:s.customerReg||customers.find(c=>c.id===s.customerId)?.reg||'',recv:0};
-      custRecv[s.customerId].recv+=s.recv;
-    }
-  });
-  const top10 = Object.entries(custRecv)
-    .filter(([,v])=>v.recv>0)
-    .sort((a,b)=>b[1].recv-a[1].recv)
-    .slice(0,10);
-
-  const topTbody = document.getElementById('d-top-recv');
-  if(topTbody){
-    if(top10.length===0){
-      topTbody.innerHTML='<tr><td colspan="4"><div class="empty"><i class="ti ti-check"></i>Авлага байхгүй</div></td></tr>';
-    } else {
-      topTbody.innerHTML=top10.map(([cid,v],i)=>`<tr style="cursor:pointer" onclick="goToRecvDetail('${cid}')">
-        <td style="text-align:center;color:var(--tx3)">${i+1}</td>
-        <td style="font-weight:500;color:var(--pu)">${v.name}</td>
-        <td style="font-size:11px;color:var(--tx2)">${v.reg||'—'}</td>
-        <td style="text-align:right;font-weight:700;color:var(--am)">${fmt(v.recv)}</td>
-      </tr>`).join('');
-    }
+  // ─── SPARKLINE ───
+  const byDay = {};
+  filtered.forEach(s => { byDay[s.date] = (byDay[s.date]||0) + (s.total||0); });
+  const days = Object.keys(byDay).sort();
+  const svg = document.getElementById('d-sparkline');
+  if(svg && days.length > 1) {
+    const vals = days.map(d => byDay[d]);
+    const maxV = Math.max(...vals);
+    const minV = Math.min(...vals);
+    const W = svg.clientWidth || 800, H = 110, PAD = 8;
+    const x = i => PAD + (i/(days.length-1)) * (W - PAD*2);
+    const y = v => H - PAD - ((v-minV)/(maxV-minV||1)) * (H - PAD*2);
+    const pts = days.map((d,i) => `${x(i)},${y(byDay[d])}`).join(' ');
+    const fillPts = `${x(0)},${H} ` + pts + ` ${x(days.length-1)},${H}`;
+    svg.innerHTML = `
+      <defs><linearGradient id="spGrad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="var(--pu)" stop-opacity="0.3"/>
+        <stop offset="100%" stop-color="var(--pu)" stop-opacity="0"/>
+      </linearGradient></defs>
+      <polygon points="${fillPts}" fill="url(#spGrad)"/>
+      <polyline points="${pts}" fill="none" stroke="var(--pu)" stroke-width="2" stroke-linejoin="round"/>
+      ${days.map((d,i)=>`<circle cx="${x(i)}" cy="${y(byDay[d])}" r="3" fill="var(--pu)"/>`).join('')}
+      ${days.length<=14?days.map((d,i)=>`<text x="${x(i)}" y="${H}" text-anchor="middle" font-size="9" fill="var(--tx3)">${d.slice(5)}</text>`).join(''):''}`;
+    const legend = document.getElementById('d-chart-legend');
+    if(legend) legend.textContent = `${days[0]} — ${days[days.length-1]} (${days.length} өдөр)`;
+  } else if(svg) {
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="var(--tx3)" font-size="13">Өгөгдөл хангалтгүй</text>';
   }
 
-  // Stock display
-  const dls = document.getElementById('d-stock');
-  if(locations.length===0){dls.innerHTML='<div class="empty"><i class="ti ti-map-pin"></i>Байршил байхгүй</div>';return;}
-  dls.innerHTML=locations.map(l=>`<div style="margin-bottom:12px"><p style="font-size:12px;font-weight:600;margin-bottom:6px">${l.name}</p>${
-    products.map(p=>{const q=gst(p.id,l.id);const bar=q<=5?'#A32020':q<=(l.minStock||10)?'#B86E0C':'#2E6B0A';
-    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><span class="dot" style="background:${p.color}"></span><span style="font-size:12px;flex:1;color:var(--tx2)">${p.variant}</span><div style="width:80px;background:var(--sur3);border-radius:3px;height:5px;overflow:hidden"><div style="width:${Math.min(100,q)}%;height:100%;background:${bar}"></div></div><span style="font-size:12px;font-weight:600;min-width:24px;text-align:right;color:${bar}">${q}</span></div>`;
-    }).join('')}</div>`).join('');
+  // ─── АВЛАГЫН ТОВЧОО ───
+  const recvRows = sales
+    .filter(s => s.recv > 0)
+    .reduce((acc, s) => {
+      if(!acc[s.customerId]) acc[s.customerId] = { name:s.customerName||'—', recv:0, oldest:s.date };
+      acc[s.customerId].recv += s.recv;
+      if(s.date < acc[s.customerId].oldest) acc[s.customerId].oldest = s.date;
+      return acc;
+    }, {});
+  const today = new Date().toISOString().slice(0,10);
+  const recvList = Object.values(recvRows).sort((a,b)=>b.recv-a.recv).slice(0,8);
+  const recvTbody = document.getElementById('d-recv-tbody');
+  if(recvTbody) recvTbody.innerHTML = recvList.length ? recvList.map(r => {
+    const days = Math.floor((new Date(today)-new Date(r.oldest))/(86400000));
+    const color = days>60?'re':days>30?'am':'gr';
+    return `<tr><td style="font-weight:500">${r.name}</td>
+      <td style="text-align:right;color:var(--am);font-weight:700">${fmt(r.recv)}</td>
+      <td><span class="ba b${color}">${days}х</span></td></tr>`;
+  }).join('') : '<tr><td colspan="3"><div class="empty">Авлага байхгүй</div></td></tr>';
+
+  // ─── TOP БАРАА ───
+  const prodSales = {};
+  filtered.forEach(s => (s.items||[]).forEach(it => {
+    if(!prodSales[it.pid]) prodSales[it.pid] = { label:it.label||'—', qty:0, total:0 };
+    prodSales[it.pid].qty += it.qty||1;
+    prodSales[it.pid].total += it.lineTotal||it.sub||0;
+  }));
+  const topProds = Object.values(prodSales).sort((a,b)=>b.total-a.total).slice(0,8);
+  const prodTbody = document.getElementById('d-top-prod-tbody');
+  if(prodTbody) prodTbody.innerHTML = topProds.length ? topProds.map(p =>
+    `<tr><td style="font-size:11px">${p.label.replace('·',' ')}</td>
+      <td style="text-align:right">${p.qty}ш</td>
+      <td style="text-align:right;color:var(--pu)">${fmt(p.total)}</td></tr>`
+  ).join('') : '<tr><td colspan="3"><div class="empty">Борлуулалт байхгүй</div></td></tr>';
+
+  // ─── БАНКНЫ ДАНС ───
+  const bankTbody = document.getElementById('d-bank-tbody');
+  if(bankTbody) {
+    const accRows = bankAccounts.filter(a=>a.active!==false).map(a => {
+      const accTxns = bankTxns.filter(t=>t.accountId===a.id&&!t.isDeleted&&t.status!=='deleted');
+      const inc = accTxns.reduce((s,t)=>s+(t.income||0),0);
+      const exp = accTxns.reduce((s,t)=>s+(t.expense||0),0);
+      return { bank:a.bankName, num:a.accountNumber, inc, exp, bal:inc-exp };
+    });
+    bankTbody.innerHTML = accRows.length ? accRows.map(r =>
+      `<tr><td style="font-size:12px">${r.bank}</td>
+        <td style="font-family:monospace;font-size:11px">${r.num}</td>
+        <td style="text-align:right;color:var(--gr)">${fmt(r.inc)}</td>
+        <td style="text-align:right;color:var(--re)">${fmt(r.exp)}</td>
+        <td style="text-align:right;font-weight:700;color:${r.bal>=0?'var(--gr)':'var(--re)'}">${fmt(r.bal)}</td></tr>`
+    ).join('') : '<tr><td colspan="5"><div class="empty">Данс байхгүй</div></td></tr>';
+  }
+};
+
+// setDashPeriod helper
+window.setDashPeriod = (period) => {
+  const now = new Date();
+  const today = now.toISOString().slice(0,10);
+  let from = today, to = today;
+  if(period==='week') { const d=new Date(now); d.setDate(d.getDate()-6); from=d.toISOString().slice(0,10); }
+  else if(period==='month') { from=today.slice(0,7)+'-01'; }
+  else if(period==='year')  { from=today.slice(0,4)+'-01-01'; }
+  const fEl=document.getElementById('d-from'), tEl=document.getElementById('d-to');
+  if(fEl) fEl.value=from; if(tEl) tEl.value=to;
+  // Highlight active button
+  document.querySelectorAll('#sec-dashboard .btn').forEach(b=>b.classList.remove('bp'));
+  event?.target?.classList.add('bp');
+  renderDashboard();
 };
 
 window.renderSalesTable = () => {
@@ -3539,14 +3630,6 @@ async function getNextDocNum(type) {
   return `${prefix}-${period}-${String(num).padStart(6,'0')}`;
 }
 
-window.setDashPeriod = (period) => {
-  const now = new Date(); const y=now.getFullYear(),m=now.getMonth();
-  const fromEl=document.getElementById('d-from'),toEl=document.getElementById('d-to');
-  if(period==='today'){fromEl.value=today();toEl.value=today();}
-  else if(period==='month'){ const {from,to}=getLastMonthRange(); fromEl.value=from; toEl.value=to; }
-  else if(period==='year'){fromEl.value=`${y}-01-01`;toEl.value=`${y}-12-31`;}
-  renderDashboard();
-};
 window.goToRecvDetail = (custId) => {
   const btn = document.querySelector('.ni[onclick*="receivable"]');
   goSec('receivable', btn||document.querySelector('.ni'));
@@ -6037,6 +6120,40 @@ window.saveEditBankTxn = async () => {
     alert('✅ Гүйлгээ амжилттай шинэчлэгдлээ!');
   } catch(e) { alert('Алдаа: ' + e.message); }
 };
+
+
+// ─── EXPORT ──────────────────────────────────────────────────────────────────
+window.exportSalesCSV = () => {
+  const from = document.getElementById('rp-from')?.value||'';
+  const to   = document.getElementById('rp-to')?.value||'';
+  const list = sales.filter(s=>(!from||s.date>=from)&&(!to||s.date<=to)&&s.status!=='deleted');
+  const rows = [['Огноо','Баримт №','Харилцагч','Байршил','Нийт дүн','Төлсөн','Авлага','Төлбөрийн төрөл','Тэмдэглэл']];
+  list.forEach(s=>rows.push([s.date,s.docNumber||'',s.customerName||'',s.locationName||'',s.total||0,s.paid||0,s.recv||0,s.paymentType||'',s.note||'']));
+  downloadCSV(rows, 'borluulalt.csv');
+};
+
+window.exportBankCSV = () => {
+  const from = document.getElementById('txn-from')?.value||'';
+  const to   = document.getElementById('txn-to')?.value||'';
+  const list = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted);
+  const rows = [['Огноо','Данс','Гүйлгээний утга','Орлого','Зарлага','Холбогдсон','Статус','Зардлын төрөл','Мөнгөн гүйлгээ']];
+  list.forEach(t=>{
+    const acc = bankAccounts.find(a=>a.id===t.accountId)||{};
+    rows.push([t.date,acc.accountNumber||'',t.description||'',t.income||0,t.expense||0,t.linkedAmount||0,t.status||'',t.expenseCategory||'',t.cashFlowCategory||'']);
+  });
+  downloadCSV(rows, 'bank_huulga.csv');
+};
+
+function downloadCSV(rows, filename) {
+  const BOM = '\uFEFF';
+  const csv = BOM + rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
