@@ -944,8 +944,10 @@ tbody tr:hover td{background:var(--sur2)}
         <div class="fl"><label>Зарлага ₮</label>
           <input type="number" id="ebt-expense" min="0" placeholder="0">
         </div>
-        <div class="fl"><label>Харьцсан данс</label>
-          <input type="text" id="ebt-counter" placeholder="Харьцсан данс">
+        <div class="fl"><label>Харьцсан данс <span style="font-size:10px;color:var(--tx3)">(банк хоорондын гүйлгээ)</span></label>
+          <select id="ebt-counter" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Гадаад данс / бусад —</option>
+          </select>
         </div>
         <div class="fl"><label>Зардлын төрөл <span style="font-size:10px;color:var(--tx3)">(Орлогын тайлан)</span></label>
           <select id="ebt-expense-cat" style="font-size:12px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
@@ -5501,6 +5503,21 @@ window.editBankTxnFull = (id) => {
     cfCatSel.innerHTML = '<option value="">— Мөнгөн гүйлгээ —</option>' +
       cfCats.map(c => `<option value="${c}" ${txn.cashFlowCategory===c?'selected':''}>${c}</option>`).join('');
   }
+  // Харьцсан данс dropdown — өөрийн бусад дансуудаас сонгох
+  const counterSel = document.getElementById('ebt-counter');
+  if(counterSel) {
+    const otherAccs = bankAccounts.filter(a => a.active !== false && a.id !== (txn.accountId||''));
+    counterSel.innerHTML = '<option value="">— Гадаад данс / бусад —</option>' +
+      otherAccs.map(a =>
+        `<option value="${a.id}" ${(txn.counterAccountId||txn.counterAccount)===a.id?'selected':''}>
+          ${a.bankName} — ${a.accountNumber}
+        </option>`
+      ).join('');
+    // Хэрэв counterAccount нь ID биш текст бол харуулах
+    if(txn.counterAccount && !otherAccs.find(a=>a.id===txn.counterAccount)) {
+      counterSel.innerHTML += `<option value="${txn.counterAccount}" selected>${txn.counterAccount}</option>`;
+    }
+  }
   // Банкны данс dropdown
   const sel = document.getElementById('ebt-account');
   sel.innerHTML = '<option value="">-- Данс сонгох --</option>' +
@@ -5987,7 +6004,10 @@ window.saveEditBankTxn = async () => {
   if(!date || !desc) { alert('Огноо болон гүйлгээний утга заавал оруулна уу'); return; }
   const income  = parseFloat(document.getElementById('ebt-income').value)  || 0;
   const expense = parseFloat(document.getElementById('ebt-expense').value) || 0;
-  const counter = document.getElementById('ebt-counter').value.trim();
+  const counterVal = document.getElementById('ebt-counter').value;
+  // counterVal нь банкны дансны ID эсвэл текст байна
+  const counterAcc = bankAccounts.find(a => a.id === counterVal);
+  const counter = counterVal; // ID хадгална
   const accId   = document.getElementById('ebt-account').value || txn?.accountId || '';
   const expCat  = document.getElementById('ebt-expense-cat')?.value || '';
   const cfCat   = document.getElementById('ebt-cf-cat')?.value     || '';
@@ -5998,7 +6018,8 @@ window.saveEditBankTxn = async () => {
   try {
     await updateDoc(doc(db, 'bankTxns', id), {
       date, description: desc, income, expense,
-      counterAccount:   counter,
+      counterAccount:   counterAcc ? counterAcc.accountNumber : counter,
+      counterAccountId: counterAcc ? counterAcc.id : '',
       accountId:        accId,
       expenseCategory:  expCat || txn?.expenseCategory  || '',
       cashFlowCategory: cfCat  || txn?.cashFlowCategory || '',
