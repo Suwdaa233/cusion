@@ -791,6 +791,7 @@ tbody tr:hover td{background:var(--sur2)}
           <input type="text" id="txn-search" placeholder="Утгаар хайх..." style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);width:140px">
           <button class="btn bp bxs" onclick="renderTransactions()"><i class="ti ti-filter"></i>Шүүх</button>
           <button class="btn bg bxs" onclick="clearTxnFilter()">Цэвэрлэх</button>
+          <button class="btn bp bxs" onclick="openBulkLinkModal()"><i class="ti ti-select"></i>Олноор холбох</button>
         </div>
       </div>
       <div class="cb np"><div id="txn-uncl-summary" style="padding:6px 12px;background:var(--sur2);border-radius:var(--r);margin-bottom:8px"></div>
@@ -1002,6 +1003,115 @@ tbody tr:hover td{background:var(--sur2)}
       <div style="display:flex;gap:8px;margin-top:12px">
         <button class="btn bp" onclick="runPaymentMigration()"><i class="ti ti-arrow-right"></i>Migration эхлэх</button>
         <button class="btn bg" onclick="closeModal('migration-modal')">Хаах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- INCOME LINK MODAL -->
+<div class="modal-ov" id="inc-link-modal">
+  <div class="modal" style="max-width:580px">
+    <div class="mh">
+      <span><i class="ti ti-link"></i> Орлого холбох</span>
+      <button class="btn bg bxs" onclick="closeModal('inc-link-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <!-- Гүйлгээний мэдээлэл -->
+      <div id="inc-txn-info" style="background:var(--sur2);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px"></div>
+      <!-- Мөнгөн гүйлгээний ангилал — ЗААВАЛ -->
+      <div class="fl" style="margin-bottom:10px">
+        <label style="font-weight:600">Мөнгөн гүйлгээний үзүүлэлт <span style="color:var(--re)">*</span></label>
+        <select id="inc-cf-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="">— Сонгох —</option>
+        </select>
+      </div>
+      <!-- Авлага хааx — нэмэлт -->
+      <div style="border-top:1px solid var(--bd);padding-top:10px;margin-top:4px">
+        <div style="font-weight:600;font-size:13px;margin-bottom:8px">Авлага хаах <span style="font-size:11px;color:var(--tx3);font-weight:400">(заавал биш)</span></div>
+        <div class="fl" style="margin-bottom:8px">
+          <label>Харилцагч</label>
+          <select id="inc-link-cust" onchange="loadIncReceivables()" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Сонгох —</option>
+          </select>
+        </div>
+        <div id="inc-recv-list" style="display:none">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:600">Авлагын жагсаалт</span>
+            <button class="btn bg bxs" onclick="autoFIFOInc()" style="font-size:11px"><i class="ti ti-bolt"></i>FIFO автомат</button>
+          </div>
+          <div class="tw"><table style="font-size:12px;width:100%">
+            <thead><tr><th>✓</th><th>Огноо</th><th>Баримт №</th><th style="text-align:right">Нийт</th><th style="text-align:right">Үлдэгдэл</th><th style="text-align:right">Энэ удаа</th></tr></thead>
+            <tbody id="inc-recv-tbody"></tbody>
+          </table></div>
+          <div id="inc-alloc-summary" style="font-size:12px;color:var(--tx2);padding:6px 0;border-top:1px solid var(--bd);margin-top:6px"></div>
+        </div>
+      </div>
+      <input type="hidden" id="inc-txn-id">
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn bp" onclick="saveIncLink()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('inc-link-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- EXPENSE LINK MODAL -->
+<div class="modal-ov" id="exp-link-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="mh">
+      <span><i class="ti ti-link"></i> Зарлага холбох</span>
+      <button class="btn bg bxs" onclick="closeModal('exp-link-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div id="exp-txn-info" style="background:var(--sur2);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px"></div>
+      <div class="fl" style="margin-bottom:10px">
+        <label style="font-weight:600">Зардлын төрөл <span style="color:var(--re)">*</span></label>
+        <select id="exp-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="">— Сонгох —</option>
+        </select>
+      </div>
+      <div class="fl" style="margin-bottom:10px">
+        <label style="font-weight:600">Мөнгөн гүйлгээний үзүүлэлт <span style="color:var(--re)">*</span></label>
+        <select id="exp-cf-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="">— Сонгох —</option>
+        </select>
+      </div>
+      <input type="hidden" id="exp-txn-id">
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn bp" onclick="saveExpLink()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('exp-link-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BULK LINK MODAL -->
+<div class="modal-ov" id="bulk-link-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="mh">
+      <span><i class="ti ti-select"></i> Олноор холбох</span>
+      <button class="btn bg bxs" onclick="closeModal('bulk-link-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div id="bulk-info" style="font-size:13px;color:var(--tx2);margin-bottom:10px"></div>
+      <div id="bulk-exp-fields" style="display:none">
+        <div class="fl" style="margin-bottom:10px">
+          <label style="font-weight:600">Зардлын төрөл <span style="color:var(--re)">*</span></label>
+          <select id="bulk-exp-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Сонгох —</option>
+          </select>
+        </div>
+      </div>
+      <div class="fl" style="margin-bottom:10px">
+        <label style="font-weight:600">Мөнгөн гүйлгээний үзүүлэлт <span style="color:var(--re)">*</span></label>
+        <select id="bulk-cf-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="">— Сонгох —</option>
+        </select>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn bp" onclick="saveBulkLink()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('bulk-link-modal')">Цуцлах</button>
       </div>
     </div>
   </div>
@@ -3308,20 +3418,21 @@ window.renderTransactions=()=>{
     <td style="font-size:12px">${t.description}</td>
     <td style="color:var(--gr);font-weight:500">${t.income?fmt(t.income):''}</td>
     <td style="color:var(--re)">${t.expense?fmt(t.expense):''}</td>
-    <td style="color:var(--gr)">${t.linkedAmount?fmt(t.linkedAmount):'—'}</td>
-    <td style="color:${(t.unlinkedAmount||0)>0?'var(--am)':'var(--tx3)'}">${fmt(t.unlinkedAmount||0)}</td>
-    <td>${stBadge[t.status]||t.status}</td>
+    <td>${getClassBadge(t)}</td>
         <td style="white-space:nowrap">
-      ${t.income > 0 && t.status !== 'linked' && t.status !== 'partial' ?
-        `<button class="btn bs bxs" onclick="openLinkModal('${t.id}')" title="Авлагад холбох" style="font-size:11px"><i class="ti ti-link"></i>Холбох</button>` : ''}
-      ${t.status === 'linked' || t.status === 'partial' ?
-        `<button class="btn bs bxs" onclick="openLinkModal('${t.id}')" title="Холболт засах" style="font-size:11px"><i class="ti ti-link"></i>Засах</button>
-         <button class="btn bxs" style="background:var(--am);color:#fff;border:none;font-size:11px" onclick="unlinkBankTxn('${t.id}')" title="Холболт салгах"><i class="ti ti-unlink"></i>Салгах</button>` : ''}
-      <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Гүйлгээ засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
+      ${(() => {
+        const cs = getTxnLinkStatus(t);
+        const isInc = (t.income||0) > 0;
+        if(cs === 'classified') {
+          return `<button class="btn bg bxs" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" style="font-size:11px"><i class="ti ti-edit"></i>Засах</button>
+                  <button class="btn bd2 bxs" onclick="removeClassification('${t.id}')" style="font-size:11px"><i class="ti ti-unlink"></i>Устгах</button>`;
+        }
+        return `<button class="btn bs bxs" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" style="font-size:11px"><i class="ti ti-link"></i>Холбох</button>`;
+      })()}
+      <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
       ${t.status !== 'linked' && t.status !== 'partial' ?
         `<button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>` : ''}
-    </td>
-    <td style="min-width:170px;padding:4px 6px">
+    </td>    <td style="min-width:170px;padding:4px 6px">
       <div style="display:flex;flex-direction:column;gap:3px">
         ${getClassBadge(t)}
         ${(t.expense||0)>0 ? `<select onchange="saveTxnCategory('${t.id}','expense',this.value)"
@@ -6473,6 +6584,290 @@ function getClassBadge(t) {
   return '<span class="ba bre">Холбоогүй</span>';
 }
 
+
+// ─── ОРЛОГО ХОЛБОХ ───────────────────────────────────────────────────────────
+window.openIncLinkModal = (txnId) => {
+  const txn = bankTxns.find(t => t.id === txnId);
+  if(!txn) return;
+  document.getElementById('inc-txn-id').value = txnId;
+  // Мэдээлэл
+  const acc = bankAccounts.find(a => a.id === txn.accountId) || {};
+  document.getElementById('inc-txn-info').innerHTML = `
+    <div style="font-weight:600">${acc.bankName||'—'} — ${acc.accountNumber||'—'}</div>
+    <div style="color:var(--tx2);margin-top:2px">${txn.description||'—'}</div>
+    <div style="display:flex;gap:16px;margin-top:4px">
+      <span>Огноо: <b>${txn.date}</b></span>
+      <span>Орлого: <b style="color:var(--gr)">${fmt(txn.income||0)}</b></span>
+    </div>`;
+  // CF dropdown
+  const cfSel = document.getElementById('inc-cf-cat');
+  cfSel.innerHTML = '<option value="">— Сонгох —</option>' +
+    CASHFLOW_INCOME_CATS.map(c => `<option value="${c}" ${txn.cashFlowCategory===c?'selected':''}>${c}</option>`).join('');
+  // Харилцагч dropdown
+  const custSel = document.getElementById('inc-link-cust');
+  custSel.innerHTML = '<option value="">— Сонгох —</option>' +
+    customers.map(c => `<option value="${c.id}" ${txn.linkedCustomerId===c.id?'selected':''}>${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');
+  // Өмнө холбосон харилцагч байвал авлага ачаалах
+  const recvList = document.getElementById('inc-recv-list');
+  recvList.style.display = 'none';
+  if(txn.linkedCustomerId) { custSel.value = txn.linkedCustomerId; loadIncReceivables(); }
+  openModal('inc-link-modal');
+};
+
+window.loadIncReceivables = () => {
+  const custId = document.getElementById('inc-link-cust').value;
+  const txnId  = document.getElementById('inc-txn-id').value;
+  const txn    = bankTxns.find(t => t.id === txnId) || {};
+  const recvList = document.getElementById('inc-recv-list');
+  // Авлага ачаалах
+  const cfSel = document.getElementById('inc-cf-cat');
+  if(custId && !cfSel.value) cfSel.value = 'Бараа борлуулсан, үйлчилгээ үзүүлсний орлого';
+  if(!custId) { recvList.style.display = 'none'; return; }
+  recvList.style.display = 'block';
+  const maxAlloc = txn.income || 0;
+  const custSales = sales.filter(s =>
+    s.customerId === custId && s.recv > 0 &&
+    s.status !== 'deleted' && s.status !== 'void' && s.status !== 'cancelled'
+  ).sort((a,b) => a.date.localeCompare(b.date));
+  const tbody = document.getElementById('inc-recv-tbody');
+  tbody.innerHTML = custSales.length ? custSales.map(s => `<tr>
+    <td><input type="checkbox" class="inc-chk" data-id="${s.id}" onchange="calcIncAlloc()"></td>
+    <td style="font-size:11px">${s.date}</td>
+    <td><a onclick="openInvoice('${s.id}')" style="cursor:pointer;color:var(--pu)">${s.docNumber||'—'}</a></td>
+    <td style="text-align:right">${fmt(s.total)}</td>
+    <td style="text-align:right;color:var(--am)">${fmt(s.recv)}</td>
+    <td><input type="number" class="inc-amt" data-id="${s.id}" min="0" max="${s.recv}"
+      style="width:90px;font-size:12px;padding:3px 6px;border:1px solid var(--bd);border-radius:3px"
+      placeholder="0" disabled oninput="calcIncAlloc()"></td>
+  </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--tx3);padding:8px">Авлага байхгүй</td></tr>';
+  // Checkbox сонгоход amt enable хийх
+  tbody.querySelectorAll('.inc-chk').forEach(chk => {
+    chk.onchange = () => {
+      const amt = tbody.querySelector(`.inc-amt[data-id="${chk.dataset.id}"]`);
+      if(amt) { amt.disabled = !chk.checked; if(chk.checked) amt.select(); }
+      calcIncAlloc();
+    };
+  });
+};
+
+window.calcIncAlloc = () => {
+  const txnId = document.getElementById('inc-txn-id').value;
+  const txn   = bankTxns.find(t => t.id === txnId) || {};
+  const maxAlloc = txn.income || 0;
+  let total = 0;
+  document.querySelectorAll('.inc-amt').forEach(inp => { total += parseFloat(inp.value||0); });
+  const sumEl = document.getElementById('inc-alloc-summary');
+  if(sumEl) sumEl.innerHTML = `Нийт орлого: <b style="color:var(--gr)">${fmt(maxAlloc)}</b> &nbsp; Хуваарилсан: <b style="color:${total>maxAlloc?'var(--re)':'var(--pu)'}">${fmt(total)}</b> &nbsp; Үлдэгдэл: <b>${fmt(maxAlloc-total)}</b>`;
+};
+
+window.autoFIFOInc = () => {
+  const txnId = document.getElementById('inc-txn-id').value;
+  const txn   = bankTxns.find(t => t.id === txnId) || {};
+  let rem = txn.income || 0;
+  document.querySelectorAll('.inc-chk').forEach(chk => {
+    const saleId = chk.dataset.id;
+    const sale   = sales.find(s => s.id === saleId);
+    const amtInp = document.querySelector(`.inc-amt[data-id="${saleId}"]`);
+    if(!sale || !amtInp || rem <= 0) { chk.checked=false; if(amtInp) {amtInp.disabled=true;amtInp.value='';} return; }
+    const alloc = Math.min(sale.recv, rem);
+    chk.checked = true; amtInp.disabled = false; amtInp.value = alloc;
+    rem -= alloc;
+  });
+  calcIncAlloc();
+};
+
+window.saveIncLink = async () => {
+  const txnId = document.getElementById('inc-txn-id').value; if(!txnId) return;
+  const txn   = bankTxns.find(t => t.id === txnId);
+  const cfCat = document.getElementById('inc-cf-cat').value;
+  if(!cfCat) { alert('Мөнгөн гүйлгээний үзүүлэлтийг сонгоно уу.'); return; }
+  const custId = document.getElementById('inc-link-cust').value;
+  // Авлага хуваарилалт
+  const allocs = [];
+  document.querySelectorAll('.inc-chk:checked').forEach(chk => {
+    const saleId = chk.dataset.id;
+    const amt = parseFloat(document.querySelector(`.inc-amt[data-id="${saleId}"]`)?.value || 0);
+    if(amt > 0) allocs.push({ saleId, allocatedAmount: amt });
+  });
+  const totalAlloc = allocs.reduce((a,x)=>a+x.allocatedAmount, 0);
+  if(totalAlloc > (txn?.income||0) + 0.01) { alert('Хуваарилсан дүн банкны орлогоос их байна.'); return; }
+  try {
+    const batch = writeBatch(db);
+    // 1. cashFlowCategory хадгалах
+    batch.update(doc(db,'bankTxns',txnId), {
+      cashFlowCategory: cfCat,
+      classifiedAt: serverTimestamp(), classifiedBy: currentUser.email
+    });
+    // 2. Авлага хуваарилалт
+    if(allocs.length > 0 && custId) {
+      // Давхар payment шалгах
+      const existPmSnap = await getDocs(query(collection(db,'payments'), where('bankTransactionId','==',txnId)));
+      const isUpdate = !existPmSnap.empty;
+      const pmRef = isUpdate ? doc(db,'payments',existPmSnap.docs[0].id) : doc(collection(db,'payments'));
+      const cust = customers.find(c=>c.id===custId)||{};
+      const pmData = {
+        customerId: custId, customerName: cust.name||'', customerCode: cust.customerCode||'',
+        bankTransactionId: txnId, paymentDate: txn.date, amount: totalAlloc,
+        allocations: allocs, cashFlowCategory: cfCat,
+        paymentType: 'transfer', source: 'bank_import',
+        status: 'active', isCancelled: false,
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      };
+      if(!isUpdate) { pmData.createdAt = serverTimestamp(); pmData.createdBy = currentUser.email; }
+      isUpdate ? batch.update(pmRef, pmData) : batch.set(pmRef, pmData);
+      // Sale-уудын paid/recv шинэчлэх
+      for(const al of allocs) {
+        const sale = sales.find(s=>s.id===al.saleId); if(!sale) continue;
+        const newPaid = sale.paid + al.allocatedAmount;
+        const newRecv = Math.max(0, sale.total - newPaid);
+        batch.update(doc(db,'sales',al.saleId), {
+          paid: newPaid, recv: newRecv,
+          status: newRecv===0?'paid':newPaid>0?'partial':'unpaid'
+        });
+      }
+      // bankTxn linked status
+      const newLinked = (txn.linkedAmount||0) + totalAlloc;
+      batch.update(doc(db,'bankTxns',txnId), {
+        linkedAmount: newLinked,
+        unlinkedAmount: Math.max(0,(txn.income||0)-newLinked),
+        linkStatus: newLinked>=(txn.income||0)?'linked':'partial',
+        linkedCustomerId: custId,
+        cashFlowCategory: cfCat, classifiedAt: serverTimestamp(), classifiedBy: currentUser.email
+      });
+    }
+    await batch.commit();
+    // Audit log
+    await addDoc(collection(db,'auditLogs'),{
+      action:'income_classified', bankTransactionId:txnId, cashFlowCategory:cfCat,
+      allocations:allocs, userId:currentUser.email, timestamp:serverTimestamp()
+    });
+    closeModal('inc-link-modal');
+    alert('✅ Орлого амжилттай холбогдлоо!');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+// ─── ЗАРЛАГА ХОЛБОХ ──────────────────────────────────────────────────────────
+window.openExpLinkModal = (txnId) => {
+  const txn = bankTxns.find(t => t.id === txnId); if(!txn) return;
+  document.getElementById('exp-txn-id').value = txnId;
+  const acc = bankAccounts.find(a=>a.id===txn.accountId)||{};
+  document.getElementById('exp-txn-info').innerHTML = `
+    <div style="font-weight:600">${acc.bankName||'—'} — ${acc.accountNumber||'—'}</div>
+    <div style="color:var(--tx2);margin-top:2px">${txn.description||'—'}</div>
+    <div style="display:flex;gap:16px;margin-top:4px">
+      <span>Огноо: <b>${txn.date}</b></span>
+      <span>Зарлага: <b style="color:var(--re)">${fmt(txn.expense||0)}</b></span>
+    </div>`;
+  const expSel = document.getElementById('exp-cat');
+  expSel.innerHTML = '<option value="">— Сонгох —</option>' +
+    EXPENSE_CATEGORIES.map(c=>`<option value="${c}" ${txn.expenseCategory===c?'selected':''}>${c}</option>`).join('');
+  const cfSel = document.getElementById('exp-cf-cat');
+  cfSel.innerHTML = '<option value="">— Сонгох —</option>' +
+    CASHFLOW_EXPENSE_CATS.map(c=>`<option value="${c}" ${txn.cashFlowCategory===c?'selected':''}>${c}</option>`).join('');
+  openModal('exp-link-modal');
+};
+
+window.saveExpLink = async () => {
+  const txnId = document.getElementById('exp-txn-id').value; if(!txnId) return;
+  const expCat = document.getElementById('exp-cat').value;
+  const cfCat  = document.getElementById('exp-cf-cat').value;
+  if(!expCat || !cfCat) { alert('Зардлын төрөл болон Мөнгөн гүйлгээний үзүүлэлтийг хоёуланг нь сонгоно уу.'); return; }
+  try {
+    await updateDoc(doc(db,'bankTxns',txnId), {
+      expenseCategory: expCat, cashFlowCategory: cfCat,
+      classifiedAt: serverTimestamp(), classifiedBy: currentUser.email
+    });
+    await addDoc(collection(db,'auditLogs'),{
+      action:'expense_classified', bankTransactionId:txnId,
+      expenseCategory:expCat, cashFlowCategory:cfCat,
+      userId:currentUser.email, timestamp:serverTimestamp()
+    });
+    closeModal('exp-link-modal');
+    alert('✅ Зарлага амжилттай холбогдлоо!');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+// ─── АНГИЛАЛ УСТГАХ ──────────────────────────────────────────────────────────
+window.removeClassification = async (txnId) => {
+  const txn = bankTxns.find(t=>t.id===txnId); if(!txn) return;
+  if(!confirm('Ангиллыг арилгах уу? Банкны гүйлгээ хэвээр үлдэнэ.')) return;
+  try {
+    const updateData = {
+      expenseCategory: '', cashFlowCategory: '',
+      classifiedAt: null, updatedAt: serverTimestamp(), updatedBy: currentUser.email
+    };
+    // Хэрэв авлагатай холбогдсон бол салгах
+    if(txn.linkedCustomerId || txn.linkedAmount > 0) {
+      const pmSnap = await getDocs(query(collection(db,'payments'),where('bankTransactionId','==',txnId)));
+      if(!pmSnap.empty) {
+        const batch = writeBatch(db);
+        const pm = pmSnap.docs[0].data();
+        // Sale-уудын авлагыг буцаах
+        for(const al of (pm.allocations||[])) {
+          const sale = sales.find(s=>s.id===al.saleId); if(!sale) continue;
+          const rPaid = Math.max(0,(sale.paid||0)-(al.allocatedAmount||0));
+          const rRecv = (sale.total||0)-rPaid;
+          batch.update(doc(db,'sales',al.saleId),{paid:rPaid,recv:rRecv,status:rRecv===0?'paid':rPaid>0?'partial':'unpaid'});
+        }
+        batch.update(doc(db,'payments',pmSnap.docs[0].id),{status:'cancelled',isCancelled:true,cancelledAt:serverTimestamp()});
+        Object.assign(updateData,{linkedAmount:0,unlinkedAmount:txn.income||0,linkStatus:'unlinked',linkedCustomerId:null,paymentId:null});
+        batch.update(doc(db,'bankTxns',txnId),updateData);
+        await batch.commit();
+      } else { await updateDoc(doc(db,'bankTxns',txnId),updateData); }
+    } else { await updateDoc(doc(db,'bankTxns',txnId),updateData); }
+    await addDoc(collection(db,'auditLogs'),{action:'classification_removed',bankTransactionId:txnId,userId:currentUser.email,timestamp:serverTimestamp()});
+    alert('✅ Ангилал арилгагдлаа.');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+// ─── BULK ХОЛБОХ ─────────────────────────────────────────────────────────────
+let bulkSelectedIds = [], bulkType = '';
+
+window.openBulkLinkModal = () => {
+  const checked = document.querySelectorAll('.txn-bulk-chk:checked');
+  if(checked.length === 0) { alert('Мөр сонгоно уу.'); return; }
+  bulkSelectedIds = Array.from(checked).map(c => c.dataset.id);
+  const txns = bulkSelectedIds.map(id=>bankTxns.find(t=>t.id===id)).filter(Boolean);
+  // Орлого/Зарлага хольж болохгүй
+  const incCount = txns.filter(t=>(t.income||0)>0).length;
+  const expCount = txns.filter(t=>(t.expense||0)>0).length;
+  if(incCount>0 && expCount>0){alert('Орлого болон зарлагыг хольж сонгож болохгүй.');return;}
+  bulkType = incCount>0?'income':'expense';
+  document.getElementById('bulk-info').innerHTML=`<b>${bulkSelectedIds.length}</b> ${bulkType==='income'?'орлогын':'зарлагын'} гүйлгээ сонгогдлоо.`;
+  const expFields=document.getElementById('bulk-exp-fields');
+  if(expFields) expFields.style.display=bulkType==='expense'?'block':'none';
+  const cfSel=document.getElementById('bulk-cf-cat');
+  const cats = bulkType==='income'?CASHFLOW_INCOME_CATS:CASHFLOW_EXPENSE_CATS;
+  cfSel.innerHTML='<option value="">— Сонгох —</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const expSel=document.getElementById('bulk-exp-cat');
+  if(expSel) expSel.innerHTML='<option value="">— Сонгох —</option>'+EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('');
+  openModal('bulk-link-modal');
+};
+
+window.saveBulkLink = async () => {
+  const cfCat = document.getElementById('bulk-cf-cat').value;
+  const expCat= bulkType==='expense'?document.getElementById('bulk-exp-cat').value:'';
+  if(!cfCat||(bulkType==='expense'&&!expCat)){alert('Шаардлагатай талбаруудыг бүгдийг бөглөнө үү.');return;}
+  try {
+    const batch = writeBatch(db);
+    bulkSelectedIds.forEach(txnId => {
+      const d = { cashFlowCategory:cfCat, classifiedAt:serverTimestamp(), classifiedBy:currentUser.email };
+      if(bulkType==='expense') d.expenseCategory = expCat;
+      batch.update(doc(db,'bankTxns',txnId), d);
+    });
+    await batch.commit();
+    // Checkbox цэвэрлэх
+    document.querySelectorAll('.txn-bulk-chk').forEach(c=>{c.checked=false;});
+    closeModal('bulk-link-modal');
+    alert(`✅ ${bulkSelectedIds.length} гүйлгээ амжилттай холбогдлоо!`);
+    bulkSelectedIds=[]; bulkType='';
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+
+window.toggleAllTxnChk = (masterChk) => {
+  document.querySelectorAll('.txn-bulk-chk').forEach(c => { c.checked = masterChk.checked; });
+};
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 // Бүх number input дарахад автоматаар бүгдийг сонгох
