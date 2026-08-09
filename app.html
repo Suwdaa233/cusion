@@ -782,13 +782,19 @@ tbody tr:hover td{background:var(--sur2)}
           <span style="font-size:12px;color:var(--tx3)">—</span>
           <input type="date" id="txn-to" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
           <select id="txn-type-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүгд</option><option value="income">Орлого</option><option value="expense">Зарлага</option></select>
-          <select id="txn-status-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх статус</option><option value="unlinked">Холбоогүй</option><option value="partial">Хэсэгчлэн</option><option value="linked">Бүрэн холбосон</option><option value="other">Бусад орлого</option></select>
+          <select id="txn-status-filter" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="">Бүх статус</option>
+          <option value="classified">Холбогдсон</option>
+          <option value="unclassified">Холбоогүй</option>
+          <option value="partial">Дутуу холболт</option>
+        </select>
           <input type="text" id="txn-search" placeholder="Утгаар хайх..." style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);width:140px">
           <button class="btn bp bxs" onclick="renderTransactions()"><i class="ti ti-filter"></i>Шүүх</button>
           <button class="btn bg bxs" onclick="clearTxnFilter()">Цэвэрлэх</button>
         </div>
       </div>
-      <div class="cb np"><div class="mg" id="txn-summary" style="margin:0 0 10px"></div><div class="tw"><table>
+      <div class="cb np"><div id="txn-uncl-summary" style="padding:6px 12px;background:var(--sur2);border-radius:var(--r);margin-bottom:8px"></div>
+        <div class="mg" id="txn-summary" style="margin:0 0 10px"></div><div class="tw"><table>
         <thead><tr><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Орлого</th><th>Зарлага</th><th>Холбосон</th><th>Холбоогүй</th><th>Статус</th><th>Үйлдэл</th><th>Ангилал</th></tr></thead>
         <tbody id="txn-tbody"></tbody>
       </table></div></div>
@@ -3266,6 +3272,23 @@ window.renderTransactions=()=>{
   const totalExp  = list.reduce((a,t)=>a+(t.expense||0), 0);
   const totalLink = list.reduce((a,t)=>a+(t.linkedAmount||0), 0);
   const totalUnlnk= list.reduce((a,t)=>a+(t.unlinkedAmount||0), 0);
+  // Ангилаагүй гүйлгээний хяналт
+  const allTxns = bankTxns.filter(t => !t.isDeleted && t.status !== 'deleted');
+  const unclInc  = allTxns.filter(t => (t.income||0)>0  && getTxnLinkStatus(t)==='unclassified');
+  const unclExp  = allTxns.filter(t => (t.expense||0)>0 && getTxnLinkStatus(t)==='unclassified');
+  const partExp  = allTxns.filter(t => (t.expense||0)>0 && getTxnLinkStatus(t)==='partial');
+  const unclSumEl = document.getElementById('txn-uncl-summary');
+  if(unclSumEl) {
+    const total = unclInc.length + unclExp.length + partExp.length;
+    unclSumEl.innerHTML = total === 0
+      ? '<span style="color:var(--gr);font-size:12px"><i class="ti ti-circle-check"></i> Бүх гүйлгээ ангилагдсан</span>'
+      : `<span style="font-size:12px;color:var(--tx2)">
+          Ангилаагүй орлого: <b style="color:var(--am)">${unclInc.length}ш (${fmt(unclInc.reduce((a,t)=>a+t.income,0))})</b> &nbsp;
+          Ангилаагүй зарлага: <b style="color:var(--re)">${unclExp.length}ш (${fmt(unclExp.reduce((a,t)=>a+t.expense,0))})</b> &nbsp;
+          Дутуу: <b style="color:var(--am)">${partExp.length}ш</b>
+         </span>`;
+  }
+
   const sumEl = document.getElementById('txn-summary');
   if(sumEl) {
     if(list.length === 0) {
@@ -3298,18 +3321,19 @@ window.renderTransactions=()=>{
       ${t.status !== 'linked' && t.status !== 'partial' ?
         `<button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>` : ''}
     </td>
-    <td style="min-width:160px;padding:4px 6px">
+    <td style="min-width:170px;padding:4px 6px">
       <div style="display:flex;flex-direction:column;gap:3px">
-        <select onchange="saveTxnCategory('${t.id}','expense',this.value)"
+        ${getClassBadge(t)}
+        ${(t.expense||0)>0 ? `<select onchange="saveTxnCategory('${t.id}','expense',this.value)"
           title="Зардлын төрөл — Орлогын тайланд"
           style="font-size:10px;padding:2px 4px;border:1px solid var(--bd);border-radius:3px;width:100%;background:var(--sur);color:var(--tx)">
-          <option value="">📊 Зардлын төрөл...</option>
+          <option value="">— Зардлын төрөл —</option>
           ${EXPENSE_CATEGORIES.map(c=>'<option value="'+c+'" '+(t.expenseCategory===c?'selected':'')+'>'+c+'</option>').join('')}
-        </select>
+        </select>` : ''}
         <select onchange="saveTxnCategory('${t.id}','cashflow',this.value)"
           title="Мөнгөн гүйлгээний үзүүлэлт — CF тайланд"
           style="font-size:10px;padding:2px 4px;border:1px solid var(--bd);border-radius:3px;width:100%;background:var(--sur);color:var(--tx)">
-          <option value="">💰 Мөнгөн гүйлгээ...</option>
+          <option value="">— Мөнгөн гүйлгээ —</option>
           ${((t.income||0)>0?CASHFLOW_INCOME_CATS:CASHFLOW_EXPENSE_CATS).map(c=>'<option value="'+c+'" '+(t.cashFlowCategory===c?'selected':'')+'>'+c+'</option>').join('')}
         </select>
       </div>
@@ -6128,86 +6152,16 @@ window.showReport = (type) => {
 window.renderPLReport = () => {
   const from = document.getElementById('rp-from')?.value || '';
   const to   = document.getElementById('rp-to')?.value   || '';
-  const txns = bankTxns.filter(t =>
-    (!from || t.date >= from) && (!to || t.date <= to) &&
-    !t.isDeleted && t.status !== 'deleted'
-  );
-  // Зардлын ангиллаар нэгтгэх (expenseCategory)
-  const byExp = {};
-  txns.forEach(t => {
-    const cat = t.expenseCategory;
-    if(!cat) return;
-    const amt = (t.expense||0) > 0 ? (t.expense||0) : -(t.income||0);
-    if(amt === 0) return;
-    byExp[cat] = (byExp[cat]||0) + amt;
-  });
-  // Борлуулалтын орлого
-  const salesList = sales.filter(s => (!from||s.date>=from) && (!to||s.date<=to));
-  const totalRev  = salesList.reduce((a,s) => a+(s.total||0), 0);
-  const totalCost = salesList.reduce((a,s) => a+(s.totalCost||0), 0);
-  const grossProfit = totalRev - totalCost;
-  const totalExp  = EXPENSE_CATEGORIES.reduce((a,c) => a+(byExp[c]||0), 0);
-  const netProfit = grossProfit - totalExp;
-  function row(lbl, val, color, bold, indent) {
-    const s = bold ? 'font-weight:700;' : '';
-    const pad = indent ? 'padding-left:24px;' : '';
-    const c = val !== 0 ? 'color:var(--'+(color||'tx')+');' : 'color:var(--tx3);';
-    return '<tr><td style="padding:5px 12px;'+s+pad+'">'+lbl+'</td><td style="padding:5px 12px;text-align:right;'+s+c+'">'+(val?fmt(val):'—')+'</td></tr>';
-  }
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html += '<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right">Дүн (₮)</th></tr></thead><tbody>';
-  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. БОРЛУУЛАЛТЫН ОРЛОГО</td></tr>';
-  html += row('Борлуулалтын нийт орлого', totalRev, 'pu', true);
-  html += row('Борлуулалтын өртөг', totalCost, 're', false, true);
-  html += row('Нийт ашиг (Gross Profit)', grossProfit, grossProfit>=0?'gr':'re', true);
-  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">II. ҮЙЛЛ АЖИЛЛАГААНЫ ЗАРДАЛ</td></tr>';
-  EXPENSE_CATEGORIES.forEach(cat => {
-    html += row(cat, byExp[cat]||0, 're', false, true);
-  });
-  html += row('Нийт зардал', totalExp, 're', true);
-  html += '<tr style="background:var(--pul);border-top:2px solid var(--bd)"><td style="padding:10px 12px;font-weight:800;font-size:14px">Цэвэр ашиг / алдагдал (Net Profit)</td><td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px;color:'+(netProfit>=0?'var(--gr)':'var(--re)')+'">'+fmt(netProfit)+'</td></tr>';
-  html += '</tbody></table>';
-  const el = document.getElementById('rp-pl-body');
-  if(el) el.innerHTML = html;
+  const body = document.getElementById('rp-pl-body');
+  if(body) renderIRPLReport(from, to, body);
 };
 
 // Cash Flow Report
 window.renderCFReport = () => {
   const from = document.getElementById('rp-from')?.value || '';
   const to   = document.getElementById('rp-to')?.value   || '';
-  const txns = bankTxns.filter(t =>
-    (!from || t.date >= from) && (!to || t.date <= to) &&
-    !t.isDeleted && t.status !== 'deleted'
-  );
-  // cashFlowCategory-аар нэгтгэх
-  const byCF = {};
-  txns.forEach(t => {
-    const cat = t.cashFlowCategory;
-    if(!cat) return;
-    const amt = (t.income||0) > 0 ? (t.income||0) : -(t.expense||0);
-    byCF[cat] = (byCF[cat]||0) + amt;
-  });
-  const totalInc = txns.reduce((a,t) => a+(t.income||0), 0);
-  const totalExp = txns.reduce((a,t) => a+(t.expense||0), 0);
-  const netCF    = totalInc - totalExp;
-  function cfrow(lbl, val, color, bold, indent) {
-    const s = bold ? 'font-weight:700;' : '';
-    const pad = indent ? 'padding-left:24px;' : '';
-    const c = val !== 0 ? 'color:var(--'+(color||'tx')+');' : 'color:var(--tx3);';
-    return '<tr><td style="padding:5px 12px;'+s+pad+'">'+lbl+'</td><td style="padding:5px 12px;text-align:right;'+s+c+'">'+(val?fmt(val):'—')+'</td></tr>';
-  }
-  let html = '<table style="width:100%;border-collapse:collapse;font-size:13px">';
-  html += '<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right">Дүн (₮)</th></tr></thead><tbody>';
-  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. МӨНГӨН ОРЛОГО</td></tr>';
-  CASHFLOW_INCOME_CATS.forEach(cat => { html += cfrow(cat, byCF[cat]||0, 'gr', false, true); });
-  html += cfrow('Нийт мөнгөн орлого', totalInc, 'gr', true);
-  html += '<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">II. МӨНГӨН ЗАРЛАГА</td></tr>';
-  CASHFLOW_EXPENSE_CATS.forEach(cat => { html += cfrow(cat, byCF[cat]||0, 're', false, true); });
-  html += cfrow('Нийт мөнгөн зарлага', totalExp, 're', true);
-  html += '<tr style="background:var(--pul);border-top:2px solid var(--bd)"><td style="padding:10px 12px;font-weight:800;font-size:14px">Цэвэр мөнгөн гүйлгээ</td><td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px;color:'+(netCF>=0?'var(--gr)':'var(--re)')+'">'+fmt(netCF)+'</td></tr>';
-  html += '</tbody></table>';
-  const el = document.getElementById('rp-cf-body');
-  if(el) el.innerHTML = html;
+  const body = document.getElementById('rp-cf-body');
+  if(body) renderIRCFReport(from, to, body);
 };
 
 
@@ -6364,68 +6318,100 @@ window.closeIRReport = () => {
 };
 
 function renderIRPLReport(from, to, body) {
+  // Зөвхөн бүрэн ангилсан (classified) зарлагын гүйлгээ авна
   const txns = bankTxns.filter(t =>
-    (!from||t.date>=from) && (!to||t.date<=to) && !t.isDeleted && t.status!=='deleted'
+    (!from||t.date>=from) && (!to||t.date<=to) &&
+    !t.isDeleted && t.status!=='deleted' &&
+    (t.expense||0) > 0 &&
+    getTxnLinkStatus(t) === 'classified'  // expenseCategory+cashFlowCategory хоёулаа байна
   );
   const byExp = {};
   txns.forEach(t => {
-    if(!t.expenseCategory) return;
     byExp[t.expenseCategory] = (byExp[t.expenseCategory]||0) + (t.expense||0);
   });
-  const salesList = sales.filter(s => (!from||s.date>=from) && (!to||s.date<=to) && s.status!=='deleted');
-  const totalRev  = salesList.reduce((a,s)=>a+(s.total||0),0);
-  const totalCost = salesList.reduce((a,s)=>a+(s.totalCost||s.items?.reduce((b,it)=>b+(it.costAmount||0),0)||0),0);
+  // Борлуулалтын орлого — sales-аас (банкны credit биш)
+  const salesList = sales.filter(s =>
+    (!from||s.date>=from) && (!to||s.date<=to) && s.status!=='deleted'
+  );
+  const totalRev   = salesList.reduce((a,s)=>a+(s.total||0), 0);
+  // Борлуулсан барааны өртөг — борлуулалтын snapshot-оос
+  const totalCost  = salesList.reduce((a,s)=>a+
+    (s.totalCost || (s.items||[]).reduce((b,it)=>b+(it.costAmount||((it.unitCost||0)*(it.qty||1))),0)),
+  0);
   const grossProfit = totalRev - totalCost;
-  const totalExp  = EXPENSE_CATEGORIES.reduce((a,c)=>a+(byExp[c]||0),0);
-  const netProfit = grossProfit - totalExp;
+  const totalExp   = EXPENSE_CATEGORIES.reduce((a,c)=>a+(byExp[c]||0), 0);
+  const ebitda     = grossProfit - totalExp;
+  const netProfit  = ebitda; // Элэгдэл, татвар тусад нь тооцохгүй (өгөгдөл байхгүй)
+
   function row(lbl,val,color,bold,indent){
     const s=bold?'font-weight:700;':'', p=indent?'padding-left:24px;':'';
     const c=val?`color:var(--${color||'tx'});`:'color:var(--tx3);';
-    return `<tr><td style="padding:6px 12px;${s}${p}">${lbl}</td><td style="padding:6px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
+    return `<tr><td style="padding:5px 12px;${s}${p}">${lbl}</td><td style="padding:5px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
   }
   let html=`<div style="font-size:11px;color:var(--tx3);margin-bottom:8px">${from} — ${to}</div>`;
   html+=`<table style="width:100%;border-collapse:collapse;font-size:13px">`;
   html+=`<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right;width:180px">Дүн (₮)</th></tr></thead><tbody>`;
-  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">I. БОРЛУУЛАЛТЫН ОРЛОГО</td></tr>`;
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. БОРЛУУЛАЛТЫН ОРЛОГО</td></tr>`;
   html+=row('Борлуулалтын нийт орлого',totalRev,'pu',true);
-  html+=row('Борлуулалтын өртөг',totalCost,'re',false,true);
+  html+=row('Борлуулсан барааны өртөг',totalCost,'re',false,true);
   html+=row('НИЙТ АШИГ (GROSS PROFIT)',grossProfit,grossProfit>=0?'gr':'re',true);
-  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">II. ҮЙЛЛ АЖИЛЛАГААНЫ ЗАРДАЛ</td></tr>`;
-  EXPENSE_CATEGORIES.forEach(cat=>{html+=row(cat,byExp[cat]||0,'re',false,true);});
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">II. ҮЙЛЛ АЖИЛЛАГААНЫ ЗАРДАЛ</td></tr>`;
+  EXPENSE_CATEGORIES.forEach(cat => { html+=row(cat,byExp[cat]||0,'re',false,true); });
   html+=row('НИЙТ ЗАРДАЛ',totalExp,'re',true);
-  html+=`<tr style="background:var(--pul);border-top:2px solid var(--pu)"><td style="padding:12px 14px;font-weight:800;font-size:15px">ЦЭВЭР АШИГ / АЛДАГДАЛ (NET PROFIT)</td><td style="padding:12px 14px;text-align:right;font-weight:800;font-size:15px;color:${netProfit>=0?'var(--gr)':'var(--re)'}">${fmt(netProfit)}</td></tr>`;
+  html+=`<tr style="background:var(--pul);border-top:2px solid var(--pu)">
+    <td style="padding:10px 12px;font-weight:800;font-size:14px">EBITDA (Үйл ажиллагааны цэвэр ашиг)</td>
+    <td style="padding:10px 12px;text-align:right;font-weight:800;font-size:14px;color:${ebitda>=0?'var(--gr)':'var(--re)'}">${fmt(ebitda)}</td></tr>`;
+  html+=`<tr><td style="padding:5px 12px;color:var(--tx3)" colspan="2"><i>* Элэгдэл, санхүүжилт, татвар тус бүр тооцохгүй (өгөгдөл шаардлагатай)</i></td></tr>`;
+  html+=`<tr style="background:var(--pul);border-top:2px solid var(--pu)">
+    <td style="padding:12px 14px;font-weight:800;font-size:15px">ЦЭВЭР АШИГ / АЛДАГДАЛ</td>
+    <td style="padding:12px 14px;text-align:right;font-weight:800;font-size:15px;color:${netProfit>=0?'var(--gr)':'var(--re)'}">${fmt(netProfit)}</td></tr>`;
   html+=`</tbody></table>`;
   body.innerHTML = html;
 }
 
 function renderIRCFReport(from, to, body) {
-  const txns = bankTxns.filter(t =>
-    (!from||t.date>=from) && (!to||t.date<=to) && !t.isDeleted && t.status!=='deleted'
+  // Бүрэн ангилсан орлого — cashFlowCategory тай credit
+  const incTxns = bankTxns.filter(t =>
+    (!from||t.date>=from) && (!to||t.date<=to) &&
+    !t.isDeleted && t.status!=='deleted' &&
+    (t.income||0) > 0 &&
+    getTxnLinkStatus(t) === 'classified'  // cashFlowCategory байна
   );
-  const byCF = {};
-  txns.forEach(t => {
-    if(!t.cashFlowCategory) return;
-    const amt = (t.income||0)>0 ? (t.income||0) : -(t.expense||0);
-    byCF[t.cashFlowCategory] = (byCF[t.cashFlowCategory]||0) + amt;
+  // Бүрэн ангилсан зарлага — хоёулаа байна
+  const expTxns = bankTxns.filter(t =>
+    (!from||t.date>=from) && (!to||t.date<=to) &&
+    !t.isDeleted && t.status!=='deleted' &&
+    (t.expense||0) > 0 &&
+    getTxnLinkStatus(t) === 'classified'
+  );
+  const byCFInc = {}, byCFExp = {};
+  incTxns.forEach(t => {
+    byCFInc[t.cashFlowCategory] = (byCFInc[t.cashFlowCategory]||0) + (t.income||0);
   });
-  const totalInc = txns.reduce((a,t)=>a+(t.income||0),0);
-  const totalExp = txns.reduce((a,t)=>a+(t.expense||0),0);
+  expTxns.forEach(t => {
+    byCFExp[t.cashFlowCategory] = (byCFExp[t.cashFlowCategory]||0) + (t.expense||0);
+  });
+  const totalInc = incTxns.reduce((a,t)=>a+(t.income||0), 0);
+  const totalExp = expTxns.reduce((a,t)=>a+(t.expense||0), 0);
   const netCF    = totalInc - totalExp;
+
   function row(lbl,val,color,bold,indent){
     const s=bold?'font-weight:700;':'', p=indent?'padding-left:24px;':'';
     const c=val?`color:var(--${color||'tx'});`:'color:var(--tx3);';
-    return `<tr><td style="padding:6px 12px;${s}${p}">${lbl}</td><td style="padding:6px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
+    return `<tr><td style="padding:5px 12px;${s}${p}">${lbl}</td><td style="padding:5px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
   }
   let html=`<div style="font-size:11px;color:var(--tx3);margin-bottom:8px">${from} — ${to}</div>`;
   html+=`<table style="width:100%;border-collapse:collapse;font-size:13px">`;
   html+=`<thead><tr style="background:var(--gr);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right;width:180px">Дүн (₮)</th></tr></thead><tbody>`;
-  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">I. МӨНГӨН ОРЛОГО</td></tr>`;
-  CASHFLOW_INCOME_CATS.forEach(cat=>{html+=row(cat,byCF[cat]||0,'gr',false,true);});
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. МӨНГӨН ОРЛОГО</td></tr>`;
+  CASHFLOW_INCOME_CATS.forEach(cat => { html+=row(cat,byCFInc[cat]||0,'gr',false,true); });
   html+=row('НИЙТ МӨНГӨН ОРЛОГО',totalInc,'gr',true);
-  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px;letter-spacing:.3px">II. МӨНГӨН ЗАРЛАГА</td></tr>`;
-  CASHFLOW_EXPENSE_CATS.forEach(cat=>{html+=row(cat,byCF[cat]||0,'re',false,true);});
+  html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">II. МӨНГӨН ЗАРЛАГА</td></tr>`;
+  CASHFLOW_EXPENSE_CATS.forEach(cat => { html+=row(cat,byCFExp[cat]||0,'re',false,true); });
   html+=row('НИЙТ МӨНГӨН ЗАРЛАГА',totalExp,'re',true);
-  html+=`<tr style="background:var(--grl);border-top:2px solid var(--gr)"><td style="padding:12px 14px;font-weight:800;font-size:15px">ЦЭВЭР МӨНГӨН ГҮЙЛГЭЭ</td><td style="padding:12px 14px;text-align:right;font-weight:800;font-size:15px;color:${netCF>=0?'var(--gr)':'var(--re)'}">${fmt(netCF)}</td></tr>`;
+  html+=`<tr style="background:var(--grl);border-top:2px solid var(--gr)">
+    <td style="padding:12px 14px;font-weight:800;font-size:15px">ЦЭВЭР МӨНГӨН ГҮЙЛГЭЭ</td>
+    <td style="padding:12px 14px;text-align:right;font-weight:800;font-size:15px;color:${netCF>=0?'var(--gr)':'var(--re)'}">${fmt(netCF)}</td></tr>`;
   html+=`</tbody></table>`;
   body.innerHTML = html;
 }
@@ -6458,6 +6444,34 @@ window.exportIRCSV = (type) => {
     downloadCSV(rows,'cf_report.csv');
   }
 };
+
+
+// ─── ГҮЙЛГЭЭНИЙ АНГИЛЛЫН STATUS ТООЦООЛОХ ───────────────────────────────────
+function getTxnLinkStatus(t) {
+  const isIncome  = (t.income||0) > 0;
+  const isExpense = (t.expense||0) > 0;
+  if(isIncome) {
+    // Орлого: cashFlowCategory байгаа эсэх
+    if(t.cashFlowCategory) return 'classified';   // Холбогдсон
+    return 'unclassified';                          // Холбоогүй
+  }
+  if(isExpense) {
+    const hasExp = !!t.expenseCategory;
+    const hasCF  = !!t.cashFlowCategory;
+    if(hasExp && hasCF) return 'classified';        // Холбогдсон
+    if(hasExp || hasCF) return 'partial';           // Дутуу холболт
+    return 'unclassified';                          // Холбоогүй
+  }
+  return 'unclassified';
+}
+
+// Ангиллын статусын badge
+function getClassBadge(t) {
+  const s = getTxnLinkStatus(t);
+  if(s === 'classified') return '<span class="ba bgr">Холбогдсон</span>';
+  if(s === 'partial')    return '<span class="ba bam2">Дутуу</span>';
+  return '<span class="ba bre">Холбоогүй</span>';
+}
 
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
