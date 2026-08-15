@@ -1498,6 +1498,9 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
+// Өнөөдрийн огноог YYYY-MM-DD хэлбэрээр буцаах туслах функц
+function today(){ return new Date().toISOString().slice(0,10); }
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MLABELS={cash:'Бэлнээр',card:'Картаар',transfer:'Дансаар',online:'Онлайн',credit:'Зээлээр',mixed:'Хосолсон'};
 const MBADGE={cash:'bgr2',card:'bbl',transfer:'bpu',online:'bte',credit:'bre',mixed:'bam2'};
