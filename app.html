@@ -784,9 +784,9 @@ tbody tr:hover td{background:var(--sur2)}
           <select id="txn-type-filter" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүгд</option><option value="income">Орлого</option><option value="expense">Зарлага</option></select>
           <select id="txn-status-filter" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
           <option value="">Бүх статус</option>
-          <option value="classified">Холбогдсон</option>
-          <option value="unclassified">Холбоогүй</option>
-          <option value="partial">Дутуу холболт</option>
+          <option value="linked">Бүрэн холбогдсон</option>
+          <option value="unlinked">Холбогдоогүй</option>
+          <option value="partial">Хэсэгчлэн</option>
         </select>
           <input type="text" id="txn-search" placeholder="Утгаар хайх..." style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);width:140px">
           <button class="btn bp bxs" onclick="renderTransactions()"><i class="ti ti-filter"></i>Шүүх</button>
@@ -3011,6 +3011,40 @@ window.clearHistoryFilter = () => {
 
 // ─── STATE (bank & transfer) ──────────────────────────────────────────────────
 let bankAccounts=[],bankTxns=[],bankLinks=[],transfers=[];
+
+// ─── БАНКНЫ ГҮЙЛГЭЭНИЙ АВЛАГА-ХОЛБОЛТЫН СТАТУС ─────────────────────────────
+// Нэг эх сурвалж (single source of truth): 'Банкны гүйлгээ' болон 'Авлага
+// холболт' хоёр дэлгэц ЭНД тооцоологдсон утгыг ашиглана — bankTxns дээрх
+// хадгалагдсан (магадгүй хоцорсон/дутуу) status талбар дээр найдахгүй.
+// Тооцооллын дараалал:
+//   1) 'payments' коллекц дахь ЭНЭ гүйлгээтэй холбоотой, цуцлагдаагүй бичлэгүүд
+//   2) (fallback) 'bankLinks' коллекц дахь идэвхтэй (reversed биш) бичлэгүүд
+//   3) (fallback) bankTxns.linkedAmount талбар — маш хуучин, дээрх аль ч
+//      коллекцид бичлэггүй өгөгдлийн хувьд
+// Ямар ч тохиолдолд Firestore руу бичихгүй — зөвхөн уншиж тооцоолно.
+function computeTxnLinkedAmount(txn) {
+  let amt = payments
+    .filter(p => p.bankTransactionId === txn.id && !p.isCancelled && p.status !== 'cancelled')
+    .reduce((a,p) => a + (p.amount||0), 0);
+  if(amt <= 0) {
+    amt = bankLinks
+      .filter(l => l.txnId === txn.id && !l.reversed)
+      .reduce((a,l) => a + (l.amount||0), 0);
+  }
+  if(amt <= 0 && (txn.linkedAmount||0) > 0) amt = txn.linkedAmount;
+  return amt;
+}
+function computeReceivableLinkStatus(txn) {
+  const income = txn.income || txn.credit || 0;
+  if(income <= 0) {
+    if((txn.expense||0) > 0) return 'expense';
+    return txn.status === 'other' ? 'other' : (txn.status || 'unlinked');
+  }
+  const linked = computeTxnLinkedAmount(txn);
+  if(linked <= 0) return 'unlinked';
+  if(linked < income - 0.01) return 'partial';
+  return 'linked';
+}
 let trCounter={};
 let trIdx=0;
 let importData=[],importMapped=[],pasteData=[],pasteMapped=[];
@@ -3423,16 +3457,16 @@ window.renderTransactions=()=>{
   if(to)list=list.filter(t=>t.date<=to);
   if(type==='income')list=list.filter(t=>t.income>0);
   if(type==='expense')list=list.filter(t=>t.expense>0);
-  if(status)list=list.filter(t=>t.status===status);
+  if(status)list=list.filter(t=>computeReceivableLinkStatus(t)===status);
   if(search)list=list.filter(t=>t.description.toLowerCase().includes(search));
   const tbody=document.getElementById('txn-tbody');if(!tbody)return;
   const accMap={};bankAccounts.forEach(a=>{accMap[a.id]=a.bankName+' '+a.accountNumber;});
   const stBadge={unlinked:'<span class="ba bre">Холбоогүй</span>',partial:'<span class="ba bam2">Хэсэгчлэн</span>',linked:'<span class="ba bgr">Бүрэн холбосон</span>',other:'<span class="ba bgr2">Бусад орлого</span>',expense:'<span class="ba bgr2">Зарлага</span>'};
-  // Нийт дүн тооцоолох — early return-ийн ӨМНӨ
+  // Нийт дүн тооцоолох — early return-ийн ӨМНӨ (computeTxnLinkedAmount-аар бодит холбогдсон дүн)
   const totalInc  = list.reduce((a,t)=>a+(t.income||0), 0);
   const totalExp  = list.reduce((a,t)=>a+(t.expense||0), 0);
-  const totalLink = list.reduce((a,t)=>a+(t.linkedAmount||0), 0);
-  const totalUnlnk= list.reduce((a,t)=>a+(t.unlinkedAmount||0), 0);
+  const totalLink = list.reduce((a,t)=>a+((t.income||0)>0?computeTxnLinkedAmount(t):0), 0);
+  const totalUnlnk= list.reduce((a,t)=>a+((t.income||0)>0?Math.max(0,(t.income||0)-computeTxnLinkedAmount(t)):0), 0);
   // Ангилаагүй гүйлгээний хяналт
   const allTxns = bankTxns.filter(t => !t.isDeleted && t.status !== 'deleted');
   const unclInc  = allTxns.filter(t => (t.income||0)>0  && getTxnLinkStatus(t)==='unclassified');
@@ -3462,25 +3496,27 @@ window.renderTransactions=()=>{
         <div class="mc"><div class="ml">Холбогдоогүй</div><div class="mv am">${fmt(totalUnlnk)}</div></div>`;
     }
   }
-  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
-  tbody.innerHTML=list.map(t=>`<tr>
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="10"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
+  tbody.innerHTML=list.map(t=>{
+    const isInc = (t.income||0) > 0;
+    const linkedAmt = isInc ? computeTxnLinkedAmount(t) : 0;
+    const unlinkedAmt = isInc ? Math.max(0,(t.income||0)-linkedAmt) : 0;
+    const rStatus = computeReceivableLinkStatus(t);
+    return `<tr>
     <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
     <td style="font-size:11px">${accMap[t.accountId]||'—'}</td>
     <td style="font-size:12px">${t.description}</td>
     <td style="color:var(--gr);font-weight:500">${t.income?fmt(t.income):''}</td>
     <td style="color:var(--re)">${t.expense?fmt(t.expense):''}</td>
-    <td>${getClassBadge(t)}</td>
-        <td style="white-space:nowrap">
-      ${getTxnLinkStatus(t)==='classified'
-        ? `<span class="ba bgr" style="cursor:pointer" onclick="${(t.income||0)>0?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">Холбогдсон</span>`
-        : `<span class="ba bre" style="cursor:pointer;font-weight:600" onclick="${(t.income||0)>0?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">Холбох</span>`
-      }
-    </td>
+    <td style="color:var(--pu);font-weight:500">${isInc&&linkedAmt?fmt(linkedAmt):''}</td>
+    <td style="color:var(--am)">${isInc&&unlinkedAmt?fmt(unlinkedAmt):''}</td>
+    <td style="white-space:nowrap;cursor:pointer" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">${stBadge[rStatus]||rStatus}</td>
     <td style="white-space:nowrap">
-      <button class="btn bg bxs" onclick="${(t.income||0)>0?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" title="Холболт засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
+      <button class="btn bg bxs" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" title="Холболт засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
       <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Гүйлгээ засах" style="font-size:11px"><i class="ti ti-pencil"></i></button>
       <button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>
-    </td>    <td style="min-width:170px;padding:4px 6px">
+    </td>
+    <td style="min-width:170px;padding:4px 6px">
       <div style="display:flex;flex-direction:column;gap:3px">
         ${getClassBadge(t)}
         ${(t.expense||0)>0 ? `<select onchange="saveTxnCategory('${t.id}','expense',this.value)"
@@ -3497,7 +3533,7 @@ window.renderTransactions=()=>{
         </select>
       </div>
     </td>
-  </tr>`).join('');
+  </tr>`;}).join('');
 };window.loadCustReceivables = () => {
   const custId = document.getElementById('link-cust-sel').value;
   const recvDiv = document.getElementById('link-recv-list');
@@ -3511,8 +3547,8 @@ window.renderTransactions=()=>{
 
   if(recvDiv) recvDiv.style.display = 'block';
   const credit = currentLinkTxn?.income || currentLinkTxn?.credit || 0;
-  const prevLinked = currentLinkTxn?.linkedAmount || 0;
-  const maxAlloc = (currentLinkTxn?.unlinkedAmount ?? credit) - prevLinked;
+  const prevLinked = currentLinkTxn ? computeTxnLinkedAmount(currentLinkTxn) : 0;
+  const maxAlloc = credit - prevLinked;
 
   const tbody = document.getElementById('link-recv-tbody');
   if(!tbody) return;
@@ -3624,7 +3660,7 @@ window.saveLinkage = async () => {
 
   const totalAlloc = allocs.reduce((a, x) => a + x.allocatedAmount, 0);
   const credit = currentLinkTxn.income || currentLinkTxn.credit || 0;
-  const prevLinked = currentLinkTxn.linkedAmount || 0;
+  const prevLinked = computeTxnLinkedAmount(currentLinkTxn);
   const maxAlloc = credit - prevLinked;
 
   if(totalAlloc > maxAlloc + 0.01) {
@@ -3772,7 +3808,7 @@ window.renderLinks = () => {
       custId:     pm.customerId,
       amount:     pm.amount || 0,
       credit:     txn.income || 0,
-      linkStatus: txn.linkStatus || txn.status || '—',
+      linkStatus: computeReceivableLinkStatus(txn),
       paymentId:  pm.id,
       txnId:      pm.bankTransactionId,
       allocations:pm.allocations || []
@@ -6031,8 +6067,8 @@ window.openLinkModal = (txnId) => {
       <div style="font-size:12px;color:var(--tx2);margin-top:2px">${txn.description||'—'}</div>
       <div style="display:flex;gap:12px;margin-top:4px;font-size:12px">
         <span>Орлого: <b style="color:var(--gr)">${fmt(txn.income||0)}</b></span>
-        <span>Холбогдсон: <b style="color:var(--pu)">${fmt(txn.linkedAmount||0)}</b></span>
-        <span>Үлдэгдэл: <b style="color:var(--am)">${fmt(txn.unlinkedAmount??txn.income??0)}</b></span>
+        <span>Холбогдсон: <b style="color:var(--pu)">${fmt(computeTxnLinkedAmount(txn))}</b></span>
+        <span>Үлдэгдэл: <b style="color:var(--am)">${fmt(Math.max(0,(txn.income||0)-computeTxnLinkedAmount(txn)))}</b></span>
       </div>`;
   }
   // Харилцагч dropdown
@@ -6082,7 +6118,7 @@ window.autoLinkQpay = async () => {
   // QPay орлогын гүйлгээг олох
   const qpayTxns = bankTxns.filter(t => {
     if(t.income <= 0) return false;
-    if(t.status === 'linked') return false;
+    if(computeReceivableLinkStatus(t) === 'linked') return false;
     if(t.isDeleted) return false;
     // Данс шалгах
     if(qpayAcc && t.accountId !== qpayAcc.id) return false;
@@ -6430,7 +6466,7 @@ window.exportBankCSV = () => {
   const rows = [['Огноо','Данс','Гүйлгээний утга','Орлого','Зарлага','Холбогдсон','Статус','Зардлын төрөл','Мөнгөн гүйлгээ']];
   list.forEach(t=>{
     const acc = bankAccounts.find(a=>a.id===t.accountId)||{};
-    rows.push([t.date,acc.accountNumber||'',t.description||'',t.income||0,t.expense||0,t.linkedAmount||0,t.status||'',t.expenseCategory||'',t.cashFlowCategory||'']);
+    rows.push([t.date,acc.accountNumber||'',t.description||'',t.income||0,t.expense||0,(t.income>0?computeTxnLinkedAmount(t):0),computeReceivableLinkStatus(t),t.expenseCategory||'',t.cashFlowCategory||'']);
   });
   downloadCSV(rows, 'bank_huulga.csv');
 };
