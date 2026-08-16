@@ -3368,7 +3368,18 @@ let dashboardDateRange = { startDate: '', endDate: '', periodType: 'today' };
 let dashboardChartType = 'bar';
 let dashboardChartMetric = 'sales';
 
-function todayStr() { return new Date().toISOString().slice(0,10); }
+// Timezone-аюулгүй огнооны helper-үүд — .toISOString() ашиглахгүй, учир нь
+// UTC+ хугацааны бүсэд (жишээ Улаанбаатар UTC+8) огноог 1 өдрөөр буруу
+// шилжүүлдэг (шөнийн цагт өмнөх өдөр рүү унадаг). Зөвхөн ЛОКАЛ
+// getFullYear/getMonth/getDate ашиглана.
+function localDateStr(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+function addDaysStr(dateStr, days) {
+  const [y,m,dd] = dateStr.split('-').map(Number);
+  const dt = new Date(y, m-1, dd);
+  dt.setDate(dt.getDate()+days);
+  return localDateStr(dt);
+}
+function todayStr() { return localDateStr(new Date()); }
 
 window.initDashboardPeriod = () => {
   setDashPeriod('today', true);
@@ -3378,7 +3389,7 @@ window.setDashPeriod = (period, silent) => {
   const today = todayStr();
   let from = today, to = today;
   if(period==='today') { from = today; to = today; }
-  else if(period==='week') { const d=new Date(); d.setDate(d.getDate()-6); from=d.toISOString().slice(0,10); to=today; }
+  else if(period==='week') { from=addDaysStr(today,-6); to=today; }
   else if(period==='month') { from = today.slice(0,7)+'-01'; to = today; }
   else if(period==='year')  { from = today.slice(0,4)+'-01-01'; to = today; }
   else if(period==='custom') {
@@ -3510,10 +3521,38 @@ window.renderDashboard = () => {
 };
 
 // ─── ГРАФИК ЗУРАХ (Bar/Line сонголттой, мянгатаар товчилсон тэнхлэг, бүтэн dэн tooltip) ───
-function abbrevK(v) {
-  const k = v/1000;
-  if(Math.abs(k) >= 1000) return (k/1000).toFixed(1).replace(/\.0$/,'')+'M';
-  return Math.round(k).toLocaleString()+'K';
+// ─── МӨНГӨН ДҮНГИЙН AUTO-SCALE (₮ / сая ₮ / тэрбум ₮) ───────────────────────
+function getMoneyScale(maxValue) {
+  if(maxValue >= 1000000000) return { divisor: 1000000000, unit: 'тэрбум', axisTitle: 'Дүн /тэрбум ₮/' };
+  if(maxValue >= 1000000)    return { divisor: 1000000,    unit: 'сая',    axisTitle: 'Дүн /сая ₮/' };
+  return { divisor: 1, unit: '₮', axisTitle: 'Дүн /₮/' };
+}
+// dataset max-аас "гоё" (readable rounded) axis max сонгоно — 1/1.5/2/2.5/3/4/5/7.5/10 × 10^n
+function niceAxisMax(rawMax) {
+  if(rawMax <= 0) return 1;
+  const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
+  const residual = rawMax/magnitude;
+  const steps = [1,1.5,2,2.5,3,4,5,7.5,10];
+  let niceResidual = 10;
+  for(const s of steps) { if(residual<=s) { niceResidual=s; break; } }
+  return niceResidual*magnitude;
+}
+function formatAxisValue(value, scale) {
+  const v = value/scale.divisor;
+  const r = Math.round(v*100)/100;
+  return r.toLocaleString(undefined,{maximumFractionDigits:2});
+}
+function formatDataLabel(value, mode, scale) {
+  if(value === 0) return '';
+  if(mode === 'qty') return `${Math.round(value).toLocaleString()}ш`;
+  const v = value/scale.divisor;
+  const r = Math.round(v*100)/100;
+  const shortNum = r.toLocaleString(undefined,{maximumFractionDigits:2});
+  return scale.unit==='₮' ? `${shortNum}₮` : `${shortNum}${scale.unit}`;
+}
+function formatTooltip(value, mode) {
+  if(mode === 'qty') return `${Math.round(value).toLocaleString()} ширхэг`;
+  return fmt(value);
 }
 
 // Сонгосон үзүүлэлтээр (нэг л удаад НЭГ series) хугацааны цувааг бэлдэнэ
@@ -3535,12 +3574,10 @@ function buildDashSeries(filteredSales, from, to, groupBy) {
         m++; if(m>12){m=1;y++;}
       }
     } else {
-      let d = new Date(from+'T00:00:00');
-      const endD = new Date(to+'T00:00:00');
-      while(d <= endD) {
-        const key = d.toISOString().slice(0,10);
+      let key = from;
+      while(key <= to) {
         buckets.push({ key, val: getTotalReceivableAsOf(key).total });
-        d.setDate(d.getDate()+1);
+        key = addDaysStr(key, 1);
       }
     }
     return { keys: buckets.map(b=>b.key), vals: buckets.map(b=>b.val), unit:'money', label:'Авлагын үлдэгдэл' };
@@ -3568,9 +3605,8 @@ function buildDashSeries(filteredSales, from, to, groupBy) {
   } else if(groupBy === 'hour') {
     keys = Object.keys(groups).sort(); // цагийн задаргаа зөвхөн бодит гүйлгээтэй цагаар
   } else {
-    let d = new Date(from+'T00:00:00');
-    const endD = new Date(to+'T00:00:00');
-    while(d <= endD) { keys.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+    let key = from;
+    while(key <= to) { keys.push(key); key = addDaysStr(key, 1); }
   }
 
   return { keys, vals: keys.map(k=>groups[k]||0), unit: metric==='product' ? 'qty' : 'money', label: metric==='product' ? 'Борлуулсан тоо' : 'Борлуулалтын дүн' };
@@ -3590,7 +3626,10 @@ function renderDashChart(filteredSales, from, to, groupBy) {
     return;
   }
 
-  const maxV = Math.max(...vals, 1);
+  const rawMaxV = Math.max(...vals, 1);
+  const axisMax = unit==='qty' ? niceAxisMax(rawMaxV) : niceAxisMax(rawMaxV);
+  const maxV = axisMax; // Y тэнхлэг болон баганын өндөр ХОЁУЛАА readable rounded max ашиглана
+  const moneyScale = unit==='qty' ? null : getMoneyScale(axisMax);
   // ─── COMPACT: нам өндөр (220-280px), нарийхан багана ───
   const H = 240, PADL = 54, PADB = 30, PADT = 22, PADR = 10;
   const plotH = H-PADT-PADB;
@@ -3608,22 +3647,20 @@ function renderDashChart(filteredSales, from, to, groupBy) {
   const y = v => PADT + plotH - (v/maxV)*plotH;
   const barW = Math.max(4, Math.min(18, spacing*0.62)); // нарийхан багана: barThickness~18 max
 
-  // Y тэнхлэг (5 шат)
-  const ySteps = 4;
+  // Y тэнхлэг (readable rounded max, ~5 tick)
+  const ySteps = 5;
   let axisLines = '';
   for(let i=0;i<=ySteps;i++){
     const v = maxV*i/ySteps;
     const yy = y(v);
-    const lbl = unit==='qty' ? Math.round(v).toLocaleString() : abbrevK(v);
+    const lbl = unit==='qty' ? Math.round(v).toLocaleString() : formatAxisValue(v, moneyScale);
     axisLines += `<line x1="${PADL}" y1="${yy}" x2="${PADL+Math.min(plotW,spacing*keys.length)}" y2="${yy}" stroke="var(--bd)" stroke-width="1" opacity="0.4"/>
       <text x="${PADL-6}" y="${yy+3}" text-anchor="end" font-size="9" fill="var(--tx3)">${lbl}</text>`;
   }
-  axisLines += `<text x="${PADL}" y="12" font-size="9" fill="var(--tx3)">${unit==='qty'?'Тоо /ш/':'Дүн /мян.₮/'}</text>`;
+  axisLines += `<text x="${PADL}" y="12" font-size="9" fill="var(--tx3)">${unit==='qty'?'Тоо /ш/':moneyScale.axisTitle}</text>`;
 
   const COLOR = dashboardChartMetric==='product' ? 'var(--te)' : dashboardChartMetric==='receivable' ? 'var(--am)' : 'var(--pu)';
   let seriesHtml = '';
-  const fmtVal = v => unit==='qty' ? `${v.toLocaleString()} ш` : fmt(v);
-  const fmtLabel = v => { if(v===0) return ''; return unit==='qty' ? Math.round(v).toLocaleString() : abbrevK(v); };
   // v>0 БҮХ bar/point дээр ЗААВАЛ label render хийнэ — dataset утга, hover,
   // сонгосон цэг, индекс (сүүлийн/тэгш/сондгой г.м.) ямар ч нөхцлөөр алгасахгүй.
   const LABEL_MIN_Y = PADT + 9; // chart дээд ирмэгт таслагдахаас хамгаална
@@ -3633,20 +3670,20 @@ function renderDashChart(filteredSales, from, to, groupBy) {
       const v = vals[i];
       const bh = plotH * (v/maxV||0);
       const by = PADT+plotH-bh;
-      seriesHtml += `<rect data-key="${k}" x="${x(i)-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${COLOR}" rx="2" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${fmtVal(v)}</title></rect>`;
+      seriesHtml += `<rect data-key="${k}" x="${x(i)-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${COLOR}" rx="2" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${formatTooltip(v, unit)}</title></rect>`;
       if(v > 0) {
         const ly = Math.max(by-4, LABEL_MIN_Y);
-        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(v)}</text>`;
+        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${formatDataLabel(v, unit, moneyScale)}</text>`;
       }
     });
   } else {
     const pts = keys.map((k,i)=>`${x(i)},${y(vals[i])}`).join(' ');
     seriesHtml += `<polyline points="${pts}" fill="none" stroke="${COLOR}" stroke-width="2" stroke-linejoin="round"/>`;
     keys.forEach((k,i)=>{
-      seriesHtml += `<circle cx="${x(i)}" cy="${y(vals[i])}" r="3.5" fill="${COLOR}" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${fmtVal(vals[i])}</title></circle>`;
+      seriesHtml += `<circle cx="${x(i)}" cy="${y(vals[i])}" r="3.5" fill="${COLOR}" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${formatTooltip(vals[i], unit)}</title></circle>`;
       if(vals[i] > 0) {
         const ly = Math.max(y(vals[i])-8, LABEL_MIN_Y);
-        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(vals[i])}</text>`;
+        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${formatDataLabel(vals[i], unit, moneyScale)}</text>`;
       }
     });
   }
