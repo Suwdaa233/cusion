@@ -2540,12 +2540,25 @@ window.removeSaleRow = idx => { document.getElementById('sr-'+idx)?.remove(); ca
 window.onSaleProdChange = idx => {
   const row = document.getElementById('sr-'+idx); if(!row) return;
   const sel = row.querySelector('.row-prod-sel');
-  const pid = sel.value;
-  const opt = sel.selectedOptions[0];
+  const selectedProductId = sel.value;
+  // Firestore master 'products' коллекц дахь БОДИТ field нь 'barcode'
+  // (аудит хийж баталгаажуулсан — addProduct() яг энэ нэрээр бичдэг).
+  // <option>-ийн data-barcode attribute-д найдахгүй, шууд master-с уншина.
+  const selectedProduct = products.find(x => x.id === selectedProductId);
   const bc = row.querySelector('.row-barcode');
-  if(bc) { const barcodeVal = opt?.dataset.barcode || ''; bc.value = barcodeVal; bc.title = barcodeVal; bc.style.borderColor=''; }
-  const p = products.find(x=>x.id===pid);
-  if(p) row.querySelector('.row-price').value = p.price;
+  if(bc) {
+    const barcodeVal = selectedProduct ? String(selectedProduct.barcode || '').trim() : '';
+    bc.value = selectedProductId ? (barcodeVal || '—') : '';
+    bc.title = barcodeVal;
+    bc.style.borderColor = '';
+  }
+  if(selectedProduct) row.querySelector('.row-price').value = selectedProduct.price;
+  console.debug('[SaleRow barcode debug]', {
+    rowIdx: idx,
+    selectedProductId,
+    selectedProduct,
+    barcodeFieldValue: bc ? bc.value : null
+  });
   refreshSaleRows(); calcSaleTotal();
 };
 // Баркодоор бараа хайх (exact match) — scanner-с Enter ирэхэд ч, гараар бичээд Enter дархад ч ажиллана
