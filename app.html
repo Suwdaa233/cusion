@@ -2504,7 +2504,7 @@ function saleRowHtml(idx){
   const po = products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
   return `<div class="inventory-item-row grid-sale" id="sr-${idx}">
     <div class="inventory-item-product"><select class="row-prod-sel" onchange="onSaleProdChange(${idx})" title=""><option value="">-- Сонгох --</option>${po}</select></div>
-    <div class="inventory-item-number"><input type="text" class="row-barcode" readonly placeholder="—" title=""></div>
+    <div class="inventory-item-number"><input type="text" class="row-barcode" placeholder="Баркод" title="" onkeydown="onSaleBarcodeKey(event,${idx})"></div>
     <div class="inventory-item-number"><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()"></div>
     <div class="inventory-item-number"><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()"></div>
     <div class="inventory-item-discount">
@@ -2543,10 +2543,36 @@ window.onSaleProdChange = idx => {
   const pid = sel.value;
   const opt = sel.selectedOptions[0];
   const bc = row.querySelector('.row-barcode');
-  if(bc) { const barcodeVal = opt?.dataset.barcode || ''; bc.value = barcodeVal; bc.title = barcodeVal; }
+  if(bc) { const barcodeVal = opt?.dataset.barcode || ''; bc.value = barcodeVal; bc.title = barcodeVal; bc.style.borderColor=''; }
   const p = products.find(x=>x.id===pid);
   if(p) row.querySelector('.row-price').value = p.price;
   refreshSaleRows(); calcSaleTotal();
+};
+// Баркодоор бараа хайх (exact match) — scanner-с Enter ирэхэд ч, гараар бичээд Enter дархад ч ажиллана
+window.onSaleBarcodeKey = (ev, idx) => {
+  if(ev.key !== 'Enter') return;
+  ev.preventDefault();
+  const row = document.getElementById('sr-'+idx); if(!row) return;
+  const bcInput = row.querySelector('.row-barcode');
+  const code = (bcInput.value||'').trim();
+  bcInput.style.borderColor = '';
+  if(!code) return;
+  const p = products.find(x => (x.barcode||'').trim() === code || (x.sku||'').trim() === code);
+  if(!p) {
+    alert('Энэ баркодтой бараа бүртгэлгүй байна');
+    bcInput.style.borderColor = 'var(--re)';
+    bcInput.select();
+    return;
+  }
+  const sel = row.querySelector('.row-prod-sel');
+  sel.value = p.id;
+  row.querySelector('.row-price').value = p.price;
+  bcInput.value = p.barcode || p.sku || code;
+  bcInput.title = bcInput.value;
+  refreshSaleRows(); calcSaleTotal();
+  // Дараагийн мөр рүү (эсвэл тоо хэмжээ рүү) фокус шилжүүлж, scanner-ийн ажиллагааг хурдасгана
+  const qtyInput = row.querySelector('.row-qty');
+  if(qtyInput) { qtyInput.focus(); qtyInput.select(); }
 };
 window.refreshSaleRows = () => {
   const lid = document.getElementById('s-loc').value;
