@@ -97,7 +97,8 @@ tbody tr:hover td{background:var(--sur2)}
 .grid-in-out{grid-template-columns:2.2fr 90px 140px 34px}
 .grid-purchase{grid-template-columns:2fr 110px 64px 130px 130px 34px}
 .grid-import{grid-template-columns:1.8fr 90px 60px 100px 110px 120px 34px}
-.grid-sale{grid-template-columns:minmax(220px,2.4fr) minmax(145px,1.4fr) minmax(115px,1.1fr) minmax(75px,.7fr) minmax(145px,1.3fr) minmax(110px,1fr) 42px}
+.grid-sale{grid-template-columns:minmax(220px,2.4fr) minmax(160px,1.4fr) minmax(115px,1.1fr) minmax(75px,.7fr) minmax(145px,1.3fr) minmax(110px,1fr) 42px}
+.row-barcode{text-align:left!important;font-family:'DM Sans',monospace;letter-spacing:.3px;white-space:nowrap;overflow:visible}
 .inventory-item-discount{display:flex;gap:4px}
 .inventory-item-discount select{flex:0 0 46px;padding:4px 2px!important}
 .inventory-item-discount input{flex:1;min-width:0}
@@ -2410,7 +2411,7 @@ function saleRowHtml(idx){
   const po = products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
   return `<div class="inventory-item-row grid-sale" id="sr-${idx}">
     <div class="inventory-item-product"><select class="row-prod-sel" onchange="onSaleProdChange(${idx})" title=""><option value="">-- Сонгох --</option>${po}</select></div>
-    <div class="inventory-item-number"><input type="text" class="row-barcode" readonly></div>
+    <div class="inventory-item-number"><input type="text" class="row-barcode" readonly placeholder="—" title=""></div>
     <div class="inventory-item-number"><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()"></div>
     <div class="inventory-item-number"><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()"></div>
     <div class="inventory-item-discount">
@@ -2448,7 +2449,8 @@ window.onSaleProdChange = idx => {
   const sel = row.querySelector('.row-prod-sel');
   const pid = sel.value;
   const opt = sel.selectedOptions[0];
-  const bc = row.querySelector('.row-barcode'); if(bc) bc.value = opt?.dataset.barcode || '';
+  const bc = row.querySelector('.row-barcode');
+  if(bc) { const barcodeVal = opt?.dataset.barcode || ''; bc.value = barcodeVal; bc.title = barcodeVal; }
   const p = products.find(x=>x.id===pid);
   if(p) row.querySelector('.row-price').value = p.price;
   refreshSaleRows(); calcSaleTotal();
