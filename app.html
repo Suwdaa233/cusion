@@ -244,7 +244,7 @@ tbody tr:hover td{background:var(--sur2)}
       </div>
     </div>
     <div class="cb" style="padding:8px">
-      <svg id="d-sparkline" width="100%" height="180" style="display:block"></svg>
+      <svg id="d-sparkline" width="100%" height="240" style="display:block"></svg>
     </div>
   </div>
   <!-- 2 багана -->
@@ -3521,8 +3521,6 @@ function buildDashSeries(filteredSales, from, to, groupBy) {
   const metric = dashboardChartMetric;
 
   if(metric === 'receivable') {
-    // Авлагын үлдэгдэл — receivable balance engine (getTotalReceivableAsOf) ашиглана,
-    // борлуулалтын дүн ГЭЖ ТООЦОХГҮЙ.
     const buckets = [];
     if(groupBy === 'month') {
       const startM = from.slice(0,7), endM = to.slice(0,7);
@@ -3537,7 +3535,6 @@ function buildDashSeries(filteredSales, from, to, groupBy) {
         m++; if(m>12){m=1;y++;}
       }
     } else {
-      // өдөр/цаг — өдрөөр bucket (цагийн задаргаа авлагад учир дутагдалтай тул өдрөөр)
       let d = new Date(from+'T00:00:00');
       const endD = new Date(to+'T00:00:00');
       while(d <= endD) {
@@ -3549,7 +3546,7 @@ function buildDashSeries(filteredSales, from, to, groupBy) {
     return { keys: buckets.map(b=>b.key), vals: buckets.map(b=>b.val), unit:'money', label:'Авлагын үлдэгдэл' };
   }
 
-  // sales / product — filteredSales дээр суурилна
+  // sales / product — эхлээд бодит борлуулалтаар нэгтгэнэ
   const groups = {};
   filteredSales.forEach(s => {
     let key;
@@ -3557,74 +3554,113 @@ function buildDashSeries(filteredSales, from, to, groupBy) {
     else if(groupBy==='hour') { const dt = s.createdAt?.toDate ? s.createdAt.toDate() : (s.createdAt ? new Date(s.createdAt) : null); key = dt ? String(dt.getHours()).padStart(2,'0')+':00' : s.date; }
     else key = s.date;
     if(!groups[key]) groups[key] = 0;
-    if(metric === 'product') {
-      groups[key] += (s.items||[]).reduce((a,it)=>a+(it.qty||0),0);
-    } else {
-      groups[key] += s.total||0;
-    }
+    if(metric === 'product') groups[key] += (s.items||[]).reduce((a,it)=>a+(it.qty||0),0);
+    else groups[key] += s.total||0;
   });
-  const keys = Object.keys(groups).sort();
-  return { keys, vals: keys.map(k=>groups[k]), unit: metric==='product' ? 'qty' : 'money', label: metric==='product' ? 'Борлуулсан тоо' : 'Борлуулалтын дүн' };
+
+  // ─── БҮРЭН КАЛЕНДАРЬ (борлуулалтгүй өдөр/сар = 0, орхигдохгүй) ───
+  let keys = [];
+  if(groupBy === 'month') {
+    const startM = from.slice(0,7), endM = to.slice(0,7);
+    let [y,m] = startM.split('-').map(Number);
+    const [ey,em] = endM.split('-').map(Number);
+    while(y<ey || (y===ey && m<=em)) { keys.push(`${y}-${String(m).padStart(2,'0')}`); m++; if(m>12){m=1;y++;} }
+  } else if(groupBy === 'hour') {
+    keys = Object.keys(groups).sort(); // цагийн задаргаа зөвхөн бодит гүйлгээтэй цагаар
+  } else {
+    let d = new Date(from+'T00:00:00');
+    const endD = new Date(to+'T00:00:00');
+    while(d <= endD) { keys.push(d.toISOString().slice(0,10)); d.setDate(d.getDate()+1); }
+  }
+
+  return { keys, vals: keys.map(k=>groups[k]||0), unit: metric==='product' ? 'qty' : 'money', label: metric==='product' ? 'Борлуулсан тоо' : 'Борлуулалтын дүн' };
 }
 
 function renderDashChart(filteredSales, from, to, groupBy) {
   const svg = document.getElementById('d-sparkline'); if(!svg) return;
   const series = buildDashSeries(filteredSales, from, to, groupBy);
-  const { keys, vals, unit, label } = series;
+  const { keys, vals, unit } = series;
 
   const legend = document.getElementById('d-chart-legend');
-  if(legend) legend.textContent = keys.length ? `${from} — ${to} (${keys.length} ${groupBy==='month'?'сар':groupBy==='hour'?'цаг':'өдөр'})` : '';
+  if(legend) legend.textContent = keys.length ? `${from} – ${to}` : '';
 
-  if(keys.length === 0 || vals.every(v=>v===0)) {
+  if(keys.length === 0) {
+    svg.setAttribute('height', 100);
     svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="var(--tx3)" font-size="13">Өгөгдөл хангалтгүй</text>';
     return;
   }
 
   const maxV = Math.max(...vals, 1);
-  const W = svg.clientWidth || 900, H = 180, PADL = 56, PADB = 24, PADT = 14, PADR = 14;
-  const plotW = W-PADL-PADR, plotH = H-PADT-PADB;
+  // ─── COMPACT: нам өндөр (220-280px), нарийхан багана ───
+  const H = 240, PADL = 54, PADB = 30, PADT = 22, PADR = 10;
+  const plotH = H-PADT-PADB;
+  svg.setAttribute('height', H);
+  svg.setAttribute('viewBox', `0 0 ${svg.clientWidth||900} ${H}`);
+  const W = svg.clientWidth || 900;
+  const plotW = W-PADL-PADR;
 
-  // Compact spacing: цөөн point үед бүх өргөнийг хүчээр ашиглахгүй, төвлөрүүлнэ
-  const idealSpacing = 64;
-  const effectiveW = keys.length<=1 ? plotW : Math.min(plotW, idealSpacing*keys.length);
-  const startX = PADL + (plotW-effectiveW)/2;
-  const spacing = keys.length<=1 ? effectiveW : effectiveW/keys.length;
-  const x = i => startX + spacing*i + (keys.length<=1 ? effectiveW/2 : spacing/2);
+  // ─── ЗҮҮНЭЭС ЭХЭЛСЭН compact spacing (голд ТАРААХГҮЙ) ───
+  const idealSpacing = 34; // нарийхан категори зай
+  const neededW = idealSpacing*keys.length;
+  const spacing = neededW > plotW ? plotW/keys.length : idealSpacing;
+  const startX = PADL; // зүүн талаас эхэлнэ, голлуулахгүй
+  const x = i => startX + spacing*i + spacing/2;
   const y = v => PADT + plotH - (v/maxV)*plotH;
-  const barW = Math.min(28, spacing*0.55);
+  const barW = Math.max(4, Math.min(18, spacing*0.62)); // нарийхан багана: barThickness~18 max
 
-  // Y тэнхлэг
-  const ySteps = 5;
+  // Y тэнхлэг (5 шат)
+  const ySteps = 4;
   let axisLines = '';
   for(let i=0;i<=ySteps;i++){
     const v = maxV*i/ySteps;
     const yy = y(v);
-    const label2 = unit==='qty' ? Math.round(v).toLocaleString() : abbrevK(v);
-    axisLines += `<line x1="${PADL}" y1="${yy}" x2="${W-PADR}" y2="${yy}" stroke="var(--bd)" stroke-width="1" opacity="0.5"/>
-      <text x="${PADL-6}" y="${yy+3}" text-anchor="end" font-size="9" fill="var(--tx3)">${label2}</text>`;
+    const lbl = unit==='qty' ? Math.round(v).toLocaleString() : abbrevK(v);
+    axisLines += `<line x1="${PADL}" y1="${yy}" x2="${PADL+Math.min(plotW,spacing*keys.length)}" y2="${yy}" stroke="var(--bd)" stroke-width="1" opacity="0.4"/>
+      <text x="${PADL-6}" y="${yy+3}" text-anchor="end" font-size="9" fill="var(--tx3)">${lbl}</text>`;
   }
   axisLines += `<text x="${PADL}" y="12" font-size="9" fill="var(--tx3)">${unit==='qty'?'Тоо /ш/':'Дүн /мян.₮/'}</text>`;
 
   const COLOR = dashboardChartMetric==='product' ? 'var(--te)' : dashboardChartMetric==='receivable' ? 'var(--am)' : 'var(--pu)';
   let seriesHtml = '';
   const fmtVal = v => unit==='qty' ? `${v.toLocaleString()} ш` : fmt(v);
+  const fmtLabel = v => { if(v===0) return ''; return unit==='qty' ? Math.round(v).toLocaleString() : abbrevK(v); };
+  // Label overlap-с сэргийлж: цэгийн тоо ихсэх тусам label-ийн font/давтамжийг багасгана
+  const showEveryLabel = keys.length <= 12;
 
   if(dashboardChartType === 'bar') {
     keys.forEach((k,i) => {
       const v = vals[i];
       const bh = plotH * (v/maxV||0);
       const by = PADT+plotH-bh;
-      seriesHtml += `<rect class="dash-chart-bar" data-key="${k}" x="${x(i)-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${COLOR}" rx="3" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}: ${fmtVal(v)}</title></rect>`;
+      seriesHtml += `<rect data-key="${k}" x="${x(i)-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${COLOR}" rx="2" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${fmtVal(v)}</title></rect>`;
+      if(v>0 && (showEveryLabel || i%2===0)) {
+        seriesHtml += `<text x="${x(i)}" y="${by-4}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(v)}</text>`;
+      }
     });
   } else {
     const pts = keys.map((k,i)=>`${x(i)},${y(vals[i])}`).join(' ');
     seriesHtml += `<polyline points="${pts}" fill="none" stroke="${COLOR}" stroke-width="2" stroke-linejoin="round"/>`;
     keys.forEach((k,i)=>{
-      seriesHtml += `<circle cx="${x(i)}" cy="${y(vals[i])}" r="4" fill="${COLOR}" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}: ${fmtVal(vals[i])}</title></circle>`;
+      seriesHtml += `<circle cx="${x(i)}" cy="${y(vals[i])}" r="3.5" fill="${COLOR}" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${fmtVal(vals[i])}</title></circle>`;
+      if(vals[i]>0 && (showEveryLabel || i%2===0)) {
+        seriesHtml += `<text x="${x(i)}" y="${y(vals[i])-8}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(vals[i])}</text>`;
+      }
     });
   }
 
-  const xLabels = keys.length<=16 ? keys.map((k,i)=>`<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--tx3)">${groupBy==='month'?k.slice(2):groupBy==='hour'?k:k.slice(5)}</text>`).join('') : '';
+  // X тэнхлэгийн label — давхцахаас сэргийлж шаардлагатай бол алгасна
+  const labelStep = keys.length<=16 ? 1 : keys.length<=31 ? 2 : Math.ceil(keys.length/20);
+  const xLabels = keys.map((k,i)=>{
+    if(i % labelStep !== 0) return '';
+    const short = groupBy==='month' ? k.slice(5) : groupBy==='hour' ? k : k.slice(8);
+    return `<text x="${x(i)}" y="${H-14}" text-anchor="middle" font-size="8" fill="var(--tx3)">${short}</text>`;
+  }).join('');
+
+  // Хэрэв бодит хэрэгцээт өргөн svg-ийн харагдах өргөнөөс их бол хэвтээ scroll идэвхжинэ (§10)
+  const contentW = Math.max(W, PADL+spacing*keys.length+PADR);
+  svg.setAttribute('viewBox', `0 0 ${contentW} ${H}`);
+  svg.style.minWidth = contentW>W ? contentW+'px' : '';
+  svg.parentElement.style.overflowX = contentW>W ? 'auto' : 'hidden';
 
   svg.innerHTML = `${axisLines}${seriesHtml}${xLabels}`;
 }
@@ -3640,23 +3676,51 @@ function updateDashChartTitle() {
   const TITLES = { sales:'Борлуулалтын дүнгийн чиг хандлага', product:'Барааны борлуулалтын тоо', receivable:'Авлагын үлдэгдлийн өөрчлөлт' };
   titleEl.textContent = TITLES[dashboardChartMetric] || TITLES.sales;
 }
+// key: 'YYYY-MM-DD' (өдөр), 'YYYY-MM' (сар) эсвэл 'HH:00' (цаг) — тухайн НЭГ цэгийн drilldown
 window.drillDashChart = (key) => {
   const metric = dashboardChartMetric;
-  if(metric === 'sales') { drillDashKpi('income'); return; }
-  if(metric === 'receivable') { drillDashKpi('recv'); return; }
-  if(metric === 'product') {
+  let dayFrom, dayTo;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(key)) { dayFrom = dayTo = key; }
+  else if(/^\d{4}-\d{2}$/.test(key)) {
+    dayFrom = key+'-01';
+    const [y,m] = key.split('-').map(Number);
+    const lastDay = new Date(y,m,0).getDate();
+    dayTo = key+'-'+String(lastDay).padStart(2,'0');
+    if(dayTo > dashboardDateRange.endDate) dayTo = dashboardDateRange.endDate;
+  } else { dayFrom = dashboardDateRange.startDate; dayTo = dashboardDateRange.endDate; }
+
+  if(metric === 'sales') {
+    const btn = document.querySelector('.ni[onclick*="sales"]');
+    goSec('sales', btn||document.querySelector('.ni'));
+    setTimeout(()=>{
+      const tb = document.querySelector('#sec-sales .tab-bar .tb[onclick*="\'list\'"]');
+      if(tb) showSalesTab('list', tb);
+      const fEl=document.getElementById('sl-from'), tEl=document.getElementById('sl-to');
+      if(fEl) fEl.value=dayFrom; if(tEl) tEl.value=dayTo;
+      renderSalesList();
+    }, 150);
+  } else if(metric === 'receivable') {
+    const btn = document.querySelector('.ni[onclick*="receivable"]');
+    goSec('receivable', btn||document.querySelector('.ni'));
+    setTimeout(()=>{
+      const fEl=document.getElementById('rv-date-from'), tEl=document.getElementById('rv-date-to');
+      if(fEl) fEl.value=''; if(tEl) tEl.value=dayTo;
+      renderRecvSummary();
+    }, 150);
+  } else if(metric === 'product') {
     const btn = document.querySelector('.ni[onclick*="sales"]');
     goSec('sales', btn||document.querySelector('.ni'));
     setTimeout(()=>{
       const tb = document.querySelector('#sec-sales .tab-bar .tb[onclick*="\'report\'"]');
       if(tb) showSalesTab('report', tb);
       const fEl=document.getElementById('sr-from'), tEl=document.getElementById('sr-to');
-      if(fEl) fEl.value=dashboardDateRange.startDate; if(tEl) tEl.value=dashboardDateRange.endDate;
+      if(fEl) fEl.value=dayFrom; if(tEl) tEl.value=dayTo;
       renderSalesReportView();
       setTimeout(()=>{ const vbtn=document.querySelector('#st-report .tab-bar .tb[onclick*="product"]'); if(vbtn) showSalesReportView('product', vbtn); }, 100);
     }, 150);
   }
 };
+
 
 // ─── DASHBOARD DRILLDOWN ─────────────────────────────────────────────────────
 window.drillDashKpi = (kpi) => {
