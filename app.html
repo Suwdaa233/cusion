@@ -690,6 +690,8 @@ tbody tr:hover td{background:var(--sur2)}
               <option value="purchase">Худалдан авалт</option>
               <option value="importPurchase">Татан авалт (гадаад)</option>
               <option value="sale">Борлуулалтын барааны зарлага</option>
+              <option value="inventoryIn">Барааны орлого</option>
+              <option value="inventoryOut">Барааны зарлага</option>
               <option value="inventoryTransfer">Байршил хоорондын шилжүүлэг</option>
             </select>
           </div>
@@ -1431,7 +1433,8 @@ tbody tr:hover td{background:var(--sur2)}
       <input type="hidden" id="es-id">
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn bp" onclick="saveEditSale()"><i class="ti ti-check"></i>Хадгалах</button>
-        <button class="btn bg" onclick="closeModal('edit-sale-modal')"><i class="ti ti-x"></i>Цуцлах</button>
+        <button class="btn bg" onclick="if(document.getElementById('es-id').value)openInvoice(document.getElementById('es-id').value)"><i class="ti ti-printer"></i>Хэвлэх</button>
+        <button class="btn bg" onclick="closeModal('edit-sale-modal')"><i class="ti ti-x"></i>Буцах</button>
       </div>
     </div>
   </div>
@@ -2204,7 +2207,7 @@ window.openSourceDocument = (sourceType, sourceId) => {
       if(!s) { alert('Борлуулалтын баримт олдсонгүй'); return; }
       const btn = document.querySelector('.ni[onclick*="sales"]');
       goSec('sales', btn||document.querySelector('.ni'));
-      setTimeout(()=>{ if(typeof openInvoice==='function') openInvoice(sourceId); }, 150);
+      setTimeout(()=>{ openDocument('sale', sourceId); }, 150);
       break;
     }
     case 'purchase': {
@@ -2215,7 +2218,7 @@ window.openSourceDocument = (sourceType, sourceId) => {
       setTimeout(()=>{
         const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="\'purchase\'"]');
         if(tabBtn) showInvTab('purchase', tabBtn);
-        if(typeof viewPurchase==='function') viewPurchase(sourceId);
+        openDocument('purchase', sourceId);
       }, 150);
       break;
     }
@@ -2227,7 +2230,7 @@ window.openSourceDocument = (sourceType, sourceId) => {
       setTimeout(()=>{
         const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="\'import\'"]');
         if(tabBtn) showInvTab('import', tabBtn);
-        if(typeof viewImportPurchase==='function') viewImportPurchase(sourceId);
+        openDocument('importPurchase', sourceId);
       }, 150);
       break;
     }
@@ -2237,6 +2240,18 @@ window.openSourceDocument = (sourceType, sourceId) => {
       setTimeout(()=>{
         const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="transfer"]');
         if(tabBtn) showInvTab('transfer', tabBtn);
+        openDocument('inventoryTransfer', sourceId);
+      }, 150);
+      break;
+    }
+    case 'inventoryIn': case 'inventoryOut': {
+      const btn = document.querySelector('.ni[onclick*="inventory"]');
+      goSec('inventory', btn||document.querySelector('.ni'));
+      setTimeout(()=>{
+        const tabName = sourceType==='inventoryIn' ? 'in' : 'out';
+        const tabBtn = document.querySelector(`#sec-inventory .tb[onclick*="'${tabName}'"]`);
+        if(tabBtn) showInvTab(tabName, tabBtn);
+        openDocument(sourceType, sourceId);
       }, 150);
       break;
     }
@@ -2924,6 +2939,25 @@ window.renderPurchaseList = () => {
     </td>
   </tr>`).join('');
 };
+// Энгийн баримт хэвлэх туслах (Purchase/Import/Transfer/InvLog зэрэг A4 загваргүй энгийн баримтад)
+function printSimpleDoc(title, bodyHtml) {
+  const win = window.open('', '_blank'); if(!win) return;
+  win.document.write(`<!DOCTYPE html><html lang="mn"><head><meta charset="UTF-8"><title>${title}</title>
+    <style>body{font-family:Arial,sans-serif;font-size:12px;padding:20px;color:#222}
+    table{width:100%;border-collapse:collapse;margin-top:10px}
+    th,td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+    th{background:#f2f2f2}
+    h2{margin-bottom:4px}
+    .meta{margin-bottom:10px;color:#555}
+    .r{text-align:right}
+    </style></head><body>
+    <h2>${title}</h2>
+    ${bodyHtml}
+    <script>window.onload=()=>window.print();<\/script>
+    </body></html>`);
+  win.document.close();
+}
+
 window.viewPurchase = (id) => {
   const p = purchases.find(x=>x.id===id); if(!p) { alert('Худалдан авалт олдсонгүй'); return; }
   const rows = (p.items||[]).map(it=>`<tr>
@@ -2954,6 +2988,10 @@ window.viewPurchase = (id) => {
     <tbody>${rows}</tbody></table></div>
     <div style="text-align:right;margin-top:10px;font-weight:700;font-size:14px">Нийт: ${fmt(p.totalAmount)}</div>
     ${p.note?`<div style="margin-top:8px;font-size:12px;color:var(--tx2)">Тэмдэглэл: ${p.note}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn bp" onclick='printSimpleDoc("${p.documentNumber}", document.querySelector("#view-purchase-modal .tw").outerHTML)'><i class="ti ti-printer"></i>Хэвлэх</button>
+      <button class="btn bg" onclick="closeModal('view-purchase-modal')"><i class="ti ti-arrow-left"></i>Буцах</button>
+    </div>
   </div>`;
   openModal('view-purchase-modal');
 };
@@ -3139,6 +3177,10 @@ window.viewImportPurchase = (id) => {
     </div>
     <div style="text-align:right;margin-top:10px;font-weight:700;font-size:14px">Нийт Landed дүн: ${fmt(p.totalAmount)}</div>
     ${p.note?`<div style="margin-top:8px;font-size:12px;color:var(--tx2)">Тэмдэглэл: ${p.note}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn bp" onclick='printSimpleDoc("${p.documentNumber}", document.querySelector("#view-import-modal .tw").outerHTML)'><i class="ti ti-printer"></i>Хэвлэх</button>
+      <button class="btn bg" onclick="closeModal('view-import-modal')"><i class="ti ti-arrow-left"></i>Буцах</button>
+    </div>
   </div>`;
   openModal('view-import-modal');
 };
@@ -3713,6 +3755,26 @@ function getAllDocuments() {
       sourceType: 'inventoryTransfer', sourceId: t.id
     });
   });
+  // Орлого/Зарлага (invLogs, docNumber-аар бүлэглэсэн — шинэ Firestore document
+  // үүсгэхгүй, зөвхөн одоо байгаа invLogs бичлэгүүдийг бүлэглэж жагсаана)
+  const invGroups = {};
+  invLogs.filter(l => l.type==='in' || l.type==='out').forEach(l => {
+    const key = l.type+'|'+(l.docNumber||l.id);
+    if(!invGroups[key]) invGroups[key] = { type:l.type, docNumber:l.docNumber||l.id, date:l.date, locationId:l.locationId, locationName:l.locationName, items:[] };
+    invGroups[key].items.push(l);
+  });
+  Object.values(invGroups).forEach(g => {
+    const totalQty = g.items.reduce((a,it)=>a+Math.abs(it.qty||0),0);
+    list.push({
+      date: g.date, docNumber: g.docNumber, docType: g.type==='in' ? 'inventoryIn' : 'inventoryOut',
+      docTypeLabel: g.type==='in' ? 'Барааны орлого' : 'Барааны зарлага',
+      customerId: '', customerName: '—',
+      locationId: g.locationId, locationName: g.locationName||'—',
+      totalQty, totalAmount: 0,
+      status: 'active',
+      sourceType: g.type==='in' ? 'inventoryIn' : 'inventoryOut', sourceId: g.docNumber
+    });
+  });
   return list;
 }
 window.renderDocRegistry = () => {
@@ -4188,14 +4250,108 @@ window.renderTransferList=()=>{
   if(transfers.length===0){tbody.innerHTML='<tr><td colspan="6"><div class="empty">Шилжүүлэлт байхгүй</div></td></tr>';return;}
   tbody.innerHTML=transfers.map(t=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
-    <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--pu)">${t.trNum}</td>
+    <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="viewTransfer('${t.id}')">${t.trNum}</td>
     <td>${t.fromLocName}</td><td>${t.toLocName}</td>
     <td>${(t.items||[]).reduce((a,it)=>a+it.qty,0)}ш</td>
     <td style="font-size:11px;color:var(--tx2)">${t.note||''}</td>
     <td style="white-space:nowrap">
-      <button class="btn bg bxs" onclick="openTransferReceipt('${t.id}')" title="Хэвлэх"><i class="ti ti-printer"></i></button>
+      <button class="btn bg bxs" onclick="viewTransfer('${t.id}')" title="Дэлгэрэнгүй"><i class="ti ti-eye"></i></button>
     </td>
   </tr>`).join('');
+};
+
+// ─── SOURCE DOCUMENT DETAIL VIEWERS (drilldown target — print биш) ──────────
+// Эдгээр нь Firestore-д байгаа ORIGINAL document-ийг л уншиж харуулна.
+// Ямар ч шинэ document үүсгэхгүй. Хэвлэх нь тусдаа, дараагийн үйлдэл.
+window.viewTransfer = (id) => {
+  const t = transfers.find(x=>x.id===id); if(!t) { alert('Шилжүүлэлт олдсонгүй'); return; }
+  const rows = (t.items||[]).map(it=>{
+    const p = products.find(x=>x.id===it.pid) || {};
+    return `<tr>
+      <td style="font-size:11px">${p.barcode||p.sku||'—'}</td>
+      <td>${it.label||`${p.name||''}·${p.variant||''}`}</td>
+      <td style="text-align:right">${it.qty}ш</td>
+    </tr>`;
+  }).join('');
+  let modal = document.getElementById('view-transfer-modal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'view-transfer-modal';
+    modal.className = 'modal-ov';
+    modal.style.cssText = 'align-items:flex-start;overflow-y:auto;padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal modal-lg">
+    <div class="mh"><span><i class="ti ti-arrows-exchange"></i> ${t.trNum}</span><button class="btn bg bxs" onclick="closeModal('view-transfer-modal')"><i class="ti ti-x"></i></button></div>
+    <div style="font-size:13px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap">
+      <span>Огноо: <b>${t.date}</b></span>
+      <span>Эх байршил: <b>${t.fromLocName}</b></span>
+      <span>Очих байршил: <b>${t.toLocName}</b></span>
+      <span>Төлөв: <b>${t.status==='cancelled'?'Цуцлагдсан':'Идэвхтэй'}</b></span>
+    </div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th>Баркод</th><th>Бараа</th><th style="text-align:right">Тоо</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    ${t.note?`<div style="margin-top:8px;font-size:12px;color:var(--tx2)">Тэмдэглэл: ${t.note}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn bp" onclick="openTransferReceipt('${t.id}')"><i class="ti ti-printer"></i>Хэвлэх</button>
+      <button class="btn bg" onclick="closeModal('view-transfer-modal')"><i class="ti ti-arrow-left"></i>Буцах</button>
+    </div>
+  </div>`;
+  openModal('view-transfer-modal');
+};
+
+// Орлого/Зарлага (invLogs, docNumber-аар бүлэглэсэн) — эх бүртгэлийг харуулна
+window.viewInventoryLogGroup = (type, docNumber) => {
+  const rows = invLogs.filter(l => l.type===type && (l.docNumber||l.id)===docNumber);
+  if(rows.length===0) { alert('Баримт олдсонгүй'); return; }
+  const first = rows[0];
+  const isIn = type==='in';
+  const itemRows = rows.map(l=>`<tr>
+      <td>${l.productLabel||'—'}</td>
+      <td>${l.locationName||'—'}</td>
+      <td style="text-align:right;font-weight:600;color:${l.qty>0?'var(--gr)':'var(--re)'}">${l.qty>0?'+':''}${l.qty}ш</td>
+    </tr>`).join('');
+  let modal = document.getElementById('view-invlog-modal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'view-invlog-modal';
+    modal.className = 'modal-ov';
+    modal.style.cssText = 'align-items:flex-start;overflow-y:auto;padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal modal-lg">
+    <div class="mh"><span><i class="ti ti-${isIn?'arrow-down-circle':'arrow-up-circle'}"></i> ${docNumber}</span><button class="btn bg bxs" onclick="closeModal('view-invlog-modal')"><i class="ti ti-x"></i></button></div>
+    <div style="font-size:13px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap">
+      <span>Огноо: <b>${first.date}</b></span>
+      <span>Төрөл: <b>${isIn?'Барааны орлого':'Барааны зарлага'}</b></span>
+      <span>Бүртгэсэн: <b>${first.createdBy||'—'}</b></span>
+    </div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th>Бараа</th><th>Байршил</th><th style="text-align:right">Тоо</th></tr></thead>
+    <tbody>${itemRows}</tbody></table></div>
+    ${first.note?`<div style="margin-top:8px;font-size:12px;color:var(--tx2)">Тэмдэглэл: ${first.note}</div>`:''}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn bp" onclick='printSimpleDoc("${docNumber}", document.querySelector("#view-invlog-modal .tw").outerHTML)'><i class="ti ti-printer"></i>Хэвлэх</button>
+      <button class="btn bg" onclick="closeModal('view-invlog-modal')"><i class="ti ti-arrow-left"></i>Буцах</button>
+    </div>
+  </div>`;
+  openModal('view-invlog-modal');
+};
+
+// ─── ЦЕНТРАЛИЗ DRILLDOWN: openDocument(documentType, documentId) ───────────
+// Жагсаалт/Тайлан бүр ЗӨВХӨН энэ функцээр эх document-ийг нээнэ.
+// Хэзээ ч шууд print/preview функц рүү холбохгүй — Хэвлэх нь source document
+// нээгдсэний ДАРАА тусдаа үйлдэл (доторх Хэвлэх товч) байна.
+window.openDocument = (documentType, documentId) => {
+  if(!documentId) { alert('Баримт олдсонгүй'); return; }
+  switch(documentType) {
+    case 'sale': if(typeof openEditSale==='function') openEditSale(documentId); break;
+    case 'purchase': if(typeof viewPurchase==='function') viewPurchase(documentId); break;
+    case 'importPurchase': if(typeof viewImportPurchase==='function') viewImportPurchase(documentId); break;
+    case 'inventoryTransfer': viewTransfer(documentId); break;
+    case 'inventoryIn': viewInventoryLogGroup('in', documentId); break;
+    case 'inventoryOut': viewInventoryLogGroup('out', documentId); break;
+    default: alert('Тодорхойгүй document төрөл: '+documentType);
+  }
 };
 
 // ─── BANK TABS ────────────────────────────────────────────────────────────────
