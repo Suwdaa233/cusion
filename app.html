@@ -83,6 +83,26 @@ tbody tr:hover td{background:var(--sur2)}
 .item-row.inv-row{grid-template-columns:2fr 1fr 1fr 36px}
 .item-row .fl label{font-size:10px}
 .item-row .fl input,.item-row .fl select{font-size:12px;padding:5px 8px}
+
+/* ─── Compact inventory item row system (Орлого/Зарлага/Шилжүүлэлт/Худалдан авалт/Татан авалт) ─── */
+.inventory-item-header{display:grid;gap:6px;padding:2px 10px 6px;font-size:10px;font-weight:700;color:var(--tx3);text-transform:uppercase;letter-spacing:.3px}
+.inventory-item-header>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.inventory-item-row{display:grid;gap:6px;align-items:center;padding:3px 10px;border-bottom:1px solid var(--bd)}
+.inventory-item-rows{display:flex;flex-direction:column;margin-bottom:8px;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden;background:var(--sur2)}
+.inventory-item-rows .inventory-item-row:last-child{border-bottom:none}
+.inventory-item-row input,.inventory-item-row select{height:34px;font-size:12px;padding:4px 8px;box-sizing:border-box;width:100%}
+.inventory-item-product select{width:100%}
+.inventory-item-number input,.inventory-item-amount input{text-align:right}
+.inventory-item-amount input[readonly],.inventory-item-number input[readonly]{background:var(--sur3);color:var(--tx2);border-color:transparent;font-weight:600}
+.inventory-item-action{display:flex;justify-content:center;align-items:center}
+.inventory-item-action button{width:30px;height:30px;padding:0;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.grid-in-out{grid-template-columns:2.2fr 90px 140px 34px}
+.grid-purchase{grid-template-columns:2fr 110px 64px 130px 130px 34px}
+.grid-import{grid-template-columns:1.8fr 90px 60px 100px 110px 120px 34px}
+@media (max-width:900px){
+  .inventory-item-header{display:none}
+  .inventory-item-row{grid-template-columns:1fr!important;gap:4px;padding:8px 10px;border-bottom:1px solid var(--bd)}
+}
 .row-total{font-size:12px;font-weight:600;color:var(--pu);align-self:flex-end;padding-bottom:8px}
 .add-row-btn{display:flex;align-items:center;gap:6px;padding:7px 12px;border:1px dashed var(--bd2);border-radius:var(--r);background:none;cursor:pointer;font-size:12px;color:var(--tx2);transition:.12s;width:100%;justify-content:center}
 .add-row-btn:hover{background:var(--sur2);border-color:var(--pu);color:var(--pu)}
@@ -500,7 +520,8 @@ tbody tr:hover td{background:var(--sur2)}
           <div class="fl"><label>Байршил</label><select id="in-loc"><option value="">-- Сонгох --</option></select></div>
           <div class="fl"><label>Нийлүүлэгч / Тэмдэглэл</label><input type="text" id="in-note" placeholder="Нийлүүлэгч, баримт №..."></div>
         </div>
-        <div class="item-rows" id="in-rows"></div>
+        <div class="inventory-item-header grid-in-out"><span>Бараа</span><span>Тоо</span><span>Нэгж өртөг (₮)</span><span></span></div>
+        <div class="inventory-item-rows" id="in-rows"></div>
         <button class="add-row-btn" onclick="addInRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
         <div style="margin-top:12px"><button class="btn bp" onclick="submitIn()"><i class="ti ti-check"></i>Орлого бүртгэх</button></div>
       </div>
@@ -523,7 +544,8 @@ tbody tr:hover td{background:var(--sur2)}
           </div>
           <div class="fl" id="out-to-wrap" style="display:none"><label>Шилжих байршил</label><select id="out-to-loc"><option value="">-- Сонгох --</option></select></div>
         </div>
-        <div class="item-rows" id="out-rows"></div>
+        <div class="inventory-item-header grid-in-out"><span>Бараа</span><span>Тоо</span><span>Үлдэгдэл</span><span></span></div>
+        <div class="inventory-item-rows" id="out-rows"></div>
         <button class="add-row-btn" onclick="addOutRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
         <div class="fg" style="margin-top:10px">
           <div class="fl"><label>Тэмдэглэл</label><input type="text" id="out-note"></div>
@@ -544,7 +566,8 @@ tbody tr:hover td{background:var(--sur2)}
           <div class="fl"><label>Тэмдэглэл</label><input type="text" id="tr-note" placeholder="Тэмдэглэл"></div>
         </div>
         <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--tx2)">Шилжүүлэх бараанууд</div>
-        <div class="item-rows" id="tr-rows"></div>
+        <div class="inventory-item-header grid-in-out"><span>Бараа</span><span>Тоо</span><span>Үлдэгдэл</span><span></span></div>
+        <div class="inventory-item-rows" id="tr-rows"></div>
         <button class="add-row-btn" onclick="addTransferRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
         <div style="margin-top:12px"><button class="btn bp" onclick="submitTransfer()"><i class="ti ti-check"></i>Шилжүүлэлт бүртгэх</button></div>
       </div>
@@ -575,7 +598,8 @@ tbody tr:hover td{background:var(--sur2)}
             </select>
           </div>
         </div>
-        <div class="item-rows" id="pu-rows"></div>
+        <div class="inventory-item-header grid-purchase"><span>Бараа</span><span>Баркод</span><span>Тоо</span><span>Нэгж үнэ (₮)</span><span>Нийт дүн</span><span></span></div>
+        <div class="inventory-item-rows" id="pu-rows"></div>
         <button class="add-row-btn" onclick="addPurchaseRow()"><i class="ti ti-plus"></i>Бараа нэмэх</button>
         <div class="fg" style="margin-top:10px">
           <div class="fl"><label>Тэмдэглэл</label><input type="text" id="pu-note"></div>
@@ -613,7 +637,8 @@ tbody tr:hover td{background:var(--sur2)}
           </div>
           <div class="fl"><label>Ханш (1 нэгж = ? ₮)</label><input type="number" id="im-rate" placeholder="0" oninput="calcImportTotal()"></div>
         </div>
-        <div class="item-rows" id="im-rows"></div>
+        <div class="inventory-item-header grid-import"><span>Бараа</span><span>Баркод</span><span>Тоо</span><span>Үнэ (валют)</span><span>Үнэ (₮)</span><span>Нийт дүн (₮)</span><span></span></div>
+        <div class="inventory-item-rows" id="im-rows"></div>
         <button class="add-row-btn" onclick="addImportRow()"><i class="ti ti-plus"></i>Бараа нэмэх</button>
 
         <div class="ch" style="margin-top:14px;padding-left:0"><span class="ct" style="font-size:13px"><i class="ti ti-receipt"></i>Нэмэлт зардал (сонголтоор)</span></div>
@@ -2684,7 +2709,12 @@ window.inlinePayment = async saleId => {
 // ─── INVENTORY ───────────────────────────────────────────────────────────────
 function inRowHtml(){
   const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
-  return `<div class="item-row inv-row"><div class="fl"><label>Бараa</label><select class="row-prod-sel"><option value="">-- Сонгох --</option>${po}</select></div><div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1"></div><div class="fl"><label>Нэгж өртөг (₮)</label><input type="number" class="ir-cost" placeholder="0"></div><button class="btn bd2 bxs" onclick="this.closest('.item-row').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button></div>`;
+  return `<div class="inventory-item-row grid-in-out">
+    <div class="inventory-item-product"><select class="row-prod-sel"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="inventory-item-number"><input type="number" class="ir-qty" value="1" min="1"></div>
+    <div class="inventory-item-number"><input type="number" class="ir-cost" placeholder="0"></div>
+    <div class="inventory-item-action"><button class="btn bd2 bxs" onclick="this.closest('.inventory-item-row').remove()"><i class="ti ti-trash"></i></button></div>
+  </div>`;
 }
 window.addInRow = () => { document.getElementById('in-rows').insertAdjacentHTML('beforeend',inRowHtml()); populateSels(); };
 window.submitIn = async () => {
@@ -2695,7 +2725,7 @@ window.submitIn = async () => {
   if(!lid){alert('Байршил сонгоно уу');return;}
   const loc=locations.find(l=>l.id===lid);
   const rows=[]; let added=0;
-  document.querySelectorAll('#in-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#in-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel').value;
     const qty=parseInt(row.querySelector('.ir-qty').value)||0;
     if(!pid||qty<=0)return;
@@ -2716,12 +2746,17 @@ window.submitIn = async () => {
 
 function outRowHtml(){
   const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
-  return `<div class="item-row inv-row"><div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="refreshOutRows()"><option value="">-- Сонгох --</option>${po}</select></div><div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1"></div><div class="fl"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div><button class="btn bd2 bxs" onclick="this.closest('.item-row').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button></div>`;
+  return `<div class="inventory-item-row grid-in-out">
+    <div class="inventory-item-product"><select class="row-prod-sel" onchange="refreshOutRows()"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="inventory-item-number"><input type="number" class="ir-qty" value="1" min="1"></div>
+    <div class="inventory-item-number"><input type="text" class="row-avail" readonly value="—"></div>
+    <div class="inventory-item-action"><button class="btn bd2 bxs" onclick="this.closest('.inventory-item-row').remove()"><i class="ti ti-trash"></i></button></div>
+  </div>`;
 }
 window.addOutRow = () => { document.getElementById('out-rows').insertAdjacentHTML('beforeend',outRowHtml()); populateSels(); };
 window.refreshOutRows = () => {
   const lid=document.getElementById('out-loc').value;
-  document.querySelectorAll('#out-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#out-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel').value;
     row.querySelector('.row-avail').value=(pid&&lid)?gst(pid,lid)+'ш':'—';
   });
@@ -2742,7 +2777,7 @@ window.submitOut = async () => {
   const tLoc=locations.find(l=>l.id===toLid);
   const rLabels={damage:'Гэмтэл/хорогдол',transfer:'Шилжүүлэлт',return:'Буцаалт',other:'Бусад'};
   const rows=[]; let done=0;
-  document.querySelectorAll('#out-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#out-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel').value;
     const qty=parseInt(row.querySelector('.ir-qty').value)||0;
     if(!pid||qty<=0)return;
@@ -2771,18 +2806,18 @@ window.submitOut = async () => {
 // ─── PURCHASE / ХУДАЛДАН АВАЛТ ТАТАН АВАЛТ ────────────────────────────────────
 function purchaseRowHtml(){
   const po=products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
-  return `<div class="item-row inv-row">
-    <div class="fl"><label>Бараа</label><select class="row-prod-sel" onchange="onPurchaseProdChange(this)"><option value="">-- Сонгох --</option>${po}</select></div>
-    <div class="fl"><label>Баркод</label><input type="text" class="pu-barcode" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px"></div>
-    <div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1" oninput="calcPurchaseTotal()"></div>
-    <div class="fl"><label>Нэгж худалдан авах үнэ (₮)</label><input type="number" class="pu-price" placeholder="0" oninput="calcPurchaseTotal()"></div>
-    <div class="fl"><label>Нийт дүн</label><input type="text" class="pu-amount" readonly style="background:var(--sur3);color:var(--tx3)" value="0₮"></div>
-    <button class="btn bd2 bxs" onclick="this.closest('.item-row').remove();calcPurchaseTotal()" style="align-self:flex-end"><i class="ti ti-trash"></i></button>
+  return `<div class="inventory-item-row grid-purchase">
+    <div class="inventory-item-product"><select class="row-prod-sel" onchange="onPurchaseProdChange(this)"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="inventory-item-number"><input type="text" class="pu-barcode" readonly></div>
+    <div class="inventory-item-number"><input type="number" class="ir-qty" value="1" min="1" oninput="calcPurchaseTotal()"></div>
+    <div class="inventory-item-number"><input type="number" class="pu-price" placeholder="0" oninput="calcPurchaseTotal()"></div>
+    <div class="inventory-item-amount"><input type="text" class="pu-amount" readonly value="0₮"></div>
+    <div class="inventory-item-action"><button class="btn bd2 bxs" onclick="this.closest('.inventory-item-row').remove();calcPurchaseTotal()"><i class="ti ti-trash"></i></button></div>
   </div>`;
 }
 window.addPurchaseRow = () => { document.getElementById('pu-rows').insertAdjacentHTML('beforeend',purchaseRowHtml()); populateSels(); };
 window.onPurchaseProdChange = (sel) => {
-  const row = sel.closest('.item-row');
+  const row = sel.closest('.inventory-item-row');
   const opt = sel.selectedOptions[0];
   row.querySelector('.pu-barcode').value = opt?.dataset.barcode || '';
   const p = products.find(x=>x.id===sel.value);
@@ -2791,7 +2826,7 @@ window.onPurchaseProdChange = (sel) => {
 };
 window.calcPurchaseTotal = () => {
   let total = 0;
-  document.querySelectorAll('#pu-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#pu-rows .inventory-item-row').forEach(row=>{
     const qty = parseFloat(row.querySelector('.ir-qty').value)||0;
     const price = parseFloat(row.querySelector('.pu-price').value)||0;
     const amt = qty*price;
@@ -2812,7 +2847,7 @@ window.submitPurchase = async () => {
   const loc = locations.find(l=>l.id===lid);
   const supplier = customers.find(c=>c.id===supplierId);
   const items = [];
-  document.querySelectorAll('#pu-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#pu-rows .inventory-item-row').forEach(row=>{
     const pid = row.querySelector('.row-prod-sel').value;
     const qty = parseFloat(row.querySelector('.ir-qty').value)||0;
     const price = parseFloat(row.querySelector('.pu-price').value)||0;
@@ -2928,19 +2963,19 @@ window.viewPurchase = (id) => {
 // хөдөлгүүрт бэлдэж валют/ханш/нэмэлт зардлын field-үүдийг хадгална.
 function importRowHtml(){
   const po=products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
-  return `<div class="item-row inv-row">
-    <div class="fl"><label>Бараа</label><select class="row-prod-sel" onchange="onImportProdChange(this)"><option value="">-- Сонгох --</option>${po}</select></div>
-    <div class="fl"><label>Баркод</label><input type="text" class="im-barcode" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px"></div>
-    <div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1" oninput="calcImportTotal()"></div>
-    <div class="fl"><label>Нэгж үнэ (валют)</label><input type="number" class="im-price-fx" placeholder="0" oninput="calcImportTotal()"></div>
-    <div class="fl"><label>Нэгж үнэ (₮, ханшаар)</label><input type="text" class="im-price-mnt" readonly style="background:var(--sur3);color:var(--tx3)" value="0₮"></div>
-    <div class="fl"><label>Нийт дүн (₮)</label><input type="text" class="im-amount" readonly style="background:var(--sur3);color:var(--tx3)" value="0₮"></div>
-    <button class="btn bd2 bxs" onclick="this.closest('.item-row').remove();calcImportTotal()" style="align-self:flex-end"><i class="ti ti-trash"></i></button>
+  return `<div class="inventory-item-row grid-import">
+    <div class="inventory-item-product"><select class="row-prod-sel" onchange="onImportProdChange(this)"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="inventory-item-number"><input type="text" class="im-barcode" readonly></div>
+    <div class="inventory-item-number"><input type="number" class="ir-qty" value="1" min="1" oninput="calcImportTotal()"></div>
+    <div class="inventory-item-number"><input type="number" class="im-price-fx" placeholder="0" oninput="calcImportTotal()"></div>
+    <div class="inventory-item-number"><input type="text" class="im-price-mnt" readonly value="0₮"></div>
+    <div class="inventory-item-amount"><input type="text" class="im-amount" readonly value="0₮"></div>
+    <div class="inventory-item-action"><button class="btn bd2 bxs" onclick="this.closest('.inventory-item-row').remove();calcImportTotal()"><i class="ti ti-trash"></i></button></div>
   </div>`;
 }
 window.addImportRow = () => { document.getElementById('im-rows').insertAdjacentHTML('beforeend',importRowHtml()); populateSels(); };
 window.onImportProdChange = (sel) => {
-  const row = sel.closest('.item-row');
+  const row = sel.closest('.inventory-item-row');
   const opt = sel.selectedOptions[0];
   row.querySelector('.im-barcode').value = opt?.dataset.barcode || '';
   calcImportTotal();
@@ -2948,7 +2983,7 @@ window.onImportProdChange = (sel) => {
 window.calcImportTotal = () => {
   const rate = parseFloat(document.getElementById('im-rate')?.value)||0;
   let goodsTotal = 0;
-  document.querySelectorAll('#im-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#im-rows .inventory-item-row').forEach(row=>{
     const qty = parseFloat(row.querySelector('.ir-qty').value)||0;
     const priceFx = parseFloat(row.querySelector('.im-price-fx').value)||0;
     const priceMnt = priceFx*rate;
@@ -2990,7 +3025,7 @@ window.submitImportPurchase = async () => {
   const totalAdditionalCost = Object.values(additionalCosts).reduce((a,v)=>a+v,0);
 
   const rawItems = [];
-  document.querySelectorAll('#im-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#im-rows .inventory-item-row').forEach(row=>{
     const pid = row.querySelector('.row-prod-sel').value;
     const qty = parseFloat(row.querySelector('.ir-qty').value)||0;
     const priceFx = parseFloat(row.querySelector('.im-price-fx').value)||0;
@@ -4085,17 +4120,17 @@ async function transferNum(date) {
 // ─── TRANSFER ─────────────────────────────────────────────────────────────────
 function transferRowHtml(idx){
   const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
-  return `<div class="item-row inv-row" id="trr-${idx}">
-    <div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="refreshTransferStock(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
-    <div class="fl"><label>Тоо (ш)</label><input type="number" class="tr-qty" value="1" min="1"></div>
-    <div class="fl"><label>Үлдэгдэл</label><input type="text" class="tr-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
-    <button class="btn bd2 bxs" onclick="document.getElementById('trr-${idx}').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button>
+  return `<div class="inventory-item-row grid-in-out" id="trr-${idx}">
+    <div class="inventory-item-product"><select class="row-prod-sel" onchange="refreshTransferStock(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="inventory-item-number"><input type="number" class="tr-qty" value="1" min="1"></div>
+    <div class="inventory-item-number"><input type="text" class="tr-avail" readonly value="—"></div>
+    <div class="inventory-item-action"><button class="btn bd2 bxs" onclick="document.getElementById('trr-${idx}').remove()"><i class="ti ti-trash"></i></button></div>
   </div>`;
 }
 window.addTransferRow=()=>{document.getElementById('tr-rows').insertAdjacentHTML('beforeend',transferRowHtml(trIdx++));populateSels();};
 window.refreshTransferRows=()=>{
   const lid=document.getElementById('tr-from-loc').value;
-  document.querySelectorAll('#tr-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#tr-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel')?.value;
     const avail=row.querySelector('.tr-avail');
     if(avail)avail.value=(pid&&lid)?gst(pid,lid)+'ш':'—';
@@ -4118,7 +4153,7 @@ window.submitTransfer=async()=>{
   if(fromLid===toLid){alert('Шилжүүлэх болон хүлээн авах байршил ижил байж болохгүй');return;}
   const rows=[];
   let ok=true;
-  document.querySelectorAll('#tr-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#tr-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel')?.value;
     const qty=parseInt(row.querySelector('.tr-qty')?.value)||0;
     if(!pid||qty<=0)return;
