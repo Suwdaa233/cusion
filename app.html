@@ -79,8 +79,6 @@ tbody tr:hover td{background:var(--sur2)}
 .dot{display:inline-block;width:8px;height:8px;border-radius:50%}
 .item-rows{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
 .item-row{display:grid;gap:8px;align-items:end;background:var(--sur2);border:1px solid var(--bd);border-radius:var(--r);padding:10px 12px}
-.item-row.sale-row{grid-template-columns:2fr 1.5fr 1fr 1fr 1fr 36px}
-.item-row.inv-row{grid-template-columns:2fr 1fr 1fr 36px}
 .item-row .fl label{font-size:10px}
 .item-row .fl input,.item-row .fl select{font-size:12px;padding:5px 8px}
 
@@ -99,6 +97,11 @@ tbody tr:hover td{background:var(--sur2)}
 .grid-in-out{grid-template-columns:2.2fr 90px 140px 34px}
 .grid-purchase{grid-template-columns:2fr 110px 64px 130px 130px 34px}
 .grid-import{grid-template-columns:1.8fr 90px 60px 100px 110px 120px 34px}
+.grid-sale{grid-template-columns:minmax(220px,2.4fr) minmax(145px,1.4fr) minmax(115px,1.1fr) minmax(75px,.7fr) minmax(145px,1.3fr) minmax(110px,1fr) 42px}
+.inventory-item-discount{display:flex;gap:4px}
+.inventory-item-discount select{flex:0 0 46px;padding:4px 2px!important}
+.inventory-item-discount input{flex:1;min-width:0}
+.inventory-item-product select{text-overflow:ellipsis}
 @media (max-width:900px){
   .inventory-item-header{display:none}
   .inventory-item-row{grid-template-columns:1fr!important;gap:4px;padding:8px 10px;border-bottom:1px solid var(--bd)}
@@ -151,7 +154,6 @@ tbody tr:hover td{background:var(--sur2)}
   .sb{width:48px}.sb-logo b,.sb-logo small,.sb-sec,.ni span,.user-email,.user-role{display:none}
   .ni{justify-content:center;padding:10px}
   .content{padding:10px}
-  .item-row.sale-row,.item-row.inv-row{grid-template-columns:1fr 1fr}
 }
 </style>
 </head>
@@ -294,7 +296,8 @@ tbody tr:hover td{background:var(--sur2)}
         <div class="fl" style="grid-column:1/-1"><label>Тэмдэглэл</label><input type="text" id="s-note2"></div>
       </div>
       <div style="margin-bottom:8px;font-size:12px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px">Бараaны мөрүүд</div>
-      <div class="item-rows" id="s-rows"></div>
+      <div class="inventory-item-header grid-sale"><span>Бараа</span><span>Баркод</span><span>Нэгж үнэ</span><span>Тоо</span><span>Хөнгөлөлт</span><span>Үлдэгдэл</span><span></span></div>
+      <div class="inventory-item-rows" id="s-rows"></div>
       <button class="add-row-btn" onclick="addSaleRow()"><i class="ti ti-plus"></i>Бараa нэмэх</button>
       <div id="s-prev" style="display:none" class="prev-box">
         <div class="prev-row"><span>Нийт тоо</span><span id="pv-qty"></span></div>
@@ -2389,27 +2392,22 @@ function populateSels(){
 // ─── SALE ROWS ────────────────────────────────────────────────────────────────
 let saleRowIdx = 0;
 function saleRowHtml(idx){
-  const po = products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
-  return `<div class="item-row sale-row" id="sr-${idx}" style="flex-wrap:wrap;gap:6px;align-items:flex-end">
-    <div class="fl" style="min-width:180px;flex:2"><label>Бараa</label><select class="row-prod-sel" onchange="onSaleProdChange(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
-    <div class="fl" style="min-width:90px;flex:1"><label>Нэгж үнэ ₮</label><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()" style="text-align:right"></div>
-    <div class="fl" style="min-width:70px;flex:0.7"><label>Тоо ш</label><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()" style="text-align:center"></div>
-    <div class="fl" style="min-width:100px;flex:0.8"><label>Хөнгөлөлт</label>
-      <div style="display:flex;gap:4px">
-        <select class="row-disc-type" onchange="onDiscTypeChange(${idx})" style="font-size:12px;padding:5px 4px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx);flex-shrink:0">
-          <option value="none">—</option>
-          <option value="percent">%</option>
-          <option value="amount">₮</option>
-        </select>
-        <input type="number" class="row-disc-val" placeholder="0" min="0" oninput="calcSaleTotal()" disabled
-          style="text-align:right;font-size:12px;width:60px;padding:5px 6px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur3)">
-      </div>
+  const po = products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="inventory-item-row grid-sale" id="sr-${idx}">
+    <div class="inventory-item-product"><select class="row-prod-sel" onchange="onSaleProdChange(${idx})" title=""><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="inventory-item-number"><input type="text" class="row-barcode" readonly></div>
+    <div class="inventory-item-number"><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()"></div>
+    <div class="inventory-item-number"><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()"></div>
+    <div class="inventory-item-discount">
+      <select class="row-disc-type" onchange="onDiscTypeChange(${idx})">
+        <option value="none">—</option>
+        <option value="percent">%</option>
+        <option value="amount">₮</option>
+      </select>
+      <input type="number" class="row-disc-val" placeholder="0" min="0" oninput="calcSaleTotal()" disabled>
     </div>
-    <div class="fl" style="min-width:80px;flex:0.8"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
-    <div class="fl" style="min-width:90px;flex:0.9;text-align:right"><label>Нийт ₮</label>
-      <div class="row-total" id="rt-${idx}" style="font-weight:700;font-size:14px;color:var(--pu);padding:6px 0">0₮</div>
-    </div>
-    <button class="btn bd2 bxs" onclick="removeSaleRow(${idx})" style="align-self:flex-end;margin-bottom:1px"><i class="ti ti-trash"></i></button>
+    <div class="inventory-item-number"><input type="text" class="row-avail" readonly value="—"></div>
+    <div class="inventory-item-action"><button class="btn bd2 bxs" onclick="removeSaleRow(${idx})"><i class="ti ti-trash"></i></button></div>
   </div>`;
 }
 window.onDiscTypeChange = (idx) => {
@@ -2432,14 +2430,17 @@ window.addSaleRow = () => { document.getElementById('s-rows').insertAdjacentHTML
 window.removeSaleRow = idx => { document.getElementById('sr-'+idx)?.remove(); calcSaleTotal(); };
 window.onSaleProdChange = idx => {
   const row = document.getElementById('sr-'+idx); if(!row) return;
-  const pid = row.querySelector('.row-prod-sel').value;
+  const sel = row.querySelector('.row-prod-sel');
+  const pid = sel.value;
+  const opt = sel.selectedOptions[0];
+  const bc = row.querySelector('.row-barcode'); if(bc) bc.value = opt?.dataset.barcode || '';
   const p = products.find(x=>x.id===pid);
   if(p) row.querySelector('.row-price').value = p.price;
   refreshSaleRows(); calcSaleTotal();
 };
 window.refreshSaleRows = () => {
   const lid = document.getElementById('s-loc').value;
-  document.querySelectorAll('#s-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#s-rows .inventory-item-row').forEach(row=>{
     const pid = row.querySelector('.row-prod-sel').value;
     const avail = row.querySelector('.row-avail');
     avail.value = (pid&&lid) ? gst(pid,lid)+'ш' : '—';
@@ -2450,7 +2451,7 @@ window.calcSaleTotal = () => {
   let totQ=0, totSubtotal=0, totDiscount=0, totA=0;
   const warns=[];
   const lid = document.getElementById('s-loc').value;
-  document.querySelectorAll('#s-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#s-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel').value;
     const price=parseFloat(row.querySelector('.row-price').value)||0;
     const qty=parseInt(row.querySelector('.row-qty').value)||0;
@@ -2525,7 +2526,7 @@ window.submitSale = async () => {
   if(!cid){alert('Харилцагч сонгоно уу');return;}
   if(!lid){alert('Байршил сонгоно уу');return;}
   const rows=[]; let valid=true;
-  document.querySelectorAll('#s-rows .item-row').forEach(row=>{
+  document.querySelectorAll('#s-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel').value;
     const price=parseInt(row.querySelector('.row-price').value)||0;
     const qty=parseInt(row.querySelector('.row-qty').value)||0;
