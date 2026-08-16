@@ -429,7 +429,7 @@ tbody tr:hover td{background:var(--sur2)}
     <div class="card">
       <div class="ch"><span class="ct"><i class="ti ti-users"></i>Харилцагчаар</span></div>
       <div class="cb np"><div class="tw"><table>
-        <thead><tr><th>Харилцагч</th><th>Нийт борлуулалт</th><th>Нийт төлсөн</th><th>Авлага</th><th>Сүүлийн огноо</th></tr></thead>
+        <thead><tr><th>Код</th><th>Харилцагч</th><th style="text-align:right">Эхний үлдэгдэл</th><th style="text-align:right">Борлуулалт</th><th style="text-align:right">Төлөлт</th><th style="text-align:right">Эцсийн үлдэгдэл</th><th>Сүүлийн огноо</th><th>Үйлдэл</th></tr></thead>
         <tbody id="rv-by-cust"></tbody>
       </table></div></div>
     </div>
@@ -3807,7 +3807,8 @@ window.renderRecvSummary = () => {
       opening: stmt.openingBalance,
       debit:   stmt.periodDebits,
       credit:  stmt.periodCredits,
-      closing: stmt.closingBalance
+      closing: stmt.closingBalance,
+      lastDate: stmt.rows.length ? stmt.rows[stmt.rows.length-1].date : ''
     });
     sumOpen  += stmt.openingBalance;
     sumDebit += stmt.periodDebits;
@@ -3832,14 +3833,15 @@ window.renderRecvSummary = () => {
     return;
   }
 
-  tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer" onclick="goToLedger('${r.custId}')">
+  tbody.innerHTML = rows.map(r => `<tr style="cursor:pointer" onclick="openReceivableDetail('${r.custId}','${from}','${to}')">
     <td style="font-size:11px;color:var(--tx3)">${r.code}</td>
-    <td style="font-weight:500">${r.name}</td>
+    <td style="font-weight:500;color:var(--pu)">${r.name}</td>
     <td style="text-align:right;color:var(--tx2)">${fmt(r.opening)}</td>
     <td style="text-align:right;color:var(--pu)">${fmt(r.debit)}</td>
     <td style="text-align:right;color:var(--gr)">${fmt(r.credit)}</td>
     <td style="text-align:right;font-weight:700;color:${r.closing>0?'var(--am)':r.closing<0?'var(--re)':'var(--tx)'}">${fmt(r.closing)}</td>
-    <td><button class="btn bg bxs" style="font-size:10px" onclick="event.stopPropagation();goToLedger('${r.custId}')"><i class="ti ti-file-text"></i></button></td>
+    <td style="font-size:11px;color:var(--tx3)">${r.lastDate||'—'}</td>
+    <td><button class="btn bg bxs" style="font-size:10px" onclick="event.stopPropagation();openReceivableDetail('${r.custId}','${from}','${to}')" title="Харах"><i class="ti ti-eye"></i></button></td>
   </tr>`).join('') + `
   <tr style="background:var(--sur2);font-weight:700;border-top:2px solid var(--bd)">
     <td colspan="2" style="padding:8px 10px">Нийт</td>
@@ -3847,25 +3849,31 @@ window.renderRecvSummary = () => {
     <td style="text-align:right;padding:8px 10px;color:var(--pu)">${fmt(sumDebit)}</td>
     <td style="text-align:right;padding:8px 10px;color:var(--gr)">${fmt(sumCredit)}</td>
     <td style="text-align:right;padding:8px 10px;color:${sumClose>0?'var(--am)':'var(--gr)'}">${fmt(sumClose)}</td>
-    <td></td>
+    <td></td><td></td>
   </tr>`;
 };
 
-// Дэлгэрэнгүй тайлан руу шилжих
+// ─── АВЛАГЫН ДЭЛГЭРЭНГҮЙ РУУ DRILLDOWN (Товчоо → Дэлгэрэнгүй → эх баримт) ───
+// Хэзээ ч шууд print/preview рүү орохгүй. Хэвлэх нь дэлгэрэнгүй дэлгэц дэх
+// тусдаа "Хэвлэх" товч (printLedger) — энд шууд дуудагдахгүй.
+window.openReceivableDetail = (customerId, startDate, endDate) => {
+  const tabBtn = document.querySelector('#sec-receivable .tb[onclick*="\'ledger\'"]');
+  if(tabBtn) showRTab('ledger', tabBtn);
+  setTimeout(() => {
+    const cSel = document.getElementById('ldg-cust');
+    if(cSel) cSel.value = customerId;
+    const fEl = document.getElementById('ldg-from');
+    const tEl = document.getElementById('ldg-to');
+    if(fEl && startDate) fEl.value = startDate;
+    if(tEl && endDate)   tEl.value = endDate;
+    if(typeof renderLedger === 'function') renderLedger();
+  }, 100);
+};
+// Хуучин нэрээр дуудаж байж болзошгүй код-той нийцтэй байх alias
 window.goToLedger = (custId) => {
   const from = document.getElementById('rv-date-from')?.value || '';
   const to   = document.getElementById('rv-date-to')?.value   || '';
-  // Авлагын тайлан таб руу
-  document.querySelector('[onclick*="showRTab"][onclick*="ldg"]')?.click();
-  setTimeout(() => {
-    const cSel = document.getElementById('ldg-cust');
-    if(cSel) { cSel.value = custId; }
-    const fEl = document.getElementById('ldg-from');
-    const tEl = document.getElementById('ldg-to');
-    if(fEl && from) fEl.value = from;
-    if(tEl && to)   tEl.value = to;
-    if(typeof renderLedger === 'function') renderLedger();
-  }, 100);
+  openReceivableDetail(custId, from, to);
 };
 
 window.renderRecvDetail = () => {
@@ -5528,7 +5536,7 @@ window.renderLedger = () => {
         <td style="padding:7px 10px;text-align:center;color:var(--tx3)">${m.idx}</td>
         <td style="padding:7px 10px;font-size:11px;color:var(--tx3)">${m.date}</td>
         <td style="padding:7px 10px;font-family:monospace;font-size:11px;cursor:pointer;color:var(--pu)"
-          ${m.saleId ? `onclick="openInvoice('${m.saleId}')"` : ''}>${m.docNum}</td>
+          ${m.saleId ? `onclick="openSourceDocument('sale','${m.saleId}')"` : m.paymentId ? `onclick="openSourceDocument('payment','${m.paymentId}')"` : ''}>${m.docNum}</td>
         <td style="padding:7px 10px;font-size:12px">${m.desc}</td>
         <td style="padding:7px 10px;font-size:12px">${m.type}</td>
         <td style="padding:7px 10px;text-align:right;color:var(--re)">${m.debit ? fmt(m.debit) : ''}</td>
