@@ -217,23 +217,29 @@ tbody tr:hover td{background:var(--sur2)}
 <!-- DASHBOARD -->
 <div id="sec-dashboard" class="sec on">
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-    <button class="btn bp bxs" onclick="setDashPeriod('today')">Өнөөдөр</button>
-    <button class="btn bg bxs" onclick="setDashPeriod('week')">7 хоног</button>
-    <button class="btn bg bxs" onclick="setDashPeriod('month')">Энэ сар</button>
-    <button class="btn bg bxs" onclick="setDashPeriod('year')">Энэ жил</button>
-    <input type="date" id="d-from" onchange="renderDashboard()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
+    <button class="btn bp bxs" id="dp-today" onclick="setDashPeriod('today')">Өнөөдөр</button>
+    <button class="btn bg bxs" id="dp-week" onclick="setDashPeriod('week')">7 хоног</button>
+    <button class="btn bg bxs" id="dp-month" onclick="setDashPeriod('month')">Энэ сар</button>
+    <button class="btn bg bxs" id="dp-year" onclick="setDashPeriod('year')">Энэ жил</button>
+    <input type="date" id="d-from" onchange="setDashPeriod('custom')" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
     <span style="color:var(--tx3)">—</span>
-    <input type="date" id="d-to" onchange="renderDashboard()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
+    <input type="date" id="d-to" onchange="setDashPeriod('custom')" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
   </div>
   <!-- KPI блокууд -->
   <div class="mg" id="d-metrics" style="margin-bottom:14px"></div>
-  <!-- Sparkline chart -->
+  <!-- Chart -->
   <div class="card" style="margin-bottom:14px">
-    <div class="ch"><span class="ct"><i class="ti ti-chart-line"></i>Борлуулалтын чиг хандлага</span>
-      <div id="d-chart-legend" style="font-size:11px;color:var(--tx3)"></div>
+    <div class="ch"><span class="ct"><i class="ti ti-chart-line"></i>Орлого / Өртөг / Ашгийн чиг хандлага</span>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div id="d-chart-legend" style="font-size:11px;color:var(--tx3)"></div>
+        <div style="display:flex;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden">
+          <button class="btn bxs" id="dch-bar" onclick="setDashChartType('bar')" style="border:none;border-radius:0;background:var(--pu);color:#fff"><i class="ti ti-chart-bar"></i></button>
+          <button class="btn bxs" id="dch-line" onclick="setDashChartType('line')" style="border:none;border-radius:0"><i class="ti ti-chart-line"></i></button>
+        </div>
+      </div>
     </div>
     <div class="cb" style="padding:8px">
-      <svg id="d-sparkline" width="100%" height="120" style="display:block"></svg>
+      <svg id="d-sparkline" width="100%" height="180" style="display:block"></svg>
     </div>
   </div>
   <!-- 2 багана -->
@@ -243,7 +249,7 @@ tbody tr:hover td{background:var(--sur2)}
       <div class="ch"><span class="ct"><i class="ti ti-alert-circle"></i>Авлагын товчоо</span></div>
       <div class="cb np"><div class="tw">
         <table style="font-size:12px">
-          <thead><tr><th>Харилцагч</th><th style="text-align:right">Авлага</th><th>Хугацаа</th></tr></thead>
+          <thead><tr><th>Харилцагч</th><th style="text-align:right">Авлага</th></tr></thead>
           <tbody id="d-recv-tbody"></tbody>
         </table>
       </div></div>
@@ -2021,6 +2027,8 @@ onAuthStateChanged(auth, async user => {
   // Нэгдсэн тайлант сар тохируулах
   const _initYm = getDefaultYearMonth();
   applyReportingPeriod(_initYm);
+  // Dashboard — тусдаа, "Өнөөдөр"-өөр эхэлнэ (глобал сарын picker-т хамаарахгүй)
+  initDashboardPeriod();
   // Эрхийн тохиргоо ачаалах + needsUidLink шалгах
   await loadCurrentPermissions(user.uid);
   await linkUserUidIfNeeded(user);
@@ -3348,96 +3356,145 @@ function statusBadge(s){
   return {paid:'<span class="ba bgr"><i class="ti ti-check" style="font-size:10px"></i>Төлөгдсөн</span>',partial:'<span class="ba bam2">Хэсэгчилсэн</span>',unpaid:'<span class="ba bre">Авлагатай</span>'}[s]||s;
 }
 
+// ═══ DASHBOARD — НЭГДСЭН PERIOD STATE ═══════════════════════════════════════
+// dashboardDateRange нь Dashboard доторх БҮХ KPI/график/хүснэгтэд ашиглагдах
+// цорын ганц эх сурвалж. Глобал "Тайлант сар" picker-т хамаарахгүй.
+let dashboardDateRange = { startDate: '', endDate: '', periodType: 'today' };
+let dashboardChartType = 'bar';
+
+function todayStr() { return new Date().toISOString().slice(0,10); }
+
+window.initDashboardPeriod = () => {
+  setDashPeriod('today', true);
+};
+
+window.setDashPeriod = (period, silent) => {
+  const today = todayStr();
+  let from = today, to = today;
+  if(period==='today') { from = today; to = today; }
+  else if(period==='week') { const d=new Date(); d.setDate(d.getDate()-6); from=d.toISOString().slice(0,10); to=today; }
+  else if(period==='month') { from = today.slice(0,7)+'-01'; to = today; }
+  else if(period==='year')  { from = today.slice(0,4)+'-01-01'; to = today; }
+  else if(period==='custom') {
+    from = document.getElementById('d-from')?.value || today;
+    to   = document.getElementById('d-to')?.value   || today;
+  }
+  dashboardDateRange = { startDate: from, endDate: to, periodType: period };
+
+  const fEl=document.getElementById('d-from'), tEl=document.getElementById('d-to');
+  if(fEl) fEl.value = from;
+  if(tEl) tEl.value = to;
+
+  // Preset товчны идэвхжилтийг зөв тохируулах (input ба товч ХЭЗЭЭ Ч тусдаа state биш)
+  ['dp-today','dp-week','dp-month','dp-year'].forEach(id=>{
+    const b = document.getElementById(id); if(!b) return;
+    b.classList.remove('bp'); b.classList.add('bg');
+  });
+  if(period!=='custom') {
+    const activeBtn = document.getElementById('dp-'+period);
+    if(activeBtn) { activeBtn.classList.remove('bg'); activeBtn.classList.add('bp'); }
+  }
+  if(!silent) renderDashboard();
+};
+
+window.setDashChartType = (type) => {
+  dashboardChartType = type;
+  const barBtn = document.getElementById('dch-bar'), lineBtn = document.getElementById('dch-line');
+  if(barBtn)  { barBtn.style.background  = type==='bar'  ? 'var(--pu)' : ''; barBtn.style.color  = type==='bar'  ? '#fff' : ''; }
+  if(lineBtn) { lineBtn.style.background = type==='line' ? 'var(--pu)' : ''; lineBtn.style.color = type==='line' ? '#fff' : ''; }
+  renderDashboard();
+};
+
+// Тухайн endDate-ийн байдлаарх нийт авлагын үлдэгдэл (бүх харилцагчаар)
+// — renderRecvSummary-тай ЯГ ИЖИЛ тооцооллын логик ашиглана (давхардуулахгүй)
+function getTotalReceivableAsOf(endDate) {
+  const custIds = new Set();
+  sales.forEach(s => {
+    if(s.status === 'deleted' || s.status === 'void' || s.status === 'cancelled') return;
+    const pt = s.paymentType || s.payType || s.method || '';
+    if(pt === 'credit' || s.recv > 0 || s.paid > 0) custIds.add(s.customerId);
+  });
+  let total = 0;
+  const byCust = [];
+  custIds.forEach(cid => {
+    const stmt = calculateReceivableStatement({ customerId: cid, startDate: '', endDate });
+    if(stmt.closingBalance <= 0) return;
+    total += stmt.closingBalance;
+    const cust = customers.find(c=>c.id===cid) || {};
+    byCust.push({ custId: cid, name: cust.name || sales.find(s=>s.customerId===cid)?.customerName || '—', recv: stmt.closingBalance });
+  });
+  byCust.sort((a,b)=>b.recv-a.recv);
+  return { total, byCust };
+}
+
 window.renderDashboard = () => {
-  const from = document.getElementById('d-from')?.value || '';
-  const to   = document.getElementById('d-to')?.value   || '';
+  const from = dashboardDateRange.startDate || document.getElementById('d-from')?.value || todayStr();
+  const to   = dashboardDateRange.endDate   || document.getElementById('d-to')?.value   || todayStr();
 
   const filtered = sales.filter(s =>
-    s.status !== 'deleted' && s.status !== 'void' &&
+    s.status !== 'deleted' && s.status !== 'void' && s.status !== 'cancelled' &&
     (!from || s.date >= from) && (!to || s.date <= to)
   );
 
-  // ─── KPI ───
-  const totalSales  = filtered.reduce((a,s)=>a+(s.total||0),0);
-  const totalCost   = filtered.reduce((a,s)=>a+(s.totalCost||s.items?.reduce((b,it)=>b+(it.costAmount||0),0)||0),0);
-  const totalProfit = totalSales - totalCost;
-  const totalPaid   = filtered.reduce((a,s)=>a+(s.paid||0),0);
-  const totalRecv   = sales.reduce((a,s)=>a+(s.recv||0),0); // бүх хугацааны авлага
-  const bankInc = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)).reduce((a,t)=>a+(t.income||0),0);
-  const bankExp = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)).reduce((a,t)=>a+(t.expense||0),0);
+  // ─── 5 KPI (нэгдсэн dashboardDateRange ашиглана) ───
+  const totalIncome = filtered.reduce((a,s)=>a+(s.total||0),0);
+  const totalCost   = filtered.reduce((a,s)=>a+(s.totalCost||(s.items||[]).reduce((b,it)=>b+(it.costAmount||((it.unitCost||0)*(it.qty||0))),0)),0);
+  const totalProfit = totalIncome - totalCost;
+  // Мөнгөн орлого — банкны эх гүйлгээ бүрийг НЭГ УДАА (allocation-аар давхарлахгүй)
+  const cashIncome = bankTxns
+    .filter(t => (t.isDeleted!==true && t.status!=='deleted') && (!from||t.date>=from) && (!to||t.date<=to))
+    .reduce((a,t)=>a+(t.income||0),0);
+  // Авлага — сонгосон endDate-ийн байдлаарх үлдэгдэл (Эхний+Борлуулалт−Төлөлт, тухайн хугацаанд шинээр үүссэн авлагын нийлбэр БИШ)
+  const recvAsOf = getTotalReceivableAsOf(to);
 
   const metricsEl = document.getElementById('d-metrics');
   if(metricsEl) metricsEl.innerHTML = `
-    <div class="mc"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalSales)}</div><div class="ms">${filtered.length} гүйлгээ</div></div>
-    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div><div class="ms">Өртөг: ${fmt(totalCost)}</div></div>
-    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalRecv)}</div><div class="ms">Төлсөн: ${fmt(totalPaid)}</div></div>
-    <div class="mc"><div class="ml">Мөнгөн орлого</div><div class="mv gr">${fmt(bankInc)}</div><div class="ms">Зарлага: ${fmt(bankExp)}</div></div>`;
+    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('income')"><div class="ml">Нийт орлого</div><div class="mv pu">${fmt(totalIncome)}</div><div class="ms">${filtered.length} гүйлгээ</div></div>
+    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('cost')"><div class="ml">Нийт өртөг</div><div class="mv">${fmt(totalCost)}</div></div>
+    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div></div>
+    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('cash')"><div class="ml">Мөнгөн орлого</div><div class="mv gr">${fmt(cashIncome)}</div></div>
+    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('recv')"><div class="ml">Авлага</div><div class="mv am">${fmt(recvAsOf.total)}</div><div class="ms">${to}-ний байдлаар</div></div>`;
 
-  // ─── SPARKLINE ───
-  const byDay = {};
-  filtered.forEach(s => { byDay[s.date] = (byDay[s.date]||0) + (s.total||0); });
-  const days = Object.keys(byDay).sort();
-  const svg = document.getElementById('d-sparkline');
-  if(svg && days.length > 1) {
-    const vals = days.map(d => byDay[d]);
-    const maxV = Math.max(...vals);
-    const minV = Math.min(...vals);
-    const W = svg.clientWidth || 800, H = 110, PAD = 8;
-    const x = i => PAD + (i/(days.length-1)) * (W - PAD*2);
-    const y = v => H - PAD - ((v-minV)/(maxV-minV||1)) * (H - PAD*2);
-    const pts = days.map((d,i) => `${x(i)},${y(byDay[d])}`).join(' ');
-    const fillPts = `${x(0)},${H} ` + pts + ` ${x(days.length-1)},${H}`;
-    svg.innerHTML = `
-      <defs><linearGradient id="spGrad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="var(--pu)" stop-opacity="0.3"/>
-        <stop offset="100%" stop-color="var(--pu)" stop-opacity="0"/>
-      </linearGradient></defs>
-      <polygon points="${fillPts}" fill="url(#spGrad)"/>
-      <polyline points="${pts}" fill="none" stroke="var(--pu)" stroke-width="2" stroke-linejoin="round"/>
-      ${days.map((d,i)=>`<circle cx="${x(i)}" cy="${y(byDay[d])}" r="3" fill="var(--pu)"/>`).join('')}
-      ${days.length<=14?days.map((d,i)=>`<text x="${x(i)}" y="${H}" text-anchor="middle" font-size="9" fill="var(--tx3)">${d.slice(5)}</text>`).join(''):''}`;
-    const legend = document.getElementById('d-chart-legend');
-    if(legend) legend.textContent = `${days[0]} — ${days[days.length-1]} (${days.length} өдөр)`;
-  } else if(svg) {
-    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="var(--tx3)" font-size="13">Өгөгдөл хангалтгүй</text>';
-  }
+  // ─── ГРАФИК: grouping — period төрлөөс хамаарна ───
+  const groupBy = (dashboardDateRange.periodType==='year') ? 'month' : 'day';
+  const groups = {}; // key -> {income, cost}
+  filtered.forEach(s => {
+    const key = groupBy==='month' ? s.date.slice(0,7) : s.date;
+    if(!groups[key]) groups[key] = {income:0, cost:0};
+    groups[key].income += s.total||0;
+    groups[key].cost   += (s.totalCost||(s.items||[]).reduce((b,it)=>b+(it.costAmount||((it.unitCost||0)*(it.qty||0))),0));
+  });
+  const keys = Object.keys(groups).sort();
+  renderDashChart(keys, groups, groupBy);
 
-  // ─── АВЛАГЫН ТОВЧОО ───
-  const recvRows = sales
-    .filter(s => s.recv > 0)
-    .reduce((acc, s) => {
-      if(!acc[s.customerId]) acc[s.customerId] = { name:s.customerName||'—', recv:0, oldest:s.date };
-      acc[s.customerId].recv += s.recv;
-      if(s.date < acc[s.customerId].oldest) acc[s.customerId].oldest = s.date;
-      return acc;
-    }, {});
-  const today = new Date().toISOString().slice(0,10);
-  const recvList = Object.values(recvRows).sort((a,b)=>b.recv-a.recv).slice(0,8);
+  const legend = document.getElementById('d-chart-legend');
+  if(legend) legend.textContent = keys.length ? `${from} — ${to} (${keys.length} ${groupBy==='month'?'сар':'өдөр'})` : '';
+
+  // ─── АВЛАГЫН ТОВЧОО (сонгосон endDate-ийн байдлаарх үлдэгдэл) ───
   const recvTbody = document.getElementById('d-recv-tbody');
+  const today0 = todayStr();
+  const recvList = recvAsOf.byCust.slice(0,8);
   if(recvTbody) recvTbody.innerHTML = recvList.length ? recvList.map(r => {
-    const days = Math.floor((new Date(today)-new Date(r.oldest))/(86400000));
-    const color = days>60?'re':days>30?'am':'gr';
-    return `<tr><td style="font-weight:500">${r.name}</td>
-      <td style="text-align:right;color:var(--am);font-weight:700">${fmt(r.recv)}</td>
-      <td><span class="ba b${color}">${days}х</span></td></tr>`;
-  }).join('') : '<tr><td colspan="3"><div class="empty">Авлага байхгүй</div></td></tr>';
+    return `<tr style="cursor:pointer" onclick="drillDashRecv('${r.custId}')"><td style="font-weight:500;color:var(--pu)">${r.name}</td>
+      <td style="text-align:right;color:var(--am);font-weight:700">${fmt(r.recv)}</td></tr>`;
+  }).join('') : '<tr><td colspan="2"><div class="empty">Авлага байхгүй</div></td></tr>';
 
-  // ─── TOP БАРАА ───
+  // ─── TOP БАРАА (сонгосон хугацааны борлуулалтаар) ───
   const prodSales = {};
   filtered.forEach(s => (s.items||[]).forEach(it => {
-    if(!prodSales[it.pid]) prodSales[it.pid] = { label:it.label||'—', qty:0, total:0 };
+    if(!prodSales[it.pid]) prodSales[it.pid] = { pid:it.pid, label:it.label||'—', qty:0, total:0 };
     prodSales[it.pid].qty += it.qty||1;
     prodSales[it.pid].total += it.lineTotal||it.sub||0;
   }));
   const topProds = Object.values(prodSales).sort((a,b)=>b.total-a.total).slice(0,8);
   const prodTbody = document.getElementById('d-top-prod-tbody');
   if(prodTbody) prodTbody.innerHTML = topProds.length ? topProds.map(p =>
-    `<tr><td style="font-size:11px">${p.label.replace('·',' ')}</td>
+    `<tr style="cursor:pointer" onclick="drillDashProduct('${p.pid}')"><td style="font-size:11px;color:var(--pu)">${p.label.replace('·',' ')}</td>
       <td style="text-align:right">${p.qty}ш</td>
       <td style="text-align:right;color:var(--pu)">${fmt(p.total)}</td></tr>`
   ).join('') : '<tr><td colspan="3"><div class="empty">Борлуулалт байхгүй</div></td></tr>';
 
-  // ─── БАНКНЫ ДАНС ───
+  // ─── БАНКНЫ ДАНС (өнөөдрийн нийт үлдэгдэл — period-той хамааралгүй, тусдаа зорилготой) ───
   const bankTbody = document.getElementById('d-bank-tbody');
   if(bankTbody) {
     const accRows = bankAccounts.filter(a=>a.active!==false).map(a => {
@@ -3456,20 +3513,129 @@ window.renderDashboard = () => {
   }
 };
 
-// setDashPeriod helper
-window.setDashPeriod = (period) => {
-  const now = new Date();
-  const today = now.toISOString().slice(0,10);
-  let from = today, to = today;
-  if(period==='week') { const d=new Date(now); d.setDate(d.getDate()-6); from=d.toISOString().slice(0,10); }
-  else if(period==='month') { from=today.slice(0,7)+'-01'; }
-  else if(period==='year')  { from=today.slice(0,4)+'-01-01'; }
-  const fEl=document.getElementById('d-from'), tEl=document.getElementById('d-to');
-  if(fEl) fEl.value=from; if(tEl) tEl.value=to;
-  // Highlight active button
-  document.querySelectorAll('#sec-dashboard .btn').forEach(b=>b.classList.remove('bp'));
-  event?.target?.classList.add('bp');
-  renderDashboard();
+// ─── ГРАФИК ЗУРАХ (Bar/Line сонголттой, мянгатаар товчилсон тэнхлэг, бүтэн dэн tooltip) ───
+function abbrevK(v) {
+  const k = v/1000;
+  if(Math.abs(k) >= 1000) return (k/1000).toFixed(1).replace(/\.0$/,'')+'M';
+  return Math.round(k).toLocaleString()+'K';
+}
+function renderDashChart(keys, groups, groupBy) {
+  const svg = document.getElementById('d-sparkline'); if(!svg) return;
+  if(keys.length === 0) {
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="var(--tx3)" font-size="13">Өгөгдөл хангалтгүй</text>';
+    return;
+  }
+  const incomes = keys.map(k=>groups[k].income);
+  const costs   = keys.map(k=>groups[k].cost);
+  const profits = keys.map((k,i)=>incomes[i]-costs[i]);
+  const maxV = Math.max(...incomes, ...costs, ...profits, 1);
+  const W = svg.clientWidth || 900, H = 180, PADL = 52, PADB = 24, PADT = 10, PADR = 10;
+  const plotW = W-PADL-PADR, plotH = H-PADT-PADB;
+  const x = i => PADL + (keys.length<=1 ? plotW/2 : (i/(keys.length-1)) * plotW);
+  const y = v => PADT + plotH - (v/maxV)*plotH;
+  const barW = Math.min(18, plotW/keys.length/4);
+
+  // Y тэнхлэгийн шугам (мянгатаар товчилсон)
+  const ySteps = 5;
+  let axisLines = '';
+  for(let i=0;i<=ySteps;i++){
+    const v = maxV*i/ySteps;
+    const yy = y(v);
+    axisLines += `<line x1="${PADL}" y1="${yy}" x2="${W-PADR}" y2="${yy}" stroke="var(--bd)" stroke-width="1" opacity="0.5"/>
+      <text x="${PADL-6}" y="${yy+3}" text-anchor="end" font-size="9" fill="var(--tx3)">${abbrevK(v)}</text>`;
+  }
+  axisLines += `<text x="${PADL}" y="12" font-size="9" fill="var(--tx3)">Дүн /мян.₮/</text>`;
+
+  let seriesHtml = '';
+  const COLORS = { income:'var(--pu)', cost:'var(--am)', profit:'var(--gr)' };
+  const SERIES = [ {key:'income', vals:incomes, label:'Орлого'}, {key:'cost', vals:costs, label:'Өртөг'}, {key:'profit', vals:profits, label:'Ашиг'} ];
+
+  if(dashboardChartType === 'bar') {
+    SERIES.forEach((s, si) => {
+      keys.forEach((k,i) => {
+        const v = s.vals[i];
+        const bx = x(i) + (si-1)*(barW+2);
+        const bh = plotH * (v/maxV||0);
+        const by = PADT+plotH-bh;
+        seriesHtml += `<rect x="${bx-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${COLORS[s.key]}" rx="2"><title>${s.label} (${k}): ${fmt(v)}</title></rect>`;
+      });
+    });
+  } else {
+    SERIES.forEach(s => {
+      const pts = keys.map((k,i)=>`${x(i)},${y(s.vals[i])}`).join(' ');
+      seriesHtml += `<polyline points="${pts}" fill="none" stroke="${COLORS[s.key]}" stroke-width="2" stroke-linejoin="round"/>`;
+      keys.forEach((k,i)=>{
+        seriesHtml += `<circle cx="${x(i)}" cy="${y(s.vals[i])}" r="3" fill="${COLORS[s.key]}"><title>${s.label} (${k}): ${fmt(s.vals[i])}</title></circle>`;
+      });
+    });
+  }
+
+  const xLabels = keys.length<=16 ? keys.map((k,i)=>`<text x="${x(i)}" y="${H-6}" text-anchor="middle" font-size="9" fill="var(--tx3)">${groupBy==='month'?k.slice(2):k.slice(5)}</text>`).join('') : '';
+
+  svg.innerHTML = `${axisLines}${seriesHtml}${xLabels}`;
+
+  const legend = document.getElementById('d-chart-legend');
+  if(legend) legend.innerHTML += ` &nbsp; <span style="color:${COLORS.income}">●</span>Орлого <span style="color:${COLORS.cost}">●</span>Өртөг <span style="color:${COLORS.profit}">●</span>Ашиг`;
+}
+
+// ─── DASHBOARD DRILLDOWN ─────────────────────────────────────────────────────
+window.drillDashKpi = (kpi) => {
+  const from = dashboardDateRange.startDate, to = dashboardDateRange.endDate;
+  const btn = document.querySelector('.ni[onclick*="sales"]');
+  if(kpi === 'income') {
+    goSec('sales', btn||document.querySelector('.ni'));
+    setTimeout(()=>{
+      const tb = document.querySelector('#sec-sales .tab-bar .tb[onclick*="\'list\'"]');
+      if(tb) showSalesTab('list', tb);
+      const fEl=document.getElementById('sl-from'), tEl=document.getElementById('sl-to');
+      if(fEl) fEl.value=from; if(tEl) tEl.value=to;
+      renderSalesList();
+    }, 150);
+  } else if(kpi === 'cost') {
+    goSec('sales', btn||document.querySelector('.ni'));
+    setTimeout(()=>{
+      const tb = document.querySelector('#sec-sales .tab-bar .tb[onclick*="\'report\'"]');
+      if(tb) showSalesTab('report', tb);
+      const fEl=document.getElementById('sr-from'), tEl=document.getElementById('sr-to');
+      if(fEl) fEl.value=from; if(tEl) tEl.value=to;
+      renderSalesReportView();
+    }, 150);
+  } else if(kpi === 'cash') {
+    const bbtn = document.querySelector('.ni[onclick*="bank"]');
+    goSec('bank', bbtn||document.querySelector('.ni'));
+    setTimeout(()=>{
+      const tb = document.querySelector('#sec-bank .tb[onclick*="transactions"]');
+      if(tb) showBankTab('transactions', tb);
+      const fEl=document.getElementById('txn-from'), tEl=document.getElementById('txn-to'), typ=document.getElementById('txn-type-filter');
+      if(fEl) fEl.value=from; if(tEl) tEl.value=to; if(typ) typ.value='income';
+      renderTransactions();
+    }, 150);
+  } else if(kpi === 'recv') {
+    const rbtn = document.querySelector('.ni[onclick*="receivable"]');
+    goSec('receivable', rbtn||document.querySelector('.ni'));
+    setTimeout(()=>{
+      const fEl=document.getElementById('rv-date-from'), tEl=document.getElementById('rv-date-to');
+      if(fEl) fEl.value=''; if(tEl) tEl.value=to;
+      renderRecvSummary();
+    }, 150);
+  }
+};
+window.drillDashRecv = (custId) => {
+  const btn = document.querySelector('.ni[onclick*="receivable"]');
+  goSec('receivable', btn||document.querySelector('.ni'));
+  setTimeout(()=>{ openReceivableDetail(custId, '', dashboardDateRange.endDate); }, 150);
+};
+window.drillDashProduct = (pid) => {
+  const btn = document.querySelector('.ni[onclick*="sales"]');
+  goSec('sales', btn||document.querySelector('.ni'));
+  setTimeout(()=>{
+    const tb = document.querySelector('#sec-sales .tab-bar .tb[onclick*="\'report\'"]');
+    if(tb) showSalesTab('report', tb);
+    const fEl=document.getElementById('sr-from'), tEl=document.getElementById('sr-to'), pEl=document.getElementById('sr-prod');
+    if(fEl) fEl.value=dashboardDateRange.startDate; if(tEl) tEl.value=dashboardDateRange.endDate;
+    renderSalesReportView();
+    setTimeout(()=>{ if(pEl){pEl.value=pid;} const vbtn=document.querySelector('#st-report .tab-bar .tb[onclick*="product"]'); if(vbtn) showSalesReportView('product', vbtn); }, 100);
+  }, 150);
 };
 
 window.renderSalesTable = () => {
@@ -7624,8 +7790,10 @@ function getReportingPeriodRange(yearMonth) {
 }
 
 // Бүх date input-уудыг нэгдсэн саруудаар бөглөх
+// АНХААР: 'd-from'/'d-to' (Dashboard) ЭНД ОРОХГҮЙ — Dashboard өөрийн
+// тусдаа нэгдсэн period state-тэй (dashboardDateRange), глобал "Тайлант сар"
+// picker-ээс бүрэн тусгаарлагдсан байх ёстой.
 const DATE_PAIRS = [
-  ['d-from', 'd-to'],
   ['s-from', 's-to'],
   ['rv-date-from', 'rv-date-to'],
   ['ph-from', 'ph-to'],
