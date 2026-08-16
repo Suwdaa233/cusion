@@ -485,11 +485,11 @@ tbody tr:hover td{background:var(--sur2)}
   <div class="tab-bar">
     <button class="tb on" onclick="showInvTab('in',this)"><i class="ti ti-arrow-down-circle"></i>Орлого</button>
     <button class="tb" onclick="showInvTab('out',this)"><i class="ti ti-arrow-up-circle"></i>Зарлага</button>
-    <button class="tb" onclick="showInvTab('purchase',this)"><i class="ti ti-truck-delivery"></i>Худалдан авалт / Татан авалт</button>
     <button class="tb" onclick="showInvTab('transfer',this)"><i class="ti ti-arrows-exchange"></i>Шилжүүлэлт</button>
+    <button class="tb" onclick="showInvTab('purchase',this)"><i class="ti ti-truck-delivery"></i>Худалдан авалт</button>
+    <button class="tb" onclick="showInvTab('import',this)"><i class="ti ti-world"></i>Татан авалт</button>
     <button class="tb" onclick="showInvTab('docs',this)"><i class="ti ti-files"></i>Баримтын жагсаалт</button>
     <button class="tb" onclick="showInvTab('invreport',this)"><i class="ti ti-report-analytics"></i>Бараа материалын тайлан</button>
-    <button class="tb" onclick="showInvTab('log',this)"><i class="ti ti-history"></i>Хөдөлгөөний түүх</button>
   </div>
   <div id="it-in" class="i-tab">
     <div class="card">
@@ -561,7 +561,7 @@ tbody tr:hover td{background:var(--sur2)}
   <!-- PURCHASE / ХУДАЛДАН АВАЛТ ТАТАН АВАЛТ -->
   <div id="it-purchase" class="i-tab" style="display:none">
     <div class="card">
-      <div class="ch"><span class="ct"><i class="ti ti-truck-delivery"></i>Худалдан авалт / Татан авалт бүртгэх</span></div>
+      <div class="ch"><span class="ct"><i class="ti ti-truck-delivery"></i>Худалдан авалт бүртгэх</span></div>
       <div class="cb">
         <div class="fg">
           <div class="fl"><label>Огноо</label><input type="date" id="pu-date"></div>
@@ -593,6 +593,57 @@ tbody tr:hover td{background:var(--sur2)}
     </div>
   </div>
 
+  <!-- IMPORT PURCHASE / ТАТАН АВАЛТ (гадаад худалдан авалт, импорт) -->
+  <div id="it-import" class="i-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-world"></i>Татан авалт бүртгэх (гадаад)</span></div>
+      <div class="cb">
+        <div class="fg">
+          <div class="fl"><label>Огноо</label><input type="date" id="im-date"></div>
+          <div class="fl"><label>Гадаад нийлүүлэгч</label><input type="text" id="im-supplier" placeholder="Нийлүүлэгчийн нэр"></div>
+          <div class="fl"><label>Хүлээн авах байршил</label><select id="im-loc"><option value="">-- Сонгох --</option></select></div>
+          <div class="fl"><label>Инвойсын дугаар</label><input type="text" id="im-invoice-num" placeholder="Invoice No."></div>
+          <div class="fl"><label>Валют</label>
+            <select id="im-currency">
+              <option value="USD">USD</option>
+              <option value="CNY">CNY</option>
+              <option value="EUR">EUR</option>
+              <option value="MNT">MNT</option>
+            </select>
+          </div>
+          <div class="fl"><label>Ханш (1 нэгж = ? ₮)</label><input type="number" id="im-rate" placeholder="0" oninput="calcImportTotal()"></div>
+        </div>
+        <div class="item-rows" id="im-rows"></div>
+        <button class="add-row-btn" onclick="addImportRow()"><i class="ti ti-plus"></i>Бараа нэмэх</button>
+
+        <div class="ch" style="margin-top:14px;padding-left:0"><span class="ct" style="font-size:13px"><i class="ti ti-receipt"></i>Нэмэлт зардал (сонголтоор)</span></div>
+        <div class="fg">
+          <div class="fl"><label>Олон улсын тээвэр (₮)</label><input type="number" id="im-freight-intl" placeholder="0" oninput="calcImportTotal()"></div>
+          <div class="fl"><label>Дотоод тээвэр (₮)</label><input type="number" id="im-freight-dom" placeholder="0" oninput="calcImportTotal()"></div>
+          <div class="fl"><label>Карго (₮)</label><input type="number" id="im-cargo" placeholder="0" oninput="calcImportTotal()"></div>
+          <div class="fl"><label>Гаалийн татвар (₮)</label><input type="number" id="im-customs" placeholder="0" oninput="calcImportTotal()"></div>
+          <div class="fl"><label>Импортын НӨАТ (₮)</label><input type="number" id="im-vat" placeholder="0" oninput="calcImportTotal()"></div>
+          <div class="fl"><label>Даатгал (₮)</label><input type="number" id="im-insurance" placeholder="0" oninput="calcImportTotal()"></div>
+          <div class="fl"><label>Зуучлал (₮)</label><input type="number" id="im-agency" placeholder="0" oninput="calcImportTotal()"></div>
+          <div class="fl"><label>Бусад зардал (₮)</label><input type="number" id="im-other" placeholder="0" oninput="calcImportTotal()"></div>
+        </div>
+
+        <div class="fg" style="margin-top:10px">
+          <div class="fl"><label>Тэмдэглэл</label><input type="text" id="im-note"></div>
+        </div>
+        <div id="im-total-display" style="margin-top:8px;padding:8px 12px;background:var(--sur2);border-radius:var(--r);font-weight:600"></div>
+        <div style="margin-top:12px"><button class="btn bp" onclick="submitImportPurchase()"><i class="ti ti-check"></i>Татан авалт бүртгэх</button></div>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="ch"><span class="ct"><i class="ti ti-list"></i>Сүүлийн татан авалтууд</span></div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Баримт №</th><th>Нийлүүлэгч</th><th>Байршил</th><th style="text-align:right">Landed дүн (₮)</th><th>Төлөв</th><th>Үйлдэл</th></tr></thead>
+        <tbody id="im-tbody"></tbody>
+      </table></div></div>
+    </div>
+  </div>
+
   <!-- DOCUMENT REGISTRY / БАРИМТЫН ЖАГСААЛТ -->
   <div id="it-docs" class="i-tab" style="display:none">
     <div class="card">
@@ -608,7 +659,8 @@ tbody tr:hover td{background:var(--sur2)}
           <div class="fl"><label>Баримтын төрөл</label>
             <select id="doc-type-filter" onchange="renderDocRegistry()">
               <option value="">Бүгд</option>
-              <option value="purchase">Худалдан авалт / Татан авалт</option>
+              <option value="purchase">Худалдан авалт</option>
+              <option value="importPurchase">Татан авалт (гадаад)</option>
               <option value="sale">Борлуулалтын барааны зарлага</option>
               <option value="inventoryTransfer">Байршил хоорондын шилжүүлэг</option>
             </select>
@@ -1835,7 +1887,8 @@ let userRole = 'viewer';
 let customers = [], products = [], locations = [], sales = [], invLogs = [], stockMap = {};
 let reconcileDocs = [];
 let payments = []; // Шинэ payments collection
-let purchases = []; // Худалдан авалт / Татан авалт
+let purchases = []; // Худалдан авалт (дотоод)
+let importPurchases = []; // Татан авалт (гадаад)
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 onAuthStateChanged(auth, async user => {
@@ -1908,6 +1961,13 @@ function subscribeAll() {
     purchases = snap.docs.map(d => ({id:d.id,...d.data()}));
     if(typeof renderPurchaseList==='function') renderPurchaseList();
     if(typeof renderDocRegistry==='function') renderDocRegistry();
+    if(typeof renderInvReport==='function') renderInvReport();
+  });
+  onSnapshot(query(collection(db,'importPurchases'), orderBy('purchaseDate','desc')), snap => {
+    importPurchases = snap.docs.map(d => ({id:d.id,...d.data()}));
+    if(typeof renderImportList==='function') renderImportList();
+    if(typeof renderDocRegistry==='function') renderDocRegistry();
+    if(typeof renderInvReport==='function') renderInvReport();
   });
   onSnapshot(doc(db,'stock','current'), snap => {
     stockMap = snap.exists() ? snap.data() : {};
@@ -2022,6 +2082,31 @@ function getAllMovements() {
     });
   });
 
+  // ─── IMPORT_PURCHASE (татан авалт — гадаад, landed cost snapshot) ────────
+  importPurchases.forEach(p => {
+    const cancelled = p.status === 'cancelled' || p.status === 'deleted';
+    (p.items||[]).forEach(it => {
+      list.push({
+        transactionDate: p.purchaseDate,
+        productId:  it.productId,
+        productCode: it.productCode || it.barcode || '',
+        locationId: p.locationId,
+        movementType: 'IMPORT_PURCHASE',
+        quantityIn: it.quantity || 0,
+        quantityOut: 0,
+        unitCost:  it.landedUnitCost || it.unitPriceMnt || 0,
+        amount:    it.landedAmount || it.amountMnt || 0,
+        sourceType: 'importPurchase',
+        sourceId:   p.id,
+        sourceNumber: p.documentNumber || '',
+        customerId: '',
+        customerName: p.supplierName || '',
+        status: cancelled ? 'cancelled' : 'active',
+        createdAt: p.createdAt
+      });
+    });
+  });
+
   // ─── TRANSFER (invLogs type='transfer' — Шилжүүлэлт болон Зарлага-с шилжсэн) ─
   invLogs.filter(l => l.type === 'transfer').forEach(l => {
     // Формал 'transfers' коллекц дахь баримттай (огноо+бараа+байршил+тоогоор) тааруулж, олдвол sourceNumber-ийг өгнө
@@ -2100,9 +2185,21 @@ window.openSourceDocument = (sourceType, sourceId) => {
       const btn = document.querySelector('.ni[onclick*="inventory"]');
       goSec('inventory', btn||document.querySelector('.ni'));
       setTimeout(()=>{
-        const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="purchase"]');
+        const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="\'purchase\'"]');
         if(tabBtn) showInvTab('purchase', tabBtn);
         if(typeof viewPurchase==='function') viewPurchase(sourceId);
+      }, 150);
+      break;
+    }
+    case 'importPurchase': {
+      const p = importPurchases.find(x => x.id === sourceId);
+      if(!p) { alert('Татан авалтын баримт олдсонгүй'); return; }
+      const btn = document.querySelector('.ni[onclick*="inventory"]');
+      goSec('inventory', btn||document.querySelector('.ni'));
+      setTimeout(()=>{
+        const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="\'import\'"]');
+        if(tabBtn) showInvTab('import', tabBtn);
+        if(typeof viewImportPurchase==='function') viewImportPurchase(sourceId);
       }, 150);
       break;
     }
@@ -2144,8 +2241,12 @@ window.openSourceDocument = (sourceType, sourceId) => {
       const btn = document.querySelector('.ni[onclick*="inventory"]');
       goSec('inventory', btn||document.querySelector('.ni'));
       setTimeout(()=>{
-        const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="log"]');
-        if(tabBtn) showInvTab('log', tabBtn);
+        // "Хөдөлгөөний түүх" nav-аас хасагдсан ч data/логик бүрэн хадгалагдсан —
+        // drilldown-ээр шууд харуулна (tab товч байхгүй тул шууд div-ийг нээнэ)
+        document.querySelectorAll('.i-tab').forEach(t=>t.style.display='none');
+        document.querySelectorAll('#sec-inventory .tb').forEach(b=>b.classList.remove('on'));
+        const logDiv = document.getElementById('it-log');
+        if(logDiv){ logDiv.style.display='block'; renderInvLog(); }
       }, 150);
       break;
     }
@@ -2157,12 +2258,12 @@ window.openSourceDocument = (sourceType, sourceId) => {
 // Тайлангийн нэгтгэсэн мөр дээр дарахад дэлгэрэнгүй хөдөлгөөний жагсаалт нээх modal
 window.openMovementDrilldown = (productId, locationId, from, to, direction) => {
   const p = products.find(x=>x.id===productId) || {};
-  const types = direction==='in' ? ['PURCHASE','TRANSFER_IN','ADJUSTMENT_IN']
+  const types = direction==='in' ? ['PURCHASE','IMPORT_PURCHASE','TRANSFER_IN','ADJUSTMENT_IN']
               : direction==='out' ? ['SALE','TRANSFER_OUT','ADJUSTMENT_OUT']
               : null;
   let moves = filterMovements({productId, locationId: locationId||undefined, from, to, movementTypes: types});
   moves.sort((a,b)=> (a.transactionDate||'').localeCompare(b.transactionDate||''));
-  const MTLABEL = {SALE:'Борлуулалт',PURCHASE:'Худалдан авалт',TRANSFER_IN:'Шилжилт орлого',TRANSFER_OUT:'Шилжилт зарлага',ADJUSTMENT_IN:'Орлого(гар)',ADJUSTMENT_OUT:'Зарлага(гар)'};
+  const MTLABEL = {SALE:'Борлуулалт',PURCHASE:'Худалдан авалт',IMPORT_PURCHASE:'Татан авалт',TRANSFER_IN:'Шилжилт орлого',TRANSFER_OUT:'Шилжилт зарлага',ADJUSTMENT_IN:'Орлого(гар)',ADJUSTMENT_OUT:'Зарлага(гар)'};
   const title = `${p.name||''} ${p.variant||''} — ${direction==='in'?'ОРЛОГЫН':'ЗАРЛАГЫН'} ДЭЛГЭРЭНГҮЙ (${from} — ${to})`;
   const rows = moves.length===0
     ? '<tr><td colspan="7"><div class="empty">Хөдөлгөөн байхгүй</div></td></tr>'
@@ -2229,6 +2330,7 @@ window.showInvTab = (name, btn) => {
   if(name==='log') renderInvLog();
   if(name==='transfer') renderTransferList();
   if(name==='purchase') renderPurchaseList();
+  if(name==='import') renderImportList();
   if(name==='docs') { initDateRange('doc-from','doc-to'); renderDocRegistry(); }
   if(name==='invreport') { initDateRange('invr-from','invr-to'); renderInvReport(); }
 };
@@ -2244,7 +2346,7 @@ function populateSels(){
   ['s-loc','in-loc','out-loc','out-to-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=lo;el.value=v;}});
   document.querySelectorAll('.row-prod-sel').forEach(sel=>{ const v=sel.value;sel.innerHTML=po;sel.value=v;});
   document.querySelectorAll('.row-loc-sel').forEach(sel=>{ const v=sel.value;sel.innerHTML=lo;sel.value=v;});
-  ['s-loc','in-loc','out-loc','out-to-loc','tr-from-loc','tr-to-loc','pu-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=lo;el.value=v;}});
+  ['s-loc','in-loc','out-loc','out-to-loc','tr-from-loc','tr-to-loc','pu-loc','im-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=lo;el.value=v;}});
   const locAllOpts='<option value="">Бүх байршил</option>'+locations.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
   ['doc-loc-filter','ir-loc','srp-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=locAllOpts;el.value=v;}});
   const custOpts='<option value="">Бүх харилцагч</option>'+customers.map(c=>`<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');
@@ -2820,6 +2922,191 @@ window.viewPurchase = (id) => {
   openModal('view-purchase-modal');
 };
 
+// ─── ТАТАН АВАЛТ (IMPORT PURCHASE) — гадаад худалдан авалт ─────────────────
+// Худалдан авалттай (дотоод) АДИЛГҮЙ, тусдаа sourceType='importPurchase',
+// тусдаа Firestore collection ('importPurchases'). Ирээдүйн landed-cost
+// хөдөлгүүрт бэлдэж валют/ханш/нэмэлт зардлын field-үүдийг хадгална.
+function importRowHtml(){
+  const po=products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row inv-row">
+    <div class="fl"><label>Бараа</label><select class="row-prod-sel" onchange="onImportProdChange(this)"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="fl"><label>Баркод</label><input type="text" class="im-barcode" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px"></div>
+    <div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1" oninput="calcImportTotal()"></div>
+    <div class="fl"><label>Нэгж үнэ (валют)</label><input type="number" class="im-price-fx" placeholder="0" oninput="calcImportTotal()"></div>
+    <div class="fl"><label>Нэгж үнэ (₮, ханшаар)</label><input type="text" class="im-price-mnt" readonly style="background:var(--sur3);color:var(--tx3)" value="0₮"></div>
+    <div class="fl"><label>Нийт дүн (₮)</label><input type="text" class="im-amount" readonly style="background:var(--sur3);color:var(--tx3)" value="0₮"></div>
+    <button class="btn bd2 bxs" onclick="this.closest('.item-row').remove();calcImportTotal()" style="align-self:flex-end"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+window.addImportRow = () => { document.getElementById('im-rows').insertAdjacentHTML('beforeend',importRowHtml()); populateSels(); };
+window.onImportProdChange = (sel) => {
+  const row = sel.closest('.item-row');
+  const opt = sel.selectedOptions[0];
+  row.querySelector('.im-barcode').value = opt?.dataset.barcode || '';
+  calcImportTotal();
+};
+window.calcImportTotal = () => {
+  const rate = parseFloat(document.getElementById('im-rate')?.value)||0;
+  let goodsTotal = 0;
+  document.querySelectorAll('#im-rows .item-row').forEach(row=>{
+    const qty = parseFloat(row.querySelector('.ir-qty').value)||0;
+    const priceFx = parseFloat(row.querySelector('.im-price-fx').value)||0;
+    const priceMnt = priceFx*rate;
+    const amt = qty*priceMnt;
+    row.querySelector('.im-price-mnt').value = fmt(priceMnt);
+    row.querySelector('.im-amount').value = fmt(amt);
+    goodsTotal += amt;
+  });
+  const addl = ['im-freight-intl','im-freight-dom','im-cargo','im-customs','im-vat','im-insurance','im-agency','im-other']
+    .reduce((a,id)=>a+(parseFloat(document.getElementById(id)?.value)||0), 0);
+  const total = goodsTotal + addl;
+  const el = document.getElementById('im-total-display');
+  if(el) el.innerHTML = `Барааны дүн: <span style="color:var(--tx2)">${fmt(goodsTotal)}</span> &nbsp;+&nbsp; Нэмэлт зардал: <span style="color:var(--tx2)">${fmt(addl)}</span> &nbsp;=&nbsp; Landed дүн: <span style="color:var(--pu)">${fmt(total)}</span>`;
+  return {goodsTotal, addl, total};
+};
+window.submitImportPurchase = async () => {
+  if(!hasPerm('inventory_create')){alert('Татан авалт бүртгэх эрх байхгүй байна');return;}
+  const pDate = document.getElementById('im-date')?.value || today();
+  const supplierName = document.getElementById('im-supplier')?.value.trim() || '';
+  const lid = document.getElementById('im-loc')?.value || '';
+  const invoiceNum = document.getElementById('im-invoice-num')?.value.trim() || '';
+  const currency = document.getElementById('im-currency')?.value || 'USD';
+  const rate = parseFloat(document.getElementById('im-rate')?.value)||0;
+  const note = document.getElementById('im-note')?.value.trim() || '';
+  if(!lid){ alert('Хүлээн авах байршил сонгоно уу'); return; }
+  if(!rate){ alert('Валютын ханш оруулна уу'); return; }
+  const loc = locations.find(l=>l.id===lid);
+
+  const additionalCosts = {
+    freightIntl: parseFloat(document.getElementById('im-freight-intl')?.value)||0,
+    freightDomestic: parseFloat(document.getElementById('im-freight-dom')?.value)||0,
+    cargo: parseFloat(document.getElementById('im-cargo')?.value)||0,
+    customsDuty: parseFloat(document.getElementById('im-customs')?.value)||0,
+    importVat: parseFloat(document.getElementById('im-vat')?.value)||0,
+    insurance: parseFloat(document.getElementById('im-insurance')?.value)||0,
+    agencyFee: parseFloat(document.getElementById('im-agency')?.value)||0,
+    other: parseFloat(document.getElementById('im-other')?.value)||0
+  };
+  const totalAdditionalCost = Object.values(additionalCosts).reduce((a,v)=>a+v,0);
+
+  const rawItems = [];
+  document.querySelectorAll('#im-rows .item-row').forEach(row=>{
+    const pid = row.querySelector('.row-prod-sel').value;
+    const qty = parseFloat(row.querySelector('.ir-qty').value)||0;
+    const priceFx = parseFloat(row.querySelector('.im-price-fx').value)||0;
+    if(!pid||qty<=0||priceFx<=0) return;
+    const p = products.find(x=>x.id===pid);
+    const priceMnt = priceFx*rate;
+    const amountMnt = Math.round(qty*priceMnt);
+    rawItems.push({
+      productId: pid, productCode: p?.sku||'', productName: `${p?.name||''}·${p?.variant||''}`,
+      barcode: p?.barcode||p?.sku||'', quantity: qty,
+      unitPriceForeign: priceFx, unitPriceMnt: Math.round(priceMnt), amountMnt
+    });
+  });
+  if(rawItems.length===0){ alert('Бараа, тоо, үнийг бүрэн оруулна уу'); return; }
+  const goodsTotal = rawItems.reduce((a,it)=>a+it.amountMnt,0);
+
+  // Нэмэлт зардлыг барааны үнийн дүнгийн жингээр бараа тус бүрт хуваарилж, landed unit cost гаргана (энгийн, ирээдүйн cost engine солиход бэлэн)
+  const items = rawItems.map(it=>{
+    const share = goodsTotal>0 ? (it.amountMnt/goodsTotal) : 0;
+    const allocatedAddl = totalAdditionalCost*share;
+    const landedAmount = it.amountMnt + allocatedAddl;
+    const landedUnitCost = it.quantity>0 ? Math.round(landedAmount/it.quantity) : it.unitPriceMnt;
+    return {...it, allocatedAdditionalCost: Math.round(allocatedAddl), landedAmount: Math.round(landedAmount), landedUnitCost};
+  });
+  const totalAmount = goodsTotal + totalAdditionalCost;
+
+  try {
+    const docNum = await getNextDocNum('importPurchase');
+    const impRef = await addDoc(collection(db,'importPurchases'), {
+      documentNumber: docNum,
+      purchaseDate: pDate,
+      supplierName, invoiceNumber: invoiceNum,
+      locationId: lid, locationName: loc?.name || '',
+      currency, exchangeRate: rate,
+      items,
+      goodsTotal, additionalCosts, totalAdditionalCost, totalAmount,
+      note,
+      status: 'active',
+      createdAt: serverTimestamp(), createdBy: currentUser.email,
+      updatedAt: serverTimestamp(), updatedBy: currentUser.email
+    });
+    // Inventory movement (invLogs) — landed unit cost-оор орлого бүртгэнэ
+    const stockChanges = items.map(it=>({pid:it.productId, lid, delta:it.quantity}));
+    await updateStock(stockChanges);
+    for(const it of items) {
+      await addDoc(collection(db,'invLogs'), {
+        docNumber: docNum, date: pDate, type: 'importPurchase',
+        productId: it.productId, productLabel: it.productName,
+        locationId: lid, locationName: loc?.name || '',
+        qty: it.quantity,
+        note: `${docNum} — Татан авалт${supplierName?' — '+supplierName:''}`,
+        sourceType: 'importPurchase', sourceId: impRef.id, sourceNumber: docNum,
+        createdBy: currentUser.email, createdAt: serverTimestamp()
+      });
+    }
+    document.getElementById('im-rows').innerHTML=''; document.getElementById('im-note').value='';
+    ['im-freight-intl','im-freight-dom','im-cargo','im-customs','im-vat','im-insurance','im-agency','im-other','im-invoice-num'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
+    addImportRow(); document.getElementById('im-date').value = today();
+    calcImportTotal();
+    alert(`✅ Татан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+window.renderImportList = () => {
+  const tbody = document.getElementById('im-tbody'); if(!tbody) return;
+  const list = [...importPurchases].sort((a,b)=>(b.purchaseDate||'').localeCompare(a.purchaseDate||'')).slice(0,50);
+  if(list.length===0){ tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Татан авалт байхгүй</div></td></tr>'; return; }
+  tbody.innerHTML = list.map(p=>`<tr>
+    <td style="font-size:11px;color:var(--tx3)">${p.purchaseDate}</td>
+    <td style="font-size:11px;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="viewImportPurchase('${p.id}')">${p.documentNumber}</td>
+    <td style="font-size:12px">${p.supplierName||'—'}</td>
+    <td style="font-size:11px">${p.locationName}</td>
+    <td style="text-align:right;font-weight:600">${fmt(p.totalAmount)}</td>
+    <td>${p.status==='cancelled'?'<span class="ba bre">Цуцлагдсан</span>':'<span class="ba bgr">Идэвхтэй</span>'}</td>
+    <td style="white-space:nowrap"><button class="btn bg bxs" onclick="viewImportPurchase('${p.id}')" title="Харах"><i class="ti ti-eye"></i></button></td>
+  </tr>`).join('');
+};
+window.viewImportPurchase = (id) => {
+  const p = importPurchases.find(x=>x.id===id); if(!p) { alert('Татан авалт олдсонгүй'); return; }
+  const rows = (p.items||[]).map(it=>`<tr>
+    <td style="font-size:11px">${it.productCode||'—'}</td>
+    <td>${it.productName}</td>
+    <td style="text-align:right">${it.quantity}ш</td>
+    <td style="text-align:right">${it.unitPriceForeign} ${p.currency}</td>
+    <td style="text-align:right">${fmt(it.unitPriceMnt)}</td>
+    <td style="text-align:right">${fmt(it.landedUnitCost)}</td>
+    <td style="text-align:right;font-weight:600">${fmt(it.landedAmount)}</td>
+  </tr>`).join('');
+  let modal = document.getElementById('view-import-modal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'view-import-modal';
+    modal.className = 'modal-ov';
+    modal.style.cssText = 'align-items:flex-start;overflow-y:auto;padding:16px';
+    document.body.appendChild(modal);
+  }
+  const ac = p.additionalCosts||{};
+  modal.innerHTML = `<div class="modal modal-lg">
+    <div class="mh"><span><i class="ti ti-world"></i> ${p.documentNumber}</span><button class="btn bg bxs" onclick="closeModal('view-import-modal')"><i class="ti ti-x"></i></button></div>
+    <div style="font-size:13px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap">
+      <span>Огноо: <b>${p.purchaseDate}</b></span>
+      <span>Нийлүүлэгч: <b>${p.supplierName||'—'}</b></span>
+      <span>Байршил: <b>${p.locationName}</b></span>
+      <span>Валют: <b>${p.currency} (ханш ${fmt(p.exchangeRate)})</b></span>
+      <span>Инвойс №: <b>${p.invoiceNumber||'—'}</b></span>
+    </div>
+    <div class="tw"><table style="font-size:11px"><thead><tr><th>Код</th><th>Нэр</th><th style="text-align:right">Тоо</th><th style="text-align:right">Нэгж үнэ(валют)</th><th style="text-align:right">Нэгж үнэ(₮)</th><th style="text-align:right">Landed нэгж өртөг</th><th style="text-align:right">Landed дүн</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>
+    <div style="margin-top:10px;font-size:12px;color:var(--tx2)">
+      Барааны дүн: ${fmt(p.goodsTotal)} · Тээвэр(олон улс): ${fmt(ac.freightIntl||0)} · Тээвэр(дотоод): ${fmt(ac.freightDomestic||0)} · Карго: ${fmt(ac.cargo||0)} · Гааль: ${fmt(ac.customsDuty||0)} · Импорт НӨАТ: ${fmt(ac.importVat||0)} · Даатгал: ${fmt(ac.insurance||0)} · Зуучлал: ${fmt(ac.agencyFee||0)} · Бусад: ${fmt(ac.other||0)}
+    </div>
+    <div style="text-align:right;margin-top:10px;font-weight:700;font-size:14px">Нийт Landed дүн: ${fmt(p.totalAmount)}</div>
+    ${p.note?`<div style="margin-top:8px;font-size:12px;color:var(--tx2)">Тэмдэглэл: ${p.note}</div>`:''}
+  </div>`;
+  openModal('view-import-modal');
+};
+
 // ─── CUSTOMERS ───────────────────────────────────────────────────────────────
 window.addCustomer = async () => {
   if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
@@ -3345,13 +3632,25 @@ function getAllDocuments() {
   purchases.forEach(p => {
     list.push({
       date: p.purchaseDate, docNumber: p.documentNumber, docType: 'purchase',
-      docTypeLabel: 'Худалдан авалт / Татан авалт',
+      docTypeLabel: 'Худалдан авалт',
       customerId: p.supplierId||'', customerName: p.supplierName||'—',
       locationId: p.locationId, locationName: p.locationName||'—',
       totalQty: (p.items||[]).reduce((a,it)=>a+(it.quantity||0),0),
       totalAmount: p.totalAmount||0,
       status: p.status||'active',
       sourceType: 'purchase', sourceId: p.id
+    });
+  });
+  importPurchases.forEach(p => {
+    list.push({
+      date: p.purchaseDate, docNumber: p.documentNumber, docType: 'importPurchase',
+      docTypeLabel: 'Татан авалт (гадаад)',
+      customerId: '', customerName: p.supplierName||'—',
+      locationId: p.locationId, locationName: p.locationName||'—',
+      totalQty: (p.items||[]).reduce((a,it)=>a+(it.quantity||0),0),
+      totalAmount: p.totalAmount||0,
+      status: p.status||'active',
+      sourceType: 'importPurchase', sourceId: p.id
     });
   });
   sales.forEach(s => {
@@ -4632,7 +4931,7 @@ function numToWords(n) {
 }
 
 // ─── БАРИМТЫН ДУГААРЛАЛТ ─────────────────────────────────────────────────────
-const DOC_PREFIXES = { sale:'BB', payment:'TP', invoice:'NH', reconcile:'TN', transfer:'TR', stockIn:'BR', stockOut:'BZ', bankImport:'BK', purchase:'TA' };
+const DOC_PREFIXES = { sale:'BB', payment:'TP', invoice:'NH', reconcile:'TN', transfer:'TR', stockIn:'BR', stockOut:'BZ', bankImport:'BK', purchase:'HA', importPurchase:'TA' };
 
 async function getNextDocNum(type) {
   const now = new Date();
