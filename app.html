@@ -3624,8 +3624,9 @@ function renderDashChart(filteredSales, from, to, groupBy) {
   let seriesHtml = '';
   const fmtVal = v => unit==='qty' ? `${v.toLocaleString()} ш` : fmt(v);
   const fmtLabel = v => { if(v===0) return ''; return unit==='qty' ? Math.round(v).toLocaleString() : abbrevK(v); };
-  // Label overlap-с сэргийлж: цэгийн тоо ихсэх тусам label-ийн font/давтамжийг багасгана
-  const showEveryLabel = keys.length <= 12;
+  // v>0 БҮХ bar/point дээр ЗААВАЛ label render хийнэ — dataset утга, hover,
+  // сонгосон цэг, индекс (сүүлийн/тэгш/сондгой г.м.) ямар ч нөхцлөөр алгасахгүй.
+  const LABEL_MIN_Y = PADT + 9; // chart дээд ирмэгт таслагдахаас хамгаална
 
   if(dashboardChartType === 'bar') {
     keys.forEach((k,i) => {
@@ -3633,8 +3634,9 @@ function renderDashChart(filteredSales, from, to, groupBy) {
       const bh = plotH * (v/maxV||0);
       const by = PADT+plotH-bh;
       seriesHtml += `<rect data-key="${k}" x="${x(i)-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${COLOR}" rx="2" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${fmtVal(v)}</title></rect>`;
-      if(v>0 && (showEveryLabel || i%2===0)) {
-        seriesHtml += `<text x="${x(i)}" y="${by-4}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(v)}</text>`;
+      if(v > 0) {
+        const ly = Math.max(by-4, LABEL_MIN_Y);
+        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(v)}</text>`;
       }
     });
   } else {
@@ -3642,8 +3644,9 @@ function renderDashChart(filteredSales, from, to, groupBy) {
     seriesHtml += `<polyline points="${pts}" fill="none" stroke="${COLOR}" stroke-width="2" stroke-linejoin="round"/>`;
     keys.forEach((k,i)=>{
       seriesHtml += `<circle cx="${x(i)}" cy="${y(vals[i])}" r="3.5" fill="${COLOR}" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${fmtVal(vals[i])}</title></circle>`;
-      if(vals[i]>0 && (showEveryLabel || i%2===0)) {
-        seriesHtml += `<text x="${x(i)}" y="${y(vals[i])-8}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(vals[i])}</text>`;
+      if(vals[i] > 0) {
+        const ly = Math.max(y(vals[i])-8, LABEL_MIN_Y);
+        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${fmtLabel(vals[i])}</text>`;
       }
     });
   }
