@@ -2346,10 +2346,7 @@ window.openSourceDocument = (sourceType, sourceId) => {
     case 'payment': {
       const btn = document.querySelector('.ni[onclick*="receivable"]');
       goSec('receivable', btn||document.querySelector('.ni'));
-      setTimeout(()=>{
-        const tab = document.querySelector('#sec-receivable .tb:nth-child(2)');
-        if(tab) showRTab('detail', tab);
-      }, 150);
+      setTimeout(()=>{ openDocument('payment', sourceId); }, 150);
       break;
     }
     case 'journalEntry': {
@@ -4703,8 +4700,81 @@ window.openDocument = (documentType, documentId) => {
     case 'inventoryTransfer': viewTransfer(documentId); break;
     case 'inventoryIn': viewInventoryLogGroup('in', documentId); break;
     case 'inventoryOut': viewInventoryLogGroup('out', documentId); break;
+    case 'payment': viewPaymentDetail(documentId); break;
     default: alert('Тодорхойгүй document төрөл: '+documentType);
   }
+};
+
+// ─── ТӨЛӨЛТИЙН ДЭЛГЭРЭНГҮЙ (Payment Detail) ─────────────────────────────────
+// Авлагын тайлангийн Кредит мөр = ЯГ ЭНЭ payment баримт (allocation биш).
+// Энд л allocation-ийн бүрэн задаргаа харагдана. Ямар ч write хийхгүй.
+function computePriorPaymentForSale(saleId, currentPaymentId, currentDate) {
+  let total = 0;
+  payments.forEach(p => {
+    if(p.id === currentPaymentId) return;
+    if(p.isCancelled===true || p.status==='cancelled') return;
+    const pDate = toDateStr(p.paymentDate);
+    if(!(pDate < currentDate)) return; // зөвхөн энэ төлөлтөөс өмнөх
+    (p.allocations||[]).forEach(al=>{ if(al.saleId===saleId) total += al.allocatedAmount||0; });
+  });
+  return total;
+}
+window.viewPaymentDetail = (paymentId) => {
+  const pm = payments.find(p=>p.id===paymentId);
+  if(!pm) { alert('Төлөлт олдсонгүй'); return; }
+  const currentDate = toDateStr(pm.paymentDate);
+  const allocRows = (pm.allocations||[]).map(al=>{
+    const s = sales.find(x=>x.id===al.saleId);
+    const priorPaid = computePriorPaymentForSale(al.saleId, pm.id, currentDate);
+    return `<tr>
+      <td style="font-size:11px;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="closeModal('view-payment-modal');openSourceDocument('sale','${al.saleId}')">${s?getDocNumDisplay(s):(al.saleId||'—')}</td>
+      <td style="font-size:11px;color:var(--tx3)">${s?s.date:'—'}</td>
+      <td style="text-align:right">${fmt(s?s.total:0)}</td>
+      <td style="text-align:right;color:var(--tx2)">${fmt(priorPaid)}</td>
+      <td style="text-align:right;font-weight:600;color:var(--gr)">${fmt(al.allocatedAmount||0)}</td>
+    </tr>`;
+  }).join('');
+  const allocTotal = (pm.allocations||[]).reduce((a,al)=>a+(al.allocatedAmount||0),0);
+  const cust = customers.find(c=>c.id===pm.customerId);
+
+  let modal = document.getElementById('view-payment-modal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'view-payment-modal';
+    modal.className = 'modal-ov';
+    modal.style.cssText = 'align-items:flex-start;overflow-y:auto;padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal modal-lg">
+    <div class="mh"><span><i class="ti ti-cash"></i> ${pm.documentNumber||'—'}</span><button class="btn bg bxs" onclick="closeModal('view-payment-modal')"><i class="ti ti-x"></i></button></div>
+    <div style="font-size:13px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap">
+      <span>Төлөлтийн огноо: <b>${pm.paymentDate?toDateStr(pm.paymentDate):'—'}</b></span>
+      <span>Харилцагч: <b>${cust?.name||pm.customerName||'—'}</b></span>
+      <span>Төлбөрийн төрөл: <b>${MLABELS[pm.paymentType]||pm.paymentType||'—'}</b></span>
+      <span>Нийт төлөлт: <b style="color:var(--gr)">${fmt(pm.amount)}</b></span>
+      <span>Төлөв: <b>${(pm.isCancelled||pm.status==='cancelled')?'Цуцлагдсан':'Идэвхтэй'}</b></span>
+    </div>
+    ${pm.bankTransactionId ? `
+    <div class="card" style="margin-bottom:12px;background:var(--sur2)">
+      <div class="cb" style="font-size:12px;display:flex;gap:16px;flex-wrap:wrap;align-items:center">
+        <span><i class="ti ti-building-bank"></i> Банкны эх гүйлгээ:</span>
+        <span>Утга: <b>${pm.bankTransactionDescription||'—'}</b></span>
+        <span>Дүн: <b>${fmt(pm.bankTransactionAmount||pm.amount)}</b></span>
+        <button class="btn bg bxs" onclick="closeModal('view-payment-modal');openSourceDocument('bankTransaction','${pm.bankTransactionId}')"><i class="ti ti-arrow-right"></i>Банкны гүйлгээ рүү</button>
+      </div>
+    </div>` : ''}
+    <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px">Холбогдсон падаанууд (allocation)</div>
+    <div class="tw"><table style="font-size:12px"><thead><tr>
+      <th>Борлуулалт №</th><th>Огноо</th><th style="text-align:right">Баримтын нийт дүн</th><th style="text-align:right">Өмнөх төлөлт</th><th style="text-align:right">Энэ төлөлтөөр хаасан</th>
+    </tr></thead><tbody>${allocRows||'<tr><td colspan="5"><div class="empty">Allocation байхгүй</div></td></tr>'}</tbody>
+    <tfoot><tr style="font-weight:700;background:var(--sur2)"><td colspan="4">Нийт хуваарилсан дүн</td><td style="text-align:right">${fmt(allocTotal)}</td></tr></tfoot>
+    </table></div>
+    ${Math.abs(allocTotal-(pm.amount||0))>1 ? `<div class="al al-warn" style="margin-top:8px"><i class="ti ti-alert-triangle"></i>Анхаар: Allocation-ийн нийлбэр (${fmt(allocTotal)}) нь төлөлтийн дүнтэй (${fmt(pm.amount)}) тэнцэхгүй байна!</div>` : ''}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn bg" onclick="closeModal('view-payment-modal')"><i class="ti ti-arrow-left"></i>Буцах</button>
+    </div>
+  </div>`;
+  openModal('view-payment-modal');
 };
 
 // ─── BANK TABS ────────────────────────────────────────────────────────────────
@@ -6922,18 +6992,17 @@ function calculateReceivableStatement({ customerId, startDate, endDate }) {
   });
 
   custPayments.forEach(pm => {
-    (pm.allocations || [{ saleId:'', allocatedAmount: pm.amount }]).forEach(al => {
-      txns.push({
-        date:   toDateStr(pm.paymentDate),
-        sort2:  toDateStr(pm.createdAt),
-        docNum: pm.documentNumber || '—',
-        desc:   pm.description || 'Төлөлт',
-        type:   pm.paymentType || '—',
-        debit:  0,
-        credit: al.allocatedAmount || pm.amount || 0,
-        paymentId: pm.id,
-        saleId: al.saleId
-      });
+    txns.push({
+      date:   toDateStr(pm.paymentDate),
+      sort2:  toDateStr(pm.createdAt),
+      docNum: pm.documentNumber || '—',
+      desc:   pm.bankTransactionDescription || pm.description || 'Банкны төлөлт',
+      type:   pm.paymentType || '—',
+      debit:  0,
+      credit: pm.amount || 0,
+      paymentId: pm.id,
+      allocations: pm.allocations || [],
+      bankTransactionId: pm.bankTransactionId || ''
     });
   });
 
