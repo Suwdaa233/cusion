@@ -273,6 +273,14 @@ tbody tr:hover td{background:var(--sur2)}
 
 <!-- SALES -->
 <div id="sec-sales" class="sec">
+  <div class="tab-bar">
+    <button class="tb on" onclick="showSalesTab('register',this)"><i class="ti ti-plus"></i>Борлуулалт бүртгэх</button>
+    <button class="tb" onclick="showSalesTab('list',this)"><i class="ti ti-list"></i>Борлуулалтын жагсаалт</button>
+    <button class="tb" onclick="showSalesTab('report',this)"><i class="ti ti-report-analytics"></i>Борлуулалтын тайлан</button>
+  </div>
+
+  <!-- БОРЛУУЛАЛТ БҮРТГЭХ -->
+  <div id="st-register" class="s-tab">
   <div class="card">
     <div class="ch"><span class="ct"><i class="ti ti-plus"></i>Борлуулалт бүртгэх</span></div>
     <div class="cb">
@@ -312,23 +320,88 @@ tbody tr:hover td{background:var(--sur2)}
       <div style="margin-top:12px"><button class="btn bp" onclick="submitSale()"><i class="ti ti-check"></i>Борлуулалт бүртгэх</button></div>
     </div>
   </div>
-  <div class="card">
-    <div class="ch">
-      <span class="ct"><i class="ti ti-list"></i>Борлуулалтын бүртгэл</span>
-      <div class="date-filter">
-        <select id="s-filter-cust" style="font-size:12px;padding:5px 9px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх харилцагч</option></select>
-        <input type="date" id="s-from">
-        <span style="font-size:12px;color:var(--tx3)">—</span>
-        <input type="date" id="s-to">
-        <button class="btn bp bxs" onclick="renderSalesTable()"><i class="ti ti-filter"></i>Шүүх</button>
-        <button class="btn bg bxs" onclick="clearSalesFilter()">Цэвэрлэх</button>
+  </div>
+
+  <!-- БОРЛУУЛАЛТЫН ЖАГСААЛТ -->
+  <div id="st-list" class="s-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-list"></i>Борлуулалтын жагсаалт</span>
+        <div class="date-filter">
+          <input type="date" id="sl-from" onchange="renderSalesList()">
+          <span style="font-size:12px;color:var(--tx3)">—</span>
+          <input type="date" id="sl-to" onchange="renderSalesList()">
+        </div>
       </div>
+      <div class="cb">
+        <div class="fg" style="margin-bottom:6px">
+          <div class="fl"><label>Харилцагч</label><select id="sl-cust" onchange="renderSalesList()"><option value="">Бүх харилцагч</option></select></div>
+          <div class="fl"><label>Байршил</label><select id="sl-loc" onchange="renderSalesList()"><option value="">Бүх байршил</option></select></div>
+          <div class="fl"><label>Төлбөрийн төрөл</label>
+            <select id="sl-paytype" onchange="renderSalesList()">
+              <option value="">Бүгд</option>
+              <option value="cash">Бэлэн</option>
+              <option value="transfer">Дансаар</option>
+              <option value="credit">Зээл</option>
+              <option value="online">Онлайн</option>
+            </select>
+          </div>
+          <div class="fl"><label>Баримтын дугаар</label><input type="text" id="sl-num" oninput="renderSalesList()" placeholder="Хайх..."></div>
+          <div class="fl"><label>Төлөв</label>
+            <select id="sl-status" onchange="renderSalesList()">
+              <option value="">Бүгд</option>
+              <option value="paid">Төлөгдсөн</option>
+              <option value="partial">Хэсэгчилсэн</option>
+              <option value="unpaid">Авлагатай</option>
+              <option value="cancelled">Цуцлагдсан</option>
+            </select>
+          </div>
+          <button class="btn bg bxs" onclick="clearSalesListFilter()">Цэвэрлэх</button>
+        </div>
+      </div>
+      <div class="cb np"><div class="mg" id="sl-total-row" style="margin:0 0 10px;padding:0 14px"></div><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Баримт №</th><th>Харилцагч</th><th>Байршил</th><th>Төлбөрийн төрөл</th><th style="text-align:right">Нийт борлуулалт</th><th style="text-align:right">Төлсөн</th><th style="text-align:right">Авлага</th><th>Төлөв</th><th>Үйлдэл</th></tr></thead>
+        <tbody id="sl-tbody"></tbody>
+      </table></div></div>
     </div>
-    <div class="cb np">
-        <div class="mg" id="sales-total-row" style="margin:0 0 10px"></div><div class="tw"><table>
-      <thead><tr><th>Огноо</th><th>Харилцагч</th><th>Байршил</th><th>Бараaнууд</th><th>Нийт</th><th>Авлага</th><th>Хэрэгсэл</th><th>Статус</th><th>Бүртгэсэн</th><th></th></tr></thead>
-      <tbody id="s-tbody"></tbody>
-    </table></div></div>
+  </div>
+
+  <!-- БОРЛУУЛАЛТЫН ТАЙЛАН -->
+  <div id="st-report" class="s-tab" style="display:none">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-report-analytics"></i>Борлуулалтын тайлан</span>
+        <div class="date-filter">
+          <input type="date" id="sr-from" onchange="renderSalesReportView()">
+          <span style="font-size:12px;color:var(--tx3)">—</span>
+          <input type="date" id="sr-to" onchange="renderSalesReportView()">
+        </div>
+      </div>
+      <div class="cb">
+        <div class="fg" style="margin-bottom:6px">
+          <div class="fl"><label>Байршил</label><select id="sr-loc" onchange="renderSalesReportView()"><option value="">Бүх байршил</option></select></div>
+          <div class="fl"><label>Харилцагч</label><select id="sr-cust" onchange="renderSalesReportView()"><option value="">Бүх харилцагч</option></select></div>
+          <div class="fl"><label>Бараа</label><select id="sr-prod" onchange="renderSalesReportView()"><option value="">Бүх бараа</option></select></div>
+          <div class="fl"><label>Төлбөрийн төрөл</label>
+            <select id="sr-paytype" onchange="renderSalesReportView()">
+              <option value="">Бүгд</option>
+              <option value="cash">Бэлэн</option>
+              <option value="transfer">Дансаар</option>
+              <option value="credit">Зээл</option>
+              <option value="online">Онлайн</option>
+            </select>
+          </div>
+        </div>
+        <div class="tab-bar" style="margin-bottom:10px">
+          <button class="tb on" onclick="showSalesReportView('customer',this)"><i class="ti ti-users"></i>Харилцагчаар</button>
+          <button class="tb" onclick="showSalesReportView('payment',this)"><i class="ti ti-credit-card"></i>Төлбөрийн хэрэгслээр</button>
+          <button class="tb" onclick="showSalesReportView('product',this)"><i class="ti ti-package"></i>Бараагаар</button>
+        </div>
+      </div>
+      <div class="cb np"><div class="tw"><table style="font-size:12px" id="srv-table">
+        <thead id="srv-thead"></thead>
+        <tbody id="srv-tbody"></tbody>
+        <tfoot id="srv-tfoot"></tfoot>
+      </table></div></div>
+    </div>
   </div>
 </div>
 
@@ -1976,6 +2049,8 @@ function subscribeAll() {
   onSnapshot(query(collection(db,'sales'), orderBy('date','desc')), snap => {
     sales = snap.docs.map(d => ({id:d.id,...d.data()}));
     renderDashboard(); renderSalesTable(); renderRecvSummary();
+    if(typeof renderSalesList==='function') renderSalesList();
+    if(typeof renderSalesReportView==='function') renderSalesReportView();
     const det = document.getElementById('rt-detail');
     if (det && det.style.display !== 'none') renderRecvDetail();
     const hist = document.getElementById('rt-history');
@@ -2365,6 +2440,14 @@ window.goSec = (name, btn) => {
   if(name === 'users') loadUsers();
   if(name === 'internal-report') initIRReport();
 };
+window.showSalesTab = (name, btn) => {
+  document.querySelectorAll('#sec-sales .s-tab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('#sec-sales > .tab-bar > .tb').forEach(b=>b.classList.remove('on'));
+  const el = document.getElementById('st-'+name); if(el) el.style.display='block';
+  btn.classList.add('on');
+  if(name==='list') { initDateRange('sl-from','sl-to'); renderSalesList(); }
+  if(name==='report') { initDateRange('sr-from','sr-to'); renderSalesReportView(); }
+};
   // showRTab defined below with full tab support
 window.showInvTab = (name, btn) => {
   document.querySelectorAll('.i-tab').forEach(t=>t.style.display='none');
@@ -2392,9 +2475,9 @@ function populateSels(){
   document.querySelectorAll('.row-loc-sel').forEach(sel=>{ const v=sel.value;sel.innerHTML=lo;sel.value=v;});
   ['s-loc','in-loc','out-loc','out-to-loc','tr-from-loc','tr-to-loc','pu-loc','im-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=lo;el.value=v;}});
   const locAllOpts='<option value="">Бүх байршил</option>'+locations.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
-  ['doc-loc-filter','ir-loc','srp-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=locAllOpts;el.value=v;}});
+  ['doc-loc-filter','ir-loc','srp-loc','sl-loc','sr-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=locAllOpts;el.value=v;}});
   const custOpts='<option value="">Бүх харилцагч</option>'+customers.map(c=>`<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');
-  ['s-filter-cust','rv-cust-filter','ph-cust','lnk-cust','ldg-cust','rec-cust','doc-cust-filter','srp-cust'].forEach(id=>{const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=custOpts;el.value=v;}});
+  ['s-filter-cust','rv-cust-filter','ph-cust','lnk-cust','ldg-cust','rec-cust','doc-cust-filter','srp-cust','sl-cust','sr-cust'].forEach(id=>{const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=custOpts;el.value=v;}});
   ['pu-supplier'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=co;el.value=v;}});
   const lcSel=document.getElementById('link-cust-sel');if(lcSel){const v=lcSel.value;lcSel.innerHTML='<option value="">-- Харилцагч сонгох --</option>'+customers.map(c=>`<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');lcSel.value=v;}
   if(typeof bankAccounts!=='undefined'&&bankAccounts.length>=0){
@@ -3431,6 +3514,266 @@ window.renderSalesTable = () => {
   </tr>`).join('');
 };
 window.clearSalesFilter = () => { clearToLastMonth('s-from','s-to'); const cf=document.getElementById('s-filter-cust');if(cf)cf.value=''; renderSalesTable(); };
+
+// ─── БОРЛУУЛАЛТЫН ЖАГСААЛТ (эх баримтуудын registry) ───────────────────────
+window.renderSalesList = () => {
+  const from = document.getElementById('sl-from')?.value || '';
+  const to   = document.getElementById('sl-to')?.value   || '';
+  const custId = document.getElementById('sl-cust')?.value || '';
+  const locId  = document.getElementById('sl-loc')?.value || '';
+  const payType = document.getElementById('sl-paytype')?.value || '';
+  const numQ   = (document.getElementById('sl-num')?.value||'').toLowerCase().trim();
+  const status = document.getElementById('sl-status')?.value || '';
+  const tbody  = document.getElementById('sl-tbody'); if(!tbody) return;
+
+  let list = sales.slice();
+  if(from) list = list.filter(s=>s.date>=from);
+  if(to)   list = list.filter(s=>s.date<=to);
+  if(custId) list = list.filter(s=>s.customerId===custId);
+  if(locId)  list = list.filter(s=>s.locationId===locId);
+  if(payType) list = list.filter(s=>(s.paymentType||s.method||s.payType)===payType);
+  if(numQ) list = list.filter(s=>(s.docNumber||'').toLowerCase().includes(numQ));
+  if(status) {
+    list = list.filter(s=>{
+      const st = (s.status==='deleted'||s.isDeleted) ? 'cancelled' : (s.status||'unpaid');
+      return st === status;
+    });
+  }
+  list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const totalSales = list.reduce((a,s)=>a+(s.total||0),0);
+  const totalPaid  = list.reduce((a,s)=>a+(s.paid||0),0);
+  const totalRecv  = list.reduce((a,s)=>a+(s.recv||0),0);
+  const sumEl = document.getElementById('sl-total-row');
+  if(sumEl) sumEl.innerHTML = list.length>0 ? `
+    <div class="mc"><div class="ml">Нийт баримт (${list.length})</div><div class="mv pu">${fmt(totalSales)}</div></div>
+    <div class="mc"><div class="ml">Нийт төлөгдсөн</div><div class="mv gr">${fmt(totalPaid)}</div></div>
+    <div class="mc"><div class="ml">Нийт авлага</div><div class="mv am">${fmt(totalRecv)}</div></div>` : '';
+
+  if(list.length===0){ tbody.innerHTML='<tr><td colspan="10"><div class="empty">Борлуулалт байхгүй</div></td></tr>'; return; }
+
+  tbody.innerHTML = list.map(s=>{
+    const cancelled = s.status==='deleted'||s.isDeleted;
+    const st = cancelled ? 'cancelled' : (s.status||'unpaid');
+    const payT = s.paymentType||s.method||s.payType||'cash';
+    return `<tr>
+    <td style="font-size:11px;color:var(--tx3)">${s.date}</td>
+    <td style="font-size:11px;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="openSourceDocument('sale','${s.id}')">${getDocNumDisplay(s)}</td>
+    <td style="font-weight:500">${s.customerName}</td>
+    <td style="font-size:11px">${s.locationName}</td>
+    <td><span class="ba ${MBADGE[payT]||'bgr2'}">${MLABELS[payT]||payT}</span></td>
+    <td style="text-align:right;font-weight:600">${fmt(s.total)}</td>
+    <td style="text-align:right;color:var(--gr)">${fmt(s.paid)}</td>
+    <td style="text-align:right;color:${s.recv>0?'var(--am)':'var(--gr)'}">${fmt(s.recv)}</td>
+    <td>${cancelled?'<span class="ba bre">Цуцлагдсан</span>':statusBadge(st)}</td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="openSourceDocument('sale','${s.id}')" title="Харах"><i class="ti ti-eye"></i></button>
+      ${hasPerm('sales_edit')?`<button class="btn bg bxs" onclick="openEditSale('${s.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+      <button class="btn bg bxs" onclick="openInvoice('${s.id}')" title="Хэвлэх"><i class="ti ti-printer"></i></button>
+      ${(!cancelled && hasPerm('sales_delete'))?`<button class="btn bd2 bxs" onclick="deleteSale('${s.id}')" title="Цуцлах"><i class="ti ti-x"></i></button>`:''}
+    </td>
+  </tr>`;
+  }).join('');
+};
+window.clearSalesListFilter = () => {
+  clearToLastMonth('sl-from','sl-to');
+  ['sl-cust','sl-loc','sl-paytype','sl-num','sl-status'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderSalesList();
+};
+
+// ─── БОРЛУУЛАЛТЫН ТАЙЛАН — canonical source: sales + items (өөр collection ашиглахгүй) ─
+// Cancelled/deleted борлуулалтыг тооцохгүй.
+let currentSalesReportView = 'customer';
+function getSalesReportLines(filters={}) {
+  const {from, to, locId, custId, prodId, payType} = filters;
+  let list = sales.filter(s => s.status!=='deleted' && !s.isDeleted && s.status!=='cancelled');
+  if(from) list = list.filter(s=>s.date>=from);
+  if(to)   list = list.filter(s=>s.date<=to);
+  if(locId)  list = list.filter(s=>s.locationId===locId);
+  if(custId) list = list.filter(s=>s.customerId===custId);
+  if(payType) list = list.filter(s=>(s.paymentType||s.method||s.payType)===payType);
+
+  const lines = [];
+  list.forEach(s => {
+    const pT = s.paymentType||s.method||s.payType||'cash';
+    (s.items||[]).forEach(it => {
+      if(prodId && it.pid!==prodId) return;
+      const lineSell = it.lineSubtotal ?? (it.price||0)*(it.qty||0);
+      const lineDisc  = it.discountAmount || 0;
+      const lineNet   = it.lineTotal ?? it.sub ?? (lineSell-lineDisc);
+      const lineCost  = it.costAmount ?? ((it.unitCost||0)*(it.qty||0));
+      lines.push({
+        saleId: s.id, docNumber: getDocNumDisplay(s), date: s.date,
+        customerId: s.customerId||'', customerName: s.customerName||'—', customerCode: s.customerCode||'',
+        locationId: s.locationId, locationName: s.locationName||'—',
+        paymentType: pT,
+        pid: it.pid, productName: it.label||'', barcode: it.barcode||'',
+        qty: it.qty||0, unitPrice: it.price||0,
+        sellAmount: lineSell, discAmount: lineDisc, netAmount: lineNet,
+        costAmount: lineCost,
+        paid: s.paid||0, recv: s.recv||0, total: s.total||0
+      });
+    });
+  });
+  return lines;
+}
+window.showSalesReportView = (view, btn) => {
+  currentSalesReportView = view;
+  document.querySelectorAll('#st-report .tab-bar .tb').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+  renderSalesReportView();
+};
+window.renderSalesReportView = () => {
+  const thead = document.getElementById('srv-thead');
+  const tbody = document.getElementById('srv-tbody');
+  const tfoot = document.getElementById('srv-tfoot');
+  if(!thead || !tbody) return;
+  const from = document.getElementById('sr-from')?.value || '';
+  const to   = document.getElementById('sr-to')?.value   || '';
+  const locId  = document.getElementById('sr-loc')?.value || '';
+  const custId = document.getElementById('sr-cust')?.value || '';
+  const prodId = document.getElementById('sr-prod')?.value || '';
+  const payType = document.getElementById('sr-paytype')?.value || '';
+
+  const prodSel = document.getElementById('sr-prod');
+  if(prodSel && prodSel.children.length<=1) {
+    prodSel.innerHTML = '<option value="">Бүх бараа</option>' + products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+    prodSel.value = prodId;
+  }
+
+  const lines = getSalesReportLines({from,to,locId,custId,prodId,payType});
+
+  if(currentSalesReportView==='customer') {
+    thead.innerHTML = `<tr><th>Код</th><th>Харилцагч</th><th style="text-align:right">Баримт</th><th style="text-align:right">Нийт борлуулалт</th><th style="text-align:right">Хөнгөлөлт</th><th style="text-align:right">Цэвэр борлуулалт</th><th style="text-align:right">Төлсөн</th><th style="text-align:right">Авлага</th></tr>`;
+    const agg = {};
+    const seenSale = new Set();
+    lines.forEach(l => {
+      const key = l.customerId;
+      if(!agg[key]) agg[key] = {customerId:l.customerId, customerCode:l.customerCode, customerName:l.customerName, saleIds:new Set(), sell:0, disc:0, net:0, paid:0, recv:0};
+      agg[key].sell += l.sellAmount; agg[key].disc += l.discAmount; agg[key].net += l.netAmount;
+      agg[key].saleIds.add(l.saleId);
+    });
+    // paid/recv - sale-level, тооцоход давхардуулахгүйн тулд sale бүрийг нэг л удаа нэмнэ
+    Object.values(agg).forEach(a => {
+      a.saleIds.forEach(sid => {
+        if(seenSale.has(sid)) return; seenSale.add(sid);
+        const s = sales.find(x=>x.id===sid); if(!s) return;
+        a.paid += s.paid||0; a.recv += s.recv||0;
+      });
+    });
+    const rows = Object.values(agg).sort((a,b)=>b.net-a.net);
+    tbody.innerHTML = rows.length===0 ? '<tr><td colspan="8"><div class="empty">Дата байхгүй</div></td></tr>' : rows.map(a=>`<tr>
+      <td style="font-size:11px">${a.customerCode||'—'}</td>
+      <td style="font-weight:500;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="openSalesDetailDrilldown({customerId:'${a.customerId}'},'${a.customerName.replace(/'/g,"\\'")}')">${a.customerName}</td>
+      <td style="text-align:right">${a.saleIds.size}</td>
+      <td style="text-align:right">${fmt(a.sell)}</td>
+      <td style="text-align:right;color:var(--am)">${fmt(a.disc)}</td>
+      <td style="text-align:right;font-weight:600">${fmt(a.net)}</td>
+      <td style="text-align:right;color:var(--gr)">${fmt(a.paid)}</td>
+      <td style="text-align:right;color:${a.recv>0?'var(--am)':'var(--gr)'}">${fmt(a.recv)}</td>
+    </tr>`).join('');
+    if(tfoot) {
+      const tot = rows.reduce((a,r)=>({n:a.n+r.saleIds.size,sell:a.sell+r.sell,disc:a.disc+r.disc,net:a.net+r.net,paid:a.paid+r.paid,recv:a.recv+r.recv}),{n:0,sell:0,disc:0,net:0,paid:0,recv:0});
+      tfoot.innerHTML = `<tr style="font-weight:700;background:var(--sur2)"><td colspan="2">НИЙТ</td><td style="text-align:right">${tot.n}</td><td style="text-align:right">${fmt(tot.sell)}</td><td style="text-align:right">${fmt(tot.disc)}</td><td style="text-align:right">${fmt(tot.net)}</td><td style="text-align:right">${fmt(tot.paid)}</td><td style="text-align:right">${fmt(tot.recv)}</td></tr>`;
+    }
+  }
+
+  if(currentSalesReportView==='payment') {
+    thead.innerHTML = `<tr><th>Төлбөрийн төрөл</th><th style="text-align:right">Баримт</th><th style="text-align:right">Нийт борлуулалт</th><th style="text-align:right">Хөнгөлөлт</th><th style="text-align:right">Цэвэр борлуулалт</th><th style="text-align:right">Эзлэх хувь</th></tr>`;
+    const agg = {};
+    lines.forEach(l => {
+      const key = l.paymentType;
+      if(!agg[key]) agg[key] = {paymentType:key, saleIds:new Set(), sell:0, disc:0, net:0};
+      agg[key].sell += l.sellAmount; agg[key].disc += l.discAmount; agg[key].net += l.netAmount;
+      agg[key].saleIds.add(l.saleId);
+    });
+    const rows = Object.values(agg).sort((a,b)=>b.net-a.net);
+    const grandNet = rows.reduce((a,r)=>a+r.net,0);
+    tbody.innerHTML = rows.length===0 ? '<tr><td colspan="6"><div class="empty">Дата байхгүй</div></td></tr>' : rows.map(a=>{
+      const pct = grandNet>0 ? (a.net/grandNet*100) : 0;
+      return `<tr>
+      <td><span class="ba ${MBADGE[a.paymentType]||'bgr2'}">${MLABELS[a.paymentType]||a.paymentType}</span></td>
+      <td style="text-align:right;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="openSalesDetailDrilldown({paymentType:'${a.paymentType}'},'${MLABELS[a.paymentType]||a.paymentType}')">${a.saleIds.size}</td>
+      <td style="text-align:right">${fmt(a.sell)}</td>
+      <td style="text-align:right;color:var(--am)">${fmt(a.disc)}</td>
+      <td style="text-align:right;font-weight:600">${fmt(a.net)}</td>
+      <td style="text-align:right">${pct.toFixed(1)}%</td>
+    </tr>`;}).join('');
+    if(tfoot) {
+      const tot = rows.reduce((a,r)=>({n:a.n+r.saleIds.size,sell:a.sell+r.sell,disc:a.disc+r.disc,net:a.net+r.net}),{n:0,sell:0,disc:0,net:0});
+      tfoot.innerHTML = `<tr style="font-weight:700;background:var(--sur2)"><td>НИЙТ</td><td style="text-align:right">${tot.n}</td><td style="text-align:right">${fmt(tot.sell)}</td><td style="text-align:right">${fmt(tot.disc)}</td><td style="text-align:right">${fmt(tot.net)}</td><td style="text-align:right">100.0%</td></tr>`;
+    }
+  }
+
+  if(currentSalesReportView==='product') {
+    thead.innerHTML = `<tr><th>Код</th><th>Баркод</th><th>Барааны нэр</th><th style="text-align:right">Тоо</th><th style="text-align:right">${'Дундаж нэгж үнэ'}</th><th style="text-align:right">Нийт худалдах үнэ</th><th style="text-align:right">Нийт өртөг</th><th style="text-align:right">Хөнгөлөлт</th><th style="text-align:right">Цэвэр борлуулалт</th><th style="text-align:right">Нийт ашиг</th></tr>`;
+    const agg = {};
+    lines.forEach(l => {
+      const key = l.pid;
+      if(!agg[key]) agg[key] = {pid:l.pid, productName:l.productName, barcode:l.barcode, qty:0, sell:0, cost:0, disc:0, net:0};
+      agg[key].qty += l.qty; agg[key].sell += l.sellAmount; agg[key].cost += l.costAmount; agg[key].disc += l.discAmount; agg[key].net += l.netAmount;
+    });
+    const rows = Object.values(agg).sort((a,b)=>b.net-a.net);
+    tbody.innerHTML = rows.length===0 ? '<tr><td colspan="10"><div class="empty">Дата байхгүй</div></td></tr>' : rows.map(a=>{
+      const p = products.find(x=>x.id===a.pid) || {};
+      const avgPrice = a.qty>0 ? Math.round(a.sell/a.qty) : 0;
+      const profit = a.net - a.cost;
+      return `<tr>
+      <td style="font-size:11px">${p.sku||'—'}</td>
+      <td style="font-size:11px;font-family:monospace">${a.barcode||p.barcode||'—'}</td>
+      <td style="font-weight:500;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="openSalesDetailDrilldown({pid:'${a.pid}'},'${(a.productName||'').replace(/'/g,"\\'")}')">${a.productName}</td>
+      <td style="text-align:right">${a.qty}ш</td>
+      <td style="text-align:right">${fmt(avgPrice)}</td>
+      <td style="text-align:right">${fmt(a.sell)}</td>
+      <td style="text-align:right">${fmt(a.cost)}</td>
+      <td style="text-align:right;color:var(--am)">${fmt(a.disc)}</td>
+      <td style="text-align:right;font-weight:600">${fmt(a.net)}</td>
+      <td style="text-align:right;font-weight:700;color:${profit>=0?'var(--gr)':'var(--re)'}">${fmt(profit)}</td>
+    </tr>`;}).join('');
+    if(tfoot) {
+      const tot = rows.reduce((a,r)=>({qty:a.qty+r.qty,sell:a.sell+r.sell,cost:a.cost+r.cost,disc:a.disc+r.disc,net:a.net+r.net}),{qty:0,sell:0,cost:0,disc:0,net:0});
+      const totProfit = tot.net-tot.cost;
+      tfoot.innerHTML = `<tr style="font-weight:700;background:var(--sur2)"><td colspan="3">НИЙТ</td><td style="text-align:right">${tot.qty}ш</td><td></td><td style="text-align:right">${fmt(tot.sell)}</td><td style="text-align:right">${fmt(tot.cost)}</td><td style="text-align:right">${fmt(tot.disc)}</td><td style="text-align:right">${fmt(tot.net)}</td><td style="text-align:right;color:${totProfit>=0?'var(--gr)':'var(--re)'}">${fmt(totProfit)}</td></tr>`;
+    }
+  }
+};
+
+// Aggregate мөрийн 2 шаттай drilldown: Aggregate → sale жагсаалт → эх баримт
+window.openSalesDetailDrilldown = (matchFilter, label) => {
+  const from = document.getElementById('sr-from')?.value || '';
+  const to   = document.getElementById('sr-to')?.value   || '';
+  const locId  = document.getElementById('sr-loc')?.value || '';
+  const payType = document.getElementById('sr-paytype')?.value || '';
+  let list = sales.filter(s => s.status!=='deleted' && !s.isDeleted && s.status!=='cancelled');
+  if(from) list = list.filter(s=>s.date>=from);
+  if(to)   list = list.filter(s=>s.date<=to);
+  if(locId)  list = list.filter(s=>s.locationId===locId);
+  if(payType) list = list.filter(s=>(s.paymentType||s.method||s.payType)===payType);
+  if(matchFilter.customerId) list = list.filter(s=>s.customerId===matchFilter.customerId);
+  if(matchFilter.paymentType) list = list.filter(s=>(s.paymentType||s.method||s.payType)===matchFilter.paymentType);
+  if(matchFilter.pid) list = list.filter(s=>(s.items||[]).some(it=>it.pid===matchFilter.pid));
+  list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const rows = list.map(s=>`<tr>
+    <td style="font-size:11px;color:var(--tx3)">${s.date}</td>
+    <td style="font-size:11px;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="closeModal('sales-detail-modal');openSourceDocument('sale','${s.id}')">${getDocNumDisplay(s)}</td>
+    <td style="font-size:12px">${s.customerName}</td>
+    <td style="text-align:right;font-weight:600">${fmt(s.total)}</td>
+  </tr>`).join('');
+  let modal = document.getElementById('sales-detail-modal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'sales-detail-modal';
+    modal.className = 'modal-ov';
+    modal.style.cssText = 'align-items:flex-start;overflow-y:auto;padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal modal-lg">
+    <div class="mh"><span><i class="ti ti-list-details"></i> ${label} — дэлгэрэнгүй (${list.length})</span><button class="btn bg bxs" onclick="closeModal('sales-detail-modal')"><i class="ti ti-x"></i></button></div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th>Огноо</th><th>Баримт №</th><th>Харилцагч</th><th style="text-align:right">Дүн</th></tr></thead><tbody>${rows}</tbody></table></div>
+  </div>`;
+  openModal('sales-detail-modal');
+};
 
 window.renderRecvSummary = () => {
   const from = document.getElementById('rv-date-from')?.value || '';
@@ -7244,7 +7587,7 @@ window.onGlobalMonthChange = (yearMonth) => {
   // Одоо харагдаж байгаа хэсгийг refresh хийх
   const activeBtn = document.querySelector('.ni.on');
   const secName   = activeBtn?.onclick?.toString().match(/goSec\('(\w+)'/)?.[1] || '';
-  if(secName === 'sales')      renderSalesTable();
+  if(secName === 'sales')      { renderSalesTable(); if(typeof renderSalesList==='function') renderSalesList(); if(typeof renderSalesReportView==='function') renderSalesReportView(); }
   if(secName === 'receivable') renderRecvSummary();
   if(secName === 'bank')       renderTransactions();
   if(secName === 'report')     renderReport?.();
