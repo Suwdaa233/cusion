@@ -2004,6 +2004,22 @@ let customers = [], products = [], locations = [], sales = [], invLogs = [], sto
 let reconcileDocs = [];
 let payments = []; // Шинэ payments collection
 let purchases = []; // Худалдан авалт (дотоод)
+// Засах горимын state-үүд — document ID/дугаар өөрчлөгдөхгүй, зөвхөн
+// хуучин movement-ийн нөлөөг буцааж, шинэ утгаар дахин тооцно.
+let editingPurchaseId = null;
+let editingImportPurchaseId = null;
+let editingTransferId = null;
+
+// Нэгдсэн, ерөнхий audit log — Устгах/Засах үйлдэл бүрд ашиглана.
+async function writeGenericAuditLog(action, details) {
+  try {
+    await addDoc(collection(db,'auditLogs'), {
+      action, ...details,
+      userId: currentUser?.email || '',
+      timestamp: serverTimestamp()
+    });
+  } catch(e) { console.error('audit log бичихэд алдаа гарлаа', e); }
+}
 let importPurchases = []; // Татан авалт (гадаад)
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
@@ -2246,7 +2262,7 @@ function getAllMovements() {
       sourceType: 'inventoryTransfer',
       sourceId:   matchTr ? matchTr.id : l.id,
       sourceNumber: matchTr ? matchTr.trNum : (l.note||''),
-      status: 'active',
+      status: (l.status==='deleted'||(matchTr&&(matchTr.status==='cancelled'||matchTr.status==='deleted'))) ? 'cancelled' : 'active',
       createdAt: l.createdAt
     });
   });
@@ -2265,7 +2281,7 @@ function getAllMovements() {
       sourceType: 'inventoryLog',
       sourceId:   l.id,
       sourceNumber: l.docNumber || '',
-      status: 'active',
+      status: l.status==='deleted' ? 'cancelled' : 'active',
       createdAt: l.createdAt
     });
   });
@@ -3016,6 +3032,47 @@ window.submitPurchase = async () => {
   if(items.length===0){ alert('Бараа, тоо, үнийг бүрэн оруулна уу'); return; }
   const totalAmount = items.reduce((a,it)=>a+it.purchaseAmount,0);
   try {
+    if(editingPurchaseId) {
+      // ─── ЗАСАХ: хуучин нөлөөг буцааж, шинэ утгаар дахин тооцно ───
+      const oldP = purchases.find(x=>x.id===editingPurchaseId);
+      if(!oldP) { alert('Засварлах баримт олдсонгүй'); editingPurchaseId=null; return; }
+      const docNum = oldP.documentNumber; // өөрчлөгдөхгүй
+      // 1) хуучин items-ийн stock нөлөөг буцаана (хуучин байршилд)
+      const reverseChanges = (oldP.items||[]).map(it=>({pid:it.productId, lid:oldP.locationId, delta:-it.quantity}));
+      // 2) хуучин invLogs (sourceId=энэ purchase)-г deleted гэж тэмдэглэнэ (duplicate үүсгэхгүй)
+      const oldLogs = invLogs.filter(l=>l.sourceType==='purchase' && l.sourceId===editingPurchaseId);
+      for(const l of oldLogs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+      // 3) шинэ утгаар purchase document-ийг ШИНЭЧЛЭНЭ (ID/дугаар хэвээр)
+      await updateDoc(doc(db,'purchases',editingPurchaseId), {
+        purchaseDate: pDate, supplierId: supplierId||'', supplierCode: supplier?.customerCode||'',
+        supplierName: supplier?.name||'', locationId: lid, locationName: loc?.name||'',
+        paymentType: payType, items, subtotal: totalAmount, totalAmount, note,
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+      // 4) хуучин нөлөөг буцааж + шинэ нөлөөг нэг дор нэгтгэж stock update хийнэ
+      const newChanges = items.map(it=>({pid:it.productId, lid, delta:it.quantity}));
+      await updateStock([...reverseChanges, ...newChanges]);
+      // 5) шинэ invLogs бичнэ (шинэ баримт биш, ижил sourceId/sourceNumber)
+      for(const it of items) {
+        await addDoc(collection(db,'invLogs'), {
+          docNumber: docNum, date: pDate, type: 'purchase',
+          productId: it.productId, productLabel: it.productName,
+          locationId: lid, locationName: loc?.name || '',
+          qty: it.quantity,
+          note: `${docNum} — Худалдан авалт (засварласан)${supplier?.name?' — '+supplier.name:''}`,
+          sourceType: 'purchase', sourceId: editingPurchaseId, sourceNumber: docNum,
+          createdBy: currentUser.email, createdAt: serverTimestamp()
+        });
+      }
+      await writeGenericAuditLog('purchase_edited', { documentId: editingPurchaseId, documentNumber: docNum, before: oldP.items, after: items });
+      editingPurchaseId = null;
+      document.getElementById('pu-form-mode-banner')?.remove();
+      document.getElementById('pu-rows').innerHTML=''; document.getElementById('pu-note').value='';
+      addPurchaseRow(); document.getElementById('pu-date').value = today();
+      calcPurchaseTotal();
+      alert(`✅ Худалдан авалт амжилттай шинэчлэгдлээ!\nБаримт №: ${docNum}`);
+      return;
+    }
     const docNum = await getNextDocNum('purchase');
     const purchaseRef = await addDoc(collection(db,'purchases'), {
       documentNumber: docNum,
@@ -3057,9 +3114,68 @@ window.submitPurchase = async () => {
     alert(`✅ Худалдан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
   } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
+window.editPurchase = (id) => {
+  const p = purchases.find(x=>x.id===id); if(!p) { alert('Худалдан авалт олдсонгүй'); return; }
+  editingPurchaseId = id;
+  document.getElementById('pu-date').value = p.purchaseDate;
+  document.getElementById('pu-supplier').value = p.supplierId||'';
+  document.getElementById('pu-loc').value = p.locationId||'';
+  document.getElementById('pu-paytype').value = p.paymentType||'cash';
+  document.getElementById('pu-note').value = p.note||'';
+  const rowsEl = document.getElementById('pu-rows');
+  rowsEl.innerHTML = '';
+  (p.items||[]).forEach(it => {
+    rowsEl.insertAdjacentHTML('beforeend', purchaseRowHtml());
+    const row = rowsEl.lastElementChild;
+    row.querySelector('.row-prod-sel').value = it.productId;
+    row.querySelector('.pu-barcode').value = it.barcode||'';
+    row.querySelector('.ir-qty').value = it.quantity;
+    row.querySelector('.pu-price').value = it.purchaseUnitPrice;
+  });
+  populateSels();
+  calcPurchaseTotal();
+  document.getElementById('pu-form-mode-banner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'pu-form-mode-banner';
+  banner.className = 'al al-warn';
+  banner.style.marginBottom = '10px';
+  banner.innerHTML = `<i class="ti ti-edit"></i> Засварлаж байна: <b>${p.documentNumber}</b> &nbsp;
+    <button class="btn bg bxs" onclick="cancelEditPurchase()">Цуцлах</button>`;
+  const card = rowsEl.closest('.card');
+  card.querySelector('.cb').prepend(banner);
+  const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="\'purchase\'"]');
+  if(tabBtn) showInvTab('purchase', tabBtn);
+  window.scrollTo(0,0);
+};
+window.cancelEditPurchase = () => {
+  editingPurchaseId = null;
+  document.getElementById('pu-form-mode-banner')?.remove();
+  document.getElementById('pu-rows').innerHTML = '';
+  addPurchaseRow();
+  document.getElementById('pu-date').value = today();
+  calcPurchaseTotal();
+};
+window.deletePurchase = async (id) => {
+  if(!hasPerm('inventory_delete')){ alert('Устгах эрх байхгүй байна'); return; }
+  const p = purchases.find(x=>x.id===id); if(!p) { alert('Худалдан авалт олдсонгүй'); return; }
+  if(!confirm('Энэ баримтыг устгах уу? Холбогдох барааны хөдөлгөөн буцаагдана.')) return;
+  try {
+    // 1) Барааны үлдэгдэлд үзүүлсэн нөлөөг буцаана
+    const reverseChanges = (p.items||[]).map(it=>({pid:it.productId, lid:p.locationId, delta:-it.quantity}));
+    await updateStock(reverseChanges);
+    // 2) Холбогдох invLogs-г deleted гэж тэмдэглэнэ (hard delete хийхгүй)
+    const logs = invLogs.filter(l=>l.sourceType==='purchase' && l.sourceId===id);
+    for(const l of logs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+    // 3) Эх document-ийг soft-delete (status='deleted') — Firestore-оос бүр мөсөн устгахгүй
+    await updateDoc(doc(db,'purchases',id), { status:'deleted', deletedAt: serverTimestamp(), deletedBy: currentUser.email });
+    // 4) Audit log
+    await writeGenericAuditLog('purchase_deleted', { documentId:id, documentNumber:p.documentNumber, reversedItems:p.items });
+    alert('✅ Худалдан авалт устгагдаж, барааны хөдөлгөөн буцаагдлаа.');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
 window.renderPurchaseList = () => {
   const tbody = document.getElementById('pu-tbody'); if(!tbody) return;
-  const list = [...purchases].sort((a,b)=>(b.purchaseDate||'').localeCompare(a.purchaseDate||'')).slice(0,50);
+  const list = [...purchases].filter(p=>p.status!=='deleted').sort((a,b)=>(b.purchaseDate||'').localeCompare(a.purchaseDate||'')).slice(0,50);
   if(list.length===0){ tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Худалдан авалт байхгүй</div></td></tr>'; return; }
   tbody.innerHTML = list.map(p=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${p.purchaseDate}</td>
@@ -3070,6 +3186,8 @@ window.renderPurchaseList = () => {
     <td>${p.status==='cancelled'?'<span class="ba bre">Цуцлагдсан</span>':'<span class="ba bgr">Идэвхтэй</span>'}</td>
     <td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="viewPurchase('${p.id}')" title="Харах"><i class="ti ti-eye"></i></button>
+      ${hasPerm('inventory_edit')?`<button class="btn bg bxs" onclick="editPurchase('${p.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+      ${hasPerm('inventory_delete')?`<button class="btn bd2 bxs" onclick="deletePurchase('${p.id}')" title="Устгах"><i class="ti ti-trash"></i></button>`:''}
     </td>
   </tr>`).join('');
 };
@@ -3226,6 +3344,42 @@ window.submitImportPurchase = async () => {
   const totalAmount = goodsTotal + totalAdditionalCost;
 
   try {
+    if(editingImportPurchaseId) {
+      const oldP = importPurchases.find(x=>x.id===editingImportPurchaseId);
+      if(!oldP) { alert('Засварлах баримт олдсонгүй'); editingImportPurchaseId=null; return; }
+      const docNum = oldP.documentNumber;
+      const reverseChanges = (oldP.items||[]).map(it=>({pid:it.productId, lid:oldP.locationId, delta:-it.quantity}));
+      const oldLogs = invLogs.filter(l=>l.sourceType==='importPurchase' && l.sourceId===editingImportPurchaseId);
+      for(const l of oldLogs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+      await updateDoc(doc(db,'importPurchases',editingImportPurchaseId), {
+        purchaseDate: pDate, supplierName, invoiceNumber: invoiceNum,
+        locationId: lid, locationName: loc?.name||'', currency, exchangeRate: rate,
+        items, goodsTotal, additionalCosts, totalAdditionalCost, totalAmount, note,
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+      const newChanges = items.map(it=>({pid:it.productId, lid, delta:it.quantity}));
+      await updateStock([...reverseChanges, ...newChanges]);
+      for(const it of items) {
+        await addDoc(collection(db,'invLogs'), {
+          docNumber: docNum, date: pDate, type: 'importPurchase',
+          productId: it.productId, productLabel: it.productName,
+          locationId: lid, locationName: loc?.name || '',
+          qty: it.quantity,
+          note: `${docNum} — Татан авалт (засварласан)${supplierName?' — '+supplierName:''}`,
+          sourceType: 'importPurchase', sourceId: editingImportPurchaseId, sourceNumber: docNum,
+          createdBy: currentUser.email, createdAt: serverTimestamp()
+        });
+      }
+      await writeGenericAuditLog('import_purchase_edited', { documentId: editingImportPurchaseId, documentNumber: docNum, before: oldP.items, after: items });
+      editingImportPurchaseId = null;
+      document.getElementById('im-form-mode-banner')?.remove();
+      document.getElementById('im-rows').innerHTML=''; document.getElementById('im-note').value='';
+      ['im-freight-intl','im-freight-dom','im-cargo','im-customs','im-vat','im-insurance','im-agency','im-other','im-invoice-num'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
+      addImportRow(); document.getElementById('im-date').value = today();
+      calcImportTotal();
+      alert(`✅ Татан авалт амжилттай шинэчлэгдлээ!\nБаримт №: ${docNum}`);
+      return;
+    }
     const docNum = await getNextDocNum('importPurchase');
     const impRef = await addDoc(collection(db,'importPurchases'), {
       documentNumber: docNum,
@@ -3261,9 +3415,76 @@ window.submitImportPurchase = async () => {
     alert(`✅ Татан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
   } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
+window.editImportPurchase = (id) => {
+  const p = importPurchases.find(x=>x.id===id); if(!p) { alert('Татан авалт олдсонгүй'); return; }
+  editingImportPurchaseId = id;
+  document.getElementById('im-date').value = p.purchaseDate;
+  document.getElementById('im-supplier').value = p.supplierName||'';
+  document.getElementById('im-loc').value = p.locationId||'';
+  document.getElementById('im-invoice-num').value = p.invoiceNumber||'';
+  document.getElementById('im-currency').value = p.currency||'USD';
+  document.getElementById('im-rate').value = p.exchangeRate||'';
+  document.getElementById('im-note').value = p.note||'';
+  const ac = p.additionalCosts||{};
+  document.getElementById('im-freight-intl').value = ac.freightIntl||'';
+  document.getElementById('im-freight-dom').value = ac.freightDomestic||'';
+  document.getElementById('im-cargo').value = ac.cargo||'';
+  document.getElementById('im-customs').value = ac.customsDuty||'';
+  document.getElementById('im-vat').value = ac.importVat||'';
+  document.getElementById('im-insurance').value = ac.insurance||'';
+  document.getElementById('im-agency').value = ac.agencyFee||'';
+  document.getElementById('im-other').value = ac.other||'';
+  const rowsEl = document.getElementById('im-rows');
+  rowsEl.innerHTML = '';
+  (p.items||[]).forEach(it => {
+    rowsEl.insertAdjacentHTML('beforeend', importRowHtml());
+    const row = rowsEl.lastElementChild;
+    row.querySelector('.row-prod-sel').value = it.productId;
+    row.querySelector('.im-barcode').value = it.barcode||'';
+    row.querySelector('.ir-qty').value = it.quantity;
+    row.querySelector('.im-price-fx').value = it.unitPriceForeign;
+  });
+  populateSels();
+  calcImportTotal();
+  document.getElementById('im-form-mode-banner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'im-form-mode-banner';
+  banner.className = 'al al-warn';
+  banner.style.marginBottom = '10px';
+  banner.innerHTML = `<i class="ti ti-edit"></i> Засварлаж байна: <b>${p.documentNumber}</b> &nbsp;
+    <button class="btn bg bxs" onclick="cancelEditImportPurchase()">Цуцлах</button>`;
+  const card = rowsEl.closest('.card');
+  card.querySelector('.cb').prepend(banner);
+  const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="\'import\'"]');
+  if(tabBtn) showInvTab('import', tabBtn);
+  window.scrollTo(0,0);
+};
+window.cancelEditImportPurchase = () => {
+  editingImportPurchaseId = null;
+  document.getElementById('im-form-mode-banner')?.remove();
+  document.getElementById('im-rows').innerHTML = '';
+  ['im-freight-intl','im-freight-dom','im-cargo','im-customs','im-vat','im-insurance','im-agency','im-other','im-invoice-num'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
+  addImportRow();
+  document.getElementById('im-date').value = today();
+  calcImportTotal();
+};
+window.deleteImportPurchase = async (id) => {
+  if(!hasPerm('inventory_delete')){ alert('Устгах эрх байхгүй байна'); return; }
+  const p = importPurchases.find(x=>x.id===id); if(!p) { alert('Татан авалт олдсонгүй'); return; }
+  if(!confirm('Энэ баримтыг устгах уу? Холбогдох барааны хөдөлгөөн буцаагдана.')) return;
+  try {
+    const reverseChanges = (p.items||[]).map(it=>({pid:it.productId, lid:p.locationId, delta:-it.quantity}));
+    await updateStock(reverseChanges);
+    const logs = invLogs.filter(l=>l.sourceType==='importPurchase' && l.sourceId===id);
+    for(const l of logs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+    await updateDoc(doc(db,'importPurchases',id), { status:'deleted', deletedAt: serverTimestamp(), deletedBy: currentUser.email });
+    await writeGenericAuditLog('import_purchase_deleted', { documentId:id, documentNumber:p.documentNumber, reversedItems:p.items });
+    alert('✅ Татан авалт устгагдаж, барааны хөдөлгөөн буцаагдлаа.');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
 window.renderImportList = () => {
   const tbody = document.getElementById('im-tbody'); if(!tbody) return;
-  const list = [...importPurchases].sort((a,b)=>(b.purchaseDate||'').localeCompare(a.purchaseDate||'')).slice(0,50);
+  const list = [...importPurchases].filter(p=>p.status!=='deleted').sort((a,b)=>(b.purchaseDate||'').localeCompare(a.purchaseDate||'')).slice(0,50);
   if(list.length===0){ tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Татан авалт байхгүй</div></td></tr>'; return; }
   tbody.innerHTML = list.map(p=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${p.purchaseDate}</td>
@@ -3272,7 +3493,11 @@ window.renderImportList = () => {
     <td style="font-size:11px">${p.locationName}</td>
     <td style="text-align:right;font-weight:600">${fmt(p.totalAmount)}</td>
     <td>${p.status==='cancelled'?'<span class="ba bre">Цуцлагдсан</span>':'<span class="ba bgr">Идэвхтэй</span>'}</td>
-    <td style="white-space:nowrap"><button class="btn bg bxs" onclick="viewImportPurchase('${p.id}')" title="Харах"><i class="ti ti-eye"></i></button></td>
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="viewImportPurchase('${p.id}')" title="Харах"><i class="ti ti-eye"></i></button>
+      ${hasPerm('inventory_edit')?`<button class="btn bg bxs" onclick="editImportPurchase('${p.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+      ${hasPerm('inventory_delete')?`<button class="btn bd2 bxs" onclick="deleteImportPurchase('${p.id}')" title="Устгах"><i class="ti ti-trash"></i></button>`:''}
+    </td>
   </tr>`).join('');
 };
 window.viewImportPurchase = (id) => {
@@ -4503,19 +4728,37 @@ function getAllDocuments() {
     invGroups[key].items.push(l);
   });
   Object.values(invGroups).forEach(g => {
-    const totalQty = g.items.reduce((a,it)=>a+Math.abs(it.qty||0),0);
+    const allDeleted = g.items.every(it=>it.status==='deleted');
+    const totalQty = g.items.filter(it=>it.status!=='deleted').reduce((a,it)=>a+Math.abs(it.qty||0),0);
     list.push({
       date: g.date, docNumber: g.docNumber, docType: g.type==='in' ? 'inventoryIn' : 'inventoryOut',
       docTypeLabel: g.type==='in' ? 'Барааны орлого' : 'Барааны зарлага',
       customerId: '', customerName: '—',
       locationId: g.locationId, locationName: g.locationName||'—',
       totalQty, totalAmount: 0,
-      status: 'active',
+      status: allDeleted ? 'cancelled' : 'active',
       sourceType: g.type==='in' ? 'inventoryIn' : 'inventoryOut', sourceId: g.docNumber
     });
   });
   return list;
 }
+// Баримтын жагсаалтаас докийн төрлөөс хамааран зөв Засах/Устгах функц руу chиглүүлнэ
+window.editDocFromRegistry = (docType, sourceId) => {
+  if(docType === 'purchase') { editPurchase(sourceId); return; }
+  if(docType === 'importPurchase') { editImportPurchase(sourceId); return; }
+  if(docType === 'inventoryTransfer') { editTransfer(sourceId); return; }
+  if(docType === 'inventoryIn') { editInventoryLogGroup('in', sourceId); return; }
+  if(docType === 'inventoryOut') { editInventoryLogGroup('out', sourceId); return; }
+  alert('Энэ баримтын төрлийг энэ жагсаалтаас засах боломжгүй');
+};
+window.deleteDocFromRegistry = (docType, sourceId) => {
+  if(docType === 'purchase') { deletePurchase(sourceId); return; }
+  if(docType === 'importPurchase') { deleteImportPurchase(sourceId); return; }
+  if(docType === 'inventoryTransfer') { deleteTransfer(sourceId); return; }
+  if(docType === 'inventoryIn') { deleteInventoryLogGroup('in', sourceId); return; }
+  if(docType === 'inventoryOut') { deleteInventoryLogGroup('out', sourceId); return; }
+  alert('Энэ баримтын төрлийг энэ жагсаалтаас устгах боломжгүй');
+};
 window.renderDocRegistry = () => {
   const from = document.getElementById('doc-from')?.value || '';
   const to   = document.getElementById('doc-to')?.value   || '';
@@ -4534,10 +4777,15 @@ window.renderDocRegistry = () => {
   if(numQ) list = list.filter(d=>(d.docNumber||'').toLowerCase().includes(numQ));
   list.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
 
-  const STLABEL = {active:'<span class="ba bgr">Идэвхтэй</span>', cancelled:'<span class="ba bre">Цуцлагдсан</span>', paid:'<span class="ba bgr">Төлөгдсөн</span>', partial:'<span class="ba bam2">Хэсэгчилсэн</span>', unpaid:'<span class="ba bre">Авлагатай</span>'};
+  const STLABEL = {active:'<span class="ba bgr">Идэвхтэй</span>', cancelled:'<span class="ba bre">Цуцлагдсан</span>', deleted:'<span class="ba bre">Устгагдсан</span>', paid:'<span class="ba bgr">Төлөгдсөн</span>', partial:'<span class="ba bam2">Хэсэгчилсэн</span>', unpaid:'<span class="ba bre">Авлагатай</span>'};
+  // Засах/Устгах-ыг дэмждэг docType-ууд (Борлуулалт өөрийн гэсэн Sales tab-аас засварладаг тул энд давхардуулахгүй)
+  const EDITABLE_TYPES = ['purchase','importPurchase','inventoryTransfer','inventoryIn','inventoryOut'];
 
   if(list.length===0){ tbody.innerHTML = '<tr><td colspan="9"><div class="empty">Баримт байхгүй</div></td></tr>'; return; }
-  tbody.innerHTML = list.map(d=>`<tr>
+  tbody.innerHTML = list.map(d=>{
+    const isDeleted = d.status==='deleted' || d.status==='cancelled';
+    const canEditDelete = EDITABLE_TYPES.includes(d.docType) && !isDeleted;
+    return `<tr>
     <td style="font-size:11px;color:var(--tx3)">${d.date}</td>
     <td style="font-size:11px;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="openSourceDocument('${d.sourceType}','${d.sourceId}')">${d.docNumber}</td>
     <td style="font-size:11px">${d.docTypeLabel}</td>
@@ -4546,8 +4794,13 @@ window.renderDocRegistry = () => {
     <td style="text-align:right">${d.totalQty}ш</td>
     <td style="text-align:right;font-weight:600">${d.totalAmount?fmt(d.totalAmount):'—'}</td>
     <td>${STLABEL[d.status]||d.status}</td>
-    <td style="white-space:nowrap"><button class="btn bg bxs" onclick="openSourceDocument('${d.sourceType}','${d.sourceId}')" title="Харах"><i class="ti ti-eye"></i></button></td>
-  </tr>`).join('');
+    <td style="white-space:nowrap">
+      <button class="btn bg bxs" onclick="openSourceDocument('${d.sourceType}','${d.sourceId}')" title="Харах"><i class="ti ti-eye"></i></button>
+      ${canEditDelete && hasPerm('inventory_edit') ? `<button class="btn bg bxs" onclick="editDocFromRegistry('${d.docType}','${d.sourceId}')" title="Засах"><i class="ti ti-edit"></i></button>` : ''}
+      ${canEditDelete && hasPerm('inventory_delete') ? `<button class="btn bd2 bxs" onclick="deleteDocFromRegistry('${d.docType}','${d.sourceId}')" title="Устгах"><i class="ti ti-trash"></i></button>` : ''}
+    </td>
+  </tr>`;
+  }).join('');
 };
 
 // ─── БАРАА МАТЕРИАЛЫН ТАЙЛАН (Эхний/Орлого/Зарлага/Эцсийн үлдэгдэл) ────────
@@ -4959,35 +5212,139 @@ window.submitTransfer=async()=>{
     const pid=row.querySelector('.row-prod-sel')?.value;
     const qty=parseInt(row.querySelector('.tr-qty')?.value)||0;
     if(!pid||qty<=0)return;
-    const avail=gst(pid,fromLid);
-    if(avail<qty){const p=products.find(x=>x.id===pid);alert(`Үлдэгдэл хүрэлцэхгүй! ${p?.variant}: ${avail}ш байна`);ok=false;return;}
+    // Засах горимд одоогийн (энэ шилжүүлэлтийн эхний) үлдэгдэлд өөрийнхөө хуучин
+    // хасалтыг буцаагаад тооцох ёстой тул availability шалгалтыг зөвхөн шинэ бичлэгт хийнэ
+    if(!editingTransferId) {
+      const avail=gst(pid,fromLid);
+      if(avail<qty){const p=products.find(x=>x.id===pid);alert(`Үлдэгдэл хүрэлцэхгүй! ${p?.variant}: ${avail}ш байна`);ok=false;return;}
+    }
     rows.push({pid,qty});
   });
   if(!ok||rows.length===0){if(rows.length===0)alert('Бараа нэмнэ үү');return;}
   const fromLoc=locations.find(l=>l.id===fromLid);
   const toLoc=locations.find(l=>l.id===toLid);
-  const trNum=await transferNum(trDate);
   try{
+    if(editingTransferId) {
+      const oldT = transfers.find(x=>x.id===editingTransferId);
+      if(!oldT) { alert('Засварлах шилжүүлэлт олдсонгүй'); editingTransferId=null; return; }
+      const trNum = oldT.trNum;
+      // 1) Хуучин нөлөөг буцаана (эх байршилд буцааж нэмнэ, очих байршлаас хасна)
+      const reverseChanges = [];
+      (oldT.items||[]).forEach(it=>{ reverseChanges.push({pid:it.pid,lid:oldT.fromLocId,delta:it.qty}); reverseChanges.push({pid:it.pid,lid:oldT.toLocId,delta:-it.qty}); });
+      // 2) Хуучин invLogs-г deleted (sourceId-аар, олдохгүй бол legacy heuristic-аар)
+      let oldLogs = invLogs.filter(l=>l.sourceType==='inventoryTransfer' && l.sourceId===editingTransferId);
+      if(oldLogs.length===0) {
+        oldLogs = invLogs.filter(l=> l.type==='transfer' && l.date===oldT.date &&
+          (oldT.items||[]).some(it=>it.pid===l.productId && Math.abs(l.qty)===it.qty) &&
+          (l.locationId===oldT.fromLocId || l.locationId===oldT.toLocId));
+      }
+      for(const l of oldLogs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+      // 3) Шинэ утгаар transfer document шинэчилнэ (ID/дугаар хэвээр)
+      await updateDoc(doc(db,'transfers',editingTransferId), {
+        date: trDate, fromLocId: fromLid, fromLocName: fromLoc?.name||'', toLocId: toLid, toLocName: toLoc?.name||'',
+        items: rows.map(r=>{const p=products.find(x=>x.id===r.pid);return{pid:r.pid,label:p?.variant||'',qty:r.qty};}),
+        note, updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+      // 4) шинэ нөлөөг тооцоод, хуучин буцаалттай нэгтгэж stock update
+      const newChanges=[];
+      for(const r of rows){ newChanges.push({pid:r.pid,lid:fromLid,delta:-r.qty}); newChanges.push({pid:r.pid,lid:toLid,delta:r.qty}); }
+      await updateStock([...reverseChanges, ...newChanges]);
+      // 5) шинэ invLogs (ижил sourceId, шинэ document биш)
+      for(const r of rows){
+        const p=products.find(x=>x.id===r.pid);
+        await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:fromLid,locationName:fromLoc?.name||'',qty:-r.qty,note:`${trNum} → ${toLoc?.name} (засварласан)`,sourceType:'inventoryTransfer',sourceId:editingTransferId,sourceNumber:trNum,createdBy:currentUser.email,createdAt:serverTimestamp()});
+        await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:toLid,locationName:toLoc?.name||'',qty:r.qty,note:`${trNum} ← ${fromLoc?.name} (засварласан)`,sourceType:'inventoryTransfer',sourceId:editingTransferId,sourceNumber:trNum,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      }
+      await writeGenericAuditLog('transfer_edited', { documentId: editingTransferId, documentNumber: trNum, before: oldT.items, after: rows });
+      editingTransferId = null;
+      document.getElementById('tr-form-mode-banner')?.remove();
+      document.getElementById('tr-rows').innerHTML='';trIdx=0;addTransferRow();
+      document.getElementById('tr-note').value='';
+      document.getElementById('tr-date').value=today();
+      alert(`✅ Шилжүүлэлт ${trNum} амжилттай шинэчлэгдлээ!`);
+      return;
+    }
+    const trNum=await transferNum(trDate);
+    // Эхлээд transfer document үүсгэж ID-г нь авна (invLogs-д sourceId-аар найдвартай холбохын тулд)
+    const trRef = await addDoc(collection(db,'transfers'),{trNum,date:trDate,fromLocId:fromLid,fromLocName:fromLoc?.name||'',toLocId:toLid,toLocName:toLoc?.name||'',items:rows.map(r=>{const p=products.find(x=>x.id===r.pid);return{pid:r.pid,label:p?.variant||'',qty:r.qty};}),note,status:'active',createdBy:currentUser.email,createdAt:serverTimestamp()});
     const stockChanges=[];
     for(const r of rows){
       const p=products.find(x=>x.id===r.pid);
       stockChanges.push({pid:r.pid,lid:fromLid,delta:-r.qty});
       stockChanges.push({pid:r.pid,lid:toLid,delta:r.qty});
-      await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:fromLid,locationName:fromLoc?.name||'',qty:-r.qty,note:`${trNum} → ${toLoc?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
-      await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:toLid,locationName:toLoc?.name||'',qty:r.qty,note:`${trNum} ← ${fromLoc?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:fromLid,locationName:fromLoc?.name||'',qty:-r.qty,note:`${trNum} → ${toLoc?.name}`,sourceType:'inventoryTransfer',sourceId:trRef.id,sourceNumber:trNum,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      await addDoc(collection(db,'invLogs'),{date:trDate,type:'transfer',productId:r.pid,productLabel:p?.variant||'',locationId:toLid,locationName:toLoc?.name||'',qty:r.qty,note:`${trNum} ← ${fromLoc?.name}`,sourceType:'inventoryTransfer',sourceId:trRef.id,sourceNumber:trNum,createdBy:currentUser.email,createdAt:serverTimestamp()});
     }
     await updateStock(stockChanges);
-    await addDoc(collection(db,'transfers'),{trNum,date:trDate,fromLocId:fromLid,fromLocName:fromLoc?.name||'',toLocId:toLid,toLocName:toLoc?.name||'',items:rows.map(r=>{const p=products.find(x=>x.id===r.pid);return{pid:r.pid,label:p?.variant||'',qty:r.qty};}),note,createdBy:currentUser.email,createdAt:serverTimestamp()});
     document.getElementById('tr-rows').innerHTML='';trIdx=0;addTransferRow();
     document.getElementById('tr-note').value='';
     document.getElementById('tr-date').value=today();
     alert(`Шилжүүлэлт ${trNum} амжилттай бүртгэгдлээ!`);
   }catch(e){alert('Алдаа: '+e.message);}
 };
+window.editTransfer = (id) => {
+  const t = transfers.find(x=>x.id===id); if(!t) { alert('Шилжүүлэлт олдсонгүй'); return; }
+  editingTransferId = id;
+  document.getElementById('tr-date').value = t.date;
+  document.getElementById('tr-from-loc').value = t.fromLocId;
+  document.getElementById('tr-to-loc').value = t.toLocId;
+  document.getElementById('tr-note').value = t.note||'';
+  const rowsEl = document.getElementById('tr-rows');
+  rowsEl.innerHTML=''; trIdx=0;
+  (t.items||[]).forEach(it=>{
+    rowsEl.insertAdjacentHTML('beforeend', transferRowHtml(trIdx));
+    const row = document.getElementById('trr-'+trIdx);
+    row.querySelector('.row-prod-sel').value = it.pid;
+    row.querySelector('.tr-qty').value = it.qty;
+    trIdx++;
+  });
+  populateSels();
+  refreshTransferRows();
+  document.getElementById('tr-form-mode-banner')?.remove();
+  const banner = document.createElement('div');
+  banner.id = 'tr-form-mode-banner';
+  banner.className = 'al al-warn';
+  banner.style.marginBottom = '10px';
+  banner.innerHTML = `<i class="ti ti-edit"></i> Засварлаж байна: <b>${t.trNum}</b> &nbsp;
+    <button class="btn bg bxs" onclick="cancelEditTransfer()">Цуцлах</button>`;
+  const card = rowsEl.closest('.card');
+  card.querySelector('.cb').prepend(banner);
+  const tabBtn = document.querySelector('#sec-inventory .tb[onclick*="transfer"]');
+  if(tabBtn) showInvTab('transfer', tabBtn);
+  window.scrollTo(0,0);
+};
+window.cancelEditTransfer = () => {
+  editingTransferId = null;
+  document.getElementById('tr-form-mode-banner')?.remove();
+  document.getElementById('tr-rows').innerHTML=''; trIdx=0; addTransferRow();
+  document.getElementById('tr-note').value='';
+  document.getElementById('tr-date').value=today();
+};
+window.deleteTransfer = async (id) => {
+  if(!hasPerm('inventory_delete')){ alert('Устгах эрх байхгүй байна'); return; }
+  const t = transfers.find(x=>x.id===id); if(!t) { alert('Шилжүүлэлт олдсонгүй'); return; }
+  if(!confirm('Энэ шилжүүлэлтийг устгах уу? Холбогдох барааны хөдөлгөөн буцаагдана.')) return;
+  try {
+    const reverseChanges = [];
+    (t.items||[]).forEach(it=>{ reverseChanges.push({pid:it.pid,lid:t.fromLocId,delta:it.qty}); reverseChanges.push({pid:it.pid,lid:t.toLocId,delta:-it.qty}); });
+    await updateStock(reverseChanges);
+    let logs = invLogs.filter(l=>l.sourceType==='inventoryTransfer' && l.sourceId===id);
+    if(logs.length===0) {
+      logs = invLogs.filter(l=> l.type==='transfer' && l.date===t.date &&
+        (t.items||[]).some(it=>it.pid===l.productId && Math.abs(l.qty)===it.qty) &&
+        (l.locationId===t.fromLocId || l.locationId===t.toLocId));
+    }
+    for(const l of logs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+    await updateDoc(doc(db,'transfers',id), { status:'deleted', deletedAt: serverTimestamp(), deletedBy: currentUser.email });
+    await writeGenericAuditLog('transfer_deleted', { documentId:id, documentNumber:t.trNum, reversedItems:t.items });
+    alert('✅ Шилжүүлэлт устгагдаж, барааны хөдөлгөөн буцаагдлаа.');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
 window.renderTransferList=()=>{
   const tbody=document.getElementById('tr-tbody');if(!tbody)return;
-  if(transfers.length===0){tbody.innerHTML='<tr><td colspan="6"><div class="empty">Шилжүүлэлт байхгүй</div></td></tr>';return;}
-  tbody.innerHTML=transfers.map(t=>`<tr>
+  const list = transfers.filter(t=>t.status!=='deleted');
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="6"><div class="empty">Шилжүүлэлт байхгүй</div></td></tr>';return;}
+  tbody.innerHTML=list.map(t=>`<tr>
     <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
     <td style="font-family:monospace;font-size:12px;font-weight:600;color:var(--pu);cursor:pointer;text-decoration:underline" onclick="viewTransfer('${t.id}')">${t.trNum}</td>
     <td>${t.fromLocName}</td><td>${t.toLocName}</td>
@@ -4995,6 +5352,8 @@ window.renderTransferList=()=>{
     <td style="font-size:11px;color:var(--tx2)">${t.note||''}</td>
     <td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="viewTransfer('${t.id}')" title="Дэлгэрэнгүй"><i class="ti ti-eye"></i></button>
+      ${hasPerm('inventory_edit')?`<button class="btn bg bxs" onclick="editTransfer('${t.id}')" title="Засах"><i class="ti ti-edit"></i></button>`:''}
+      ${hasPerm('inventory_delete')?`<button class="btn bd2 bxs" onclick="deleteTransfer('${t.id}')" title="Устгах"><i class="ti ti-trash"></i></button>`:''}
     </td>
   </tr>`).join('');
 };
@@ -5041,7 +5400,7 @@ window.viewTransfer = (id) => {
 
 // Орлого/Зарлага (invLogs, docNumber-аар бүлэглэсэн) — эх бүртгэлийг харуулна
 window.viewInventoryLogGroup = (type, docNumber) => {
-  const rows = invLogs.filter(l => l.type===type && (l.docNumber||l.id)===docNumber);
+  const rows = invLogs.filter(l => l.type===type && (l.docNumber||l.id)===docNumber && l.status!=='deleted');
   if(rows.length===0) { alert('Баримт олдсонгүй'); return; }
   const first = rows[0];
   const isIn = type==='in';
@@ -5070,10 +5429,94 @@ window.viewInventoryLogGroup = (type, docNumber) => {
     ${first.note?`<div style="margin-top:8px;font-size:12px;color:var(--tx2)">Тэмдэглэл: ${first.note}</div>`:''}
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn bp" onclick='printSimpleDoc("${docNumber}", document.querySelector("#view-invlog-modal .tw").outerHTML)'><i class="ti ti-printer"></i>Хэвлэх</button>
+      ${hasPerm('inventory_edit')?`<button class="btn bg" onclick="closeModal('view-invlog-modal');editInventoryLogGroup('${type}','${docNumber}')"><i class="ti ti-edit"></i>Засах</button>`:''}
+      ${hasPerm('inventory_delete')?`<button class="btn bd2" onclick="closeModal('view-invlog-modal');deleteInventoryLogGroup('${type}','${docNumber}')"><i class="ti ti-trash"></i>Устгах</button>`:''}
       <button class="btn bg" onclick="closeModal('view-invlog-modal')"><i class="ti ti-arrow-left"></i>Буцах</button>
     </div>
   </div>`;
   openModal('view-invlog-modal');
+};
+
+// ─── ОРЛОГО/ЗАРЛАГА (invLogs групп) — УСТГАХ ────────────────────────────────
+// Тухайн docNumber-тэй бүх идэвхтэй invLogs мөрийн барааны хөдөлгөөнийг
+// буцааж, мөрүүдийг soft-delete (status='deleted') болгоно. Hard delete хийхгүй.
+window.deleteInventoryLogGroup = async (type, docNumber) => {
+  if(!hasPerm('inventory_delete')){ alert('Устгах эрх байхгүй байна'); return; }
+  const rows = invLogs.filter(l => l.type===type && (l.docNumber||l.id)===docNumber && l.status!=='deleted');
+  if(rows.length===0) { alert('Баримт олдсонгүй эсвэл аль хэдийн устгагдсан'); return; }
+  const label = type==='in' ? 'орлогын' : 'зарлагын';
+  if(!confirm(`Энэ ${label} баримтыг устгах уу? Холбогдох барааны хөдөлгөөн буцаагдана.`)) return;
+  try {
+    // qty эерэг бол 'in' — буцахдаа хасна; сөрөг бол 'out' — буцахдаа нэмнэ
+    const reverseChanges = rows.map(l => ({ pid: l.productId, lid: l.locationId, delta: -l.qty }));
+    await updateStock(reverseChanges);
+    for(const l of rows) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+    await writeGenericAuditLog(type==='in' ? 'inventory_in_deleted' : 'inventory_out_deleted', {
+      documentNumber: docNumber, reversedRows: rows.map(l=>({productId:l.productId,locationId:l.locationId,qty:l.qty}))
+    });
+    alert('✅ Баримт устгагдаж, барааны хөдөлгөөн буцаагдлаа.');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+// ─── ОРЛОГО/ЗАРЛАГА (invLogs групп) — ЗАСАХ ─────────────────────────────────
+// Мөр бүрийн тоог засаж болно (бараа/байршил хэвээр). Хадгалахад: хуучин
+// тоог буцааж, шинэ тоогоор дахин apply хийнэ. Мөр бүр ӨӨРИЙН invLogs
+// document дээрээ updateDoc хийгддэг тул ID өөрчлөгдөхгүй, duplicate
+// движемент үүсэхгүй.
+window.editInventoryLogGroup = (type, docNumber) => {
+  if(!hasPerm('inventory_edit')){ alert('Засах эрх байхгүй байна'); return; }
+  const rows = invLogs.filter(l => l.type===type && (l.docNumber||l.id)===docNumber && l.status!=='deleted');
+  if(rows.length===0) { alert('Баримт олдсонгүй'); return; }
+  const isIn = type==='in';
+  const itemRows = rows.map((l,i)=>`<tr>
+      <td>${l.productLabel||'—'}</td>
+      <td>${l.locationName||'—'}</td>
+      <td style="text-align:right"><input type="number" class="ilg-edit-qty" data-log-id="${l.id}" data-orig-qty="${l.qty}" value="${Math.abs(l.qty)}" min="1" style="width:90px;text-align:right;padding:4px 6px;border:1px solid var(--bd);border-radius:var(--r)"></td>
+    </tr>`).join('');
+  let modal = document.getElementById('edit-invlog-modal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'edit-invlog-modal';
+    modal.className = 'modal-ov';
+    modal.style.cssText = 'align-items:flex-start;overflow-y:auto;padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal modal-lg">
+    <div class="mh"><span><i class="ti ti-edit"></i> Засварлаж байна: ${docNumber}</span><button class="btn bg bxs" onclick="closeModal('edit-invlog-modal')"><i class="ti ti-x"></i></button></div>
+    <div class="tw"><table style="font-size:12px"><thead><tr><th>Бараа</th><th>Байршил</th><th style="text-align:right">Тоо (шинэ)</th></tr></thead>
+    <tbody>${itemRows}</tbody></table></div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn bp" onclick="saveInventoryLogGroupEdit('${type}','${docNumber}')"><i class="ti ti-check"></i>Хадгалах</button>
+      <button class="btn bg" onclick="closeModal('edit-invlog-modal')"><i class="ti ti-arrow-left"></i>Цуцлах</button>
+    </div>
+  </div>`;
+  openModal('edit-invlog-modal');
+};
+window.saveInventoryLogGroupEdit = async (type, docNumber) => {
+  const inputs = document.querySelectorAll('#edit-invlog-modal .ilg-edit-qty');
+  const sign = type==='in' ? 1 : -1;
+  const changes = [];
+  const updates = [];
+  inputs.forEach(inp => {
+    const logId = inp.dataset.logId;
+    const origQty = parseFloat(inp.dataset.origQty)||0;
+    const newQtyAbs = parseFloat(inp.value)||0;
+    if(newQtyAbs <= 0) return;
+    const newQty = sign*newQtyAbs;
+    const l = invLogs.find(x=>x.id===logId); if(!l) return;
+    if(newQty !== origQty) {
+      changes.push({ pid: l.productId, lid: l.locationId, delta: newQty - origQty }); // хуучныг буцааж, шинийг тавих нэг алхамд
+      updates.push({ id: logId, qty: newQty });
+    }
+  });
+  if(changes.length===0) { closeModal('edit-invlog-modal'); return; }
+  try {
+    await updateStock(changes);
+    for(const u of updates) await updateDoc(doc(db,'invLogs',u.id), { qty: u.qty, updatedAt: serverTimestamp(), updatedBy: currentUser.email });
+    await writeGenericAuditLog(type==='in' ? 'inventory_in_edited' : 'inventory_out_edited', { documentNumber: docNumber, changes: updates });
+    closeModal('edit-invlog-modal');
+    alert('✅ Баримт амжилттай шинэчлэгдлээ!');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
 
 // ─── ЦЕНТРАЛИЗ DRILLDOWN: openDocument(documentType, documentId) ───────────
