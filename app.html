@@ -1094,12 +1094,17 @@ tbody tr:hover td{background:var(--sur2)}
           <input type="text" id="txn-search" placeholder="Утгаар хайх..." style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);width:140px">
           <button class="btn bp bxs" onclick="renderTransactions()"><i class="ti ti-filter"></i>Шүүх</button>
           <button class="btn bg bxs" onclick="clearTxnFilter()">Цэвэрлэх</button>
-          <button class="btn bp bxs" onclick="openBulkLinkModal()"><i class="ti ti-select"></i>Олноор холбох</button>
         </div>
       </div>
       <div class="cb np"><div id="txn-uncl-summary" style="padding:6px 12px;background:var(--sur2);border-radius:var(--r);margin-bottom:8px"></div>
-        <div class="mg" id="txn-summary" style="margin:0 0 10px"></div><div class="tw"><table>
-        <thead><tr><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Орлого</th><th>Зарлага</th><th>Холбосон</th><th>Холбоогүй</th><th>Статус</th><th>Үйлдэл</th><th>Ангилал</th></tr></thead>
+        <div class="mg" id="txn-summary" style="margin:0 0 10px"></div>
+        <div id="txn-bulk-toolbar" style="display:none;margin-bottom:10px;padding:8px 12px;background:var(--pul);border-radius:var(--r);display:flex;align-items:center;gap:10px">
+          <span style="font-size:13px;font-weight:600" id="txn-bulk-count-txt">0 гүйлгээ сонгосон</span>
+          <button class="btn bp bxs" id="txn-bulk-link-btn" onclick="openBulkLinkModal()" disabled><i class="ti ti-select"></i>Олноор холбох</button>
+          <button class="btn bg bxs" onclick="clearTxnSelection()"><i class="ti ti-x"></i>Сонголт цэвэрлэх</button>
+        </div>
+        <div class="tw"><table>
+        <thead><tr><th style="width:36px;text-align:center"><input type="checkbox" id="txn-select-all" onchange="toggleAllTxnChk(this)" title="Бүгд сонгох"></th><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Орлого</th><th>Зарлага</th><th>Холбосон</th><th>Холбоогүй</th><th>Статус</th><th>Үйлдэл</th><th>Ангилал</th></tr></thead>
         <tbody id="txn-tbody"></tbody>
       </table></div></div>
     </div>
@@ -6134,13 +6139,20 @@ window.renderTransactions=()=>{
         <div class="mc"><div class="ml">Холбогдоогүй</div><div class="mv am">${fmt(totalUnlnk)}</div></div>`;
     }
   }
-  if(list.length===0){tbody.innerHTML='<tr><td colspan="10"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="11"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
   tbody.innerHTML=list.map(t=>{
     const isInc = (t.income||0) > 0;
     const linkedAmt = isInc ? computeTxnLinkedAmount(t) : 0;
     const unlinkedAmt = isInc ? Math.max(0,(t.income||0)-linkedAmt) : 0;
     const rStatus = computeReceivableLinkStatus(t);
+    // Сонгож болох эсэх: import-с ирсэн, дүн>0, аль хэдийн ангилагдаагүй
+    const alreadyClassified = !!t.cashFlowCategory;
+    const hasAmount = (t.income||0) > 0 || (t.expense||0) > 0;
+    const selectable = hasAmount && !alreadyClassified;
     return `<tr>
+    <td style="text-align:center">${selectable
+      ? `<input type="checkbox" class="txn-bulk-chk" data-id="${t.id}" onclick="event.stopPropagation()" onchange="updateTxnBulkToolbar()">`
+      : `<input type="checkbox" disabled title="Энэ гүйлгээ аль хэдийн холбогдсон байна.">`}</td>
     <td style="font-size:11px;color:var(--tx3)">${t.date}</td>
     <td style="font-size:11px">${accMap[t.accountId]||'—'}</td>
     <td style="font-size:12px">${t.description}</td>
@@ -6172,6 +6184,7 @@ window.renderTransactions=()=>{
       </div>
     </td>
   </tr>`;}).join('');
+  updateTxnBulkToolbar();
 };window.loadCustReceivables = () => {
   const custId = document.getElementById('link-cust-sel').value;
   const recvDiv = document.getElementById('link-recv-list');
@@ -9878,7 +9891,7 @@ window.saveBulkLink = async () => {
     });
     await batch.commit();
     // Checkbox цэвэрлэх
-    document.querySelectorAll('.txn-bulk-chk').forEach(c=>{c.checked=false;});
+    clearTxnSelection();
     closeModal('bulk-link-modal');
     alert(`✅ ${bulkSelectedIds.length} гүйлгээ амжилттай холбогдлоо!`);
     bulkSelectedIds=[]; bulkType='';
@@ -9887,7 +9900,24 @@ window.saveBulkLink = async () => {
 
 
 window.toggleAllTxnChk = (masterChk) => {
-  document.querySelectorAll('.txn-bulk-chk').forEach(c => { c.checked = masterChk.checked; });
+  // Зөвхөн одоо ХАРАГДАЖ БАЙГАА (filtered) БОЛОМЖТОЙ (disabled биш) checkbox-уудыг сонгоно/цуцална
+  document.querySelectorAll('.txn-bulk-chk:not(:disabled)').forEach(c => { c.checked = masterChk.checked; });
+  updateTxnBulkToolbar();
+};
+window.updateTxnBulkToolbar = () => {
+  const checked = document.querySelectorAll('.txn-bulk-chk:checked');
+  const count = checked.length;
+  const toolbar = document.getElementById('txn-bulk-toolbar');
+  const countTxt = document.getElementById('txn-bulk-count-txt');
+  const linkBtn  = document.getElementById('txn-bulk-link-btn');
+  if(toolbar) toolbar.style.display = count > 0 ? 'flex' : 'none';
+  if(countTxt) countTxt.textContent = `${count} гүйлгээ сонгосон`;
+  if(linkBtn) linkBtn.disabled = count === 0;
+};
+window.clearTxnSelection = () => {
+  document.querySelectorAll('.txn-bulk-chk').forEach(c=>{c.checked=false;});
+  const masterChk = document.getElementById('txn-select-all'); if(masterChk) masterChk.checked=false;
+  updateTxnBulkToolbar();
 };
 
 // ─── INIT ─────────────────────────────────────────────────────────────────────
