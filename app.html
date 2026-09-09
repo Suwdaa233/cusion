@@ -8546,26 +8546,44 @@ function getImportBatches() {
     if(t.status === 'deleted' || t.isDeleted) return;
     if(t.source !== 'excel_khan' && t.source !== 'paste') return; // зөвхөн bulk import эх сурвалж
     const batchKey = t.importBatchId || t.docNumber || null;
-    if(!batchKey) return; // найдваргүй/тодорхойгүй batch — таамаглахгүй
+    if(!batchKey) return; // найдваргүй/тодорхойгүй batch — таамаглахгүй, transaction date-аар БҮҮ бүлэглэ
     if(!groups[batchKey]) {
-      const acc = bankAccounts.find(a=>a.id===t.accountId);
       groups[batchKey] = {
-        batchId: batchKey, date: t.date,
+        batchId: batchKey,
+        importedAt: t.importedAt || t.createdAt || null, // Огноо = ИМПОРТОЛСОН огноо, transaction date БИШ
         fileName: t.importFileName || (t.source==='paste' ? '(Paste импорт)' : ''),
-        accountId: t.accountId,
-        accountLabel: acc ? `${acc.bankName} ${acc.accountNumber}` : '—',
+        accountIds: new Set(),
         rows: []
       };
     }
     groups[batchKey].rows.push(t);
+    if(t.accountId) groups[batchKey].accountIds.add(t.accountId);
   });
-  return Object.values(groups).map(g => ({
-    ...g,
-    count: g.rows.length,
-    totalIncome: g.rows.reduce((a,t)=>a+(t.income||0),0),
-    totalExpense: g.rows.reduce((a,t)=>a+(t.expense||0),0),
-    linkedCount: g.rows.filter(t => computeReceivableLinkStatus(t)==='linked' || computeReceivableLinkStatus(t)==='partial').length
-  })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  return Object.values(groups).map(g => {
+    // "Огноо" баганад ЗААВАЛ импортолсон огноог харуулна (транзакцийн огноо биш)
+    let importedDateStr = '—';
+    const ts = g.importedAt;
+    if(ts) {
+      const d = ts.toDate ? ts.toDate() : new Date(ts);
+      if(!isNaN(d)) importedDateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    }
+    // Нэг batch дотор олон данс байвал "N данс" гэж нэгтгэж харуулна (§7)
+    let accountLabel;
+    if(g.accountIds.size === 0) accountLabel = '—';
+    else if(g.accountIds.size === 1) {
+      const acc = bankAccounts.find(a=>a.id===[...g.accountIds][0]);
+      accountLabel = acc ? `${acc.bankName} ${acc.accountNumber}` : '—';
+    } else {
+      accountLabel = `${g.accountIds.size} данс`;
+    }
+    return {
+      batchId: g.batchId, importedDateStr, fileName: g.fileName, accountLabel, rows: g.rows,
+      count: g.rows.length,
+      totalIncome: g.rows.reduce((a,t)=>a+(t.income||0),0),
+      totalExpense: g.rows.reduce((a,t)=>a+(t.expense||0),0),
+      linkedCount: g.rows.filter(t => computeReceivableLinkStatus(t)==='linked' || computeReceivableLinkStatus(t)==='partial').length
+    };
+  }).sort((a,b)=>(b.importedDateStr||'').localeCompare(a.importedDateStr||''));
 }
 
 window.renderImportBatchesList = () => {
@@ -8573,7 +8591,7 @@ window.renderImportBatchesList = () => {
   const list = getImportBatches();
   if(list.length===0){ tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Импортын түүх байхгүй (эсвэл найдвартай batch тодорхойлолтгүй хуучин импорт)</div></td></tr>'; return; }
   tbody.innerHTML = list.map(g=>`<tr>
-    <td style="font-size:11px;color:var(--tx3)">${g.date}</td>
+    <td style="font-size:11px;color:var(--tx3)">${g.importedDateStr}</td>
     <td style="font-size:11px">${g.fileName||'—'}</td>
     <td style="font-size:11px">${g.accountLabel}</td>
     <td style="text-align:right">${g.count}</td>
@@ -8599,14 +8617,15 @@ window.confirmDeleteImportBatch = (batchId) => {
   modal.innerHTML = `<div class="modal">
     <div class="mh"><span><i class="ti ti-alert-triangle" style="color:var(--re)"></i> Импортын багцыг устгах уу?</span><button class="btn bg bxs" onclick="closeModal('delete-import-batch-modal')"><i class="ti ti-x"></i></button></div>
     <div style="font-size:13px;line-height:1.8">
+      <div>Импортолсон огноо: <b>${g.importedDateStr}</b></div>
       <div>Файл: <b>${g.fileName||'—'}</b></div>
       <div>Данс: <b>${g.accountLabel}</b></div>
-      <div>Импортолсон: <b>${g.count} гүйлгээ</b></div>
+      <div>Гүйлгээ: <b>${g.count}</b></div>
       <div>Нийт орлого: <b style="color:var(--gr)">${fmt(g.totalIncome)}</b></div>
       <div>Нийт зарлага: <b style="color:var(--re)">${fmt(g.totalExpense)}</b></div>
       ${g.linkedCount>0 ? `<div class="al al-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i>Энэ импортын багцад <b>холбогдсон ${g.linkedCount} гүйлгээ</b> байна. Устгахад тэдгээрийн авлагын холболт мөн автоматаар салгагдаж, авлага буцаан тооцогдоно.</div>` : ''}
     </div>
-    <div style="margin-top:14px;font-size:13px;color:var(--tx2)">Энэ үйлдлээр тухайн файлаар импортолсон бүх банкны гүйлгээ устгагдана. Буцаах боломжгүй.</div>
+    <div style="margin-top:14px;font-size:13px;color:var(--tx2)">Энэ багцын ${g.count} гүйлгээ устгагдана. Буцаах боломжгүй.</div>
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn bd2" onclick="deleteImportBatch('${batchId}')"><i class="ti ti-trash"></i>Багцыг устгах</button>
       <button class="btn bg" onclick="closeModal('delete-import-batch-modal')"><i class="ti ti-arrow-left"></i>Болих</button>
