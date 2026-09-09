@@ -1396,13 +1396,46 @@ tbody tr:hover td{background:var(--sur2)}
 
 <!-- BULK LINK MODAL -->
 <div class="modal-ov" id="bulk-link-modal">
-  <div class="modal" style="max-width:440px">
+  <div class="modal modal-lg" style="max-width:640px">
     <div class="mh">
       <span><i class="ti ti-select"></i> Олноор холбох</span>
       <button class="btn bg bxs" onclick="closeModal('bulk-link-modal')"><i class="ti ti-x"></i></button>
     </div>
-    <div class="cb" style="padding:14px">
-      <div id="bulk-info" style="font-size:13px;color:var(--tx2);margin-bottom:10px"></div>
+    <div class="cb" style="padding:14px;max-height:75vh;overflow-y:auto">
+      <div id="bulk-info" style="font-size:13px;color:var(--tx2);margin-bottom:12px;padding:10px 12px;background:var(--sur2);border-radius:var(--r)"></div>
+
+      <!-- ҮЙЛДЛИЙН ТӨРӨЛ -->
+      <div class="fl" style="margin-bottom:14px">
+        <label style="font-weight:600">Үйлдлийн төрөл</label>
+        <div style="display:flex;gap:6px;margin-top:4px" id="bulk-action-tabs">
+          <button class="btn bg bxs" id="bat-ar" onclick="setBulkActionType('ar')" style="flex:1"><i class="ti ti-receipt"></i>Авлага хаах</button>
+          <button class="btn bg bxs" id="bat-exp" onclick="setBulkActionType('expense')" style="flex:1"><i class="ti ti-tag"></i>Зардал ангилах</button>
+          <button class="btn bg bxs" id="bat-cf" onclick="setBulkActionType('cashflow')" style="flex:1"><i class="ti ti-arrows-exchange"></i>Мөнгөн гүйлгээ</button>
+        </div>
+        <div id="bulk-mixed-warn" style="display:none;margin-top:8px" class="al al-warn"><i class="ti ti-alert-triangle"></i>Орлого болон зарлагын гүйлгээ холилдон сонгогдсон байна. Нэг төрлийн гүйлгээнүүдийг сонгоно уу.</div>
+      </div>
+
+      <!-- АВЛАГА ХААХ -->
+      <div id="bulk-ar-section" style="display:none">
+        <div class="fl" style="margin-bottom:10px">
+          <label style="font-weight:600">Харилцагч <span style="color:var(--re)">*</span></label>
+          <select id="bulk-ar-cust" onchange="loadBulkCustReceivables()" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Харилцагч сонгох —</option>
+          </select>
+        </div>
+        <div id="bulk-ar-recv-list" style="display:none">
+          <div style="font-size:12px;font-weight:600;color:var(--tx2);margin-bottom:6px">Нээлттэй авлага</div>
+          <div class="tw"><table style="font-size:12px"><thead><tr>
+            <th style="width:30px"></th><th>Огноо</th><th>Баримт №</th><th style="text-align:right">Нийт</th><th style="text-align:right">Төлсөн</th><th style="text-align:right">Авлага</th><th>Хуваарилах</th>
+          </tr></thead><tbody id="bulk-ar-recv-tbody"></tbody></table></div>
+          <div style="margin-top:10px;padding:8px 12px;background:var(--sur2);border-radius:var(--r);font-size:13px;display:flex;justify-content:space-between">
+            <span>Сонгосон банкны гүйлгээний нийт дүн: <b id="bulk-ar-credit-txt"></b></span>
+            <span>Хуваарилсан: <b id="bulk-ar-alloc-txt">0₮</b></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- ЗАРДАЛ АНГИЛАХ -->
       <div id="bulk-exp-fields" style="display:none">
         <div class="fl" style="margin-bottom:10px">
           <label style="font-weight:600">Зардлын төрөл <span style="color:var(--re)">*</span></label>
@@ -1410,15 +1443,26 @@ tbody tr:hover td{background:var(--sur2)}
             <option value="">— Сонгох —</option>
           </select>
         </div>
+        <div class="fl" style="margin-bottom:10px">
+          <label style="font-weight:600">Мөнгөн гүйлгээний үзүүлэлт <span style="color:var(--re)">*</span></label>
+          <select id="bulk-exp-cf-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Сонгох —</option>
+          </select>
+        </div>
       </div>
-      <div class="fl" style="margin-bottom:10px">
-        <label style="font-weight:600">Мөнгөн гүйлгээний үзүүлэлт <span style="color:var(--re)">*</span></label>
-        <select id="bulk-cf-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
-          <option value="">— Сонгох —</option>
-        </select>
+
+      <!-- МӨНГӨН ГҮЙЛГЭЭ АНГИЛАХ (зөвхөн) -->
+      <div id="bulk-cf-fields" style="display:none">
+        <div class="fl" style="margin-bottom:10px">
+          <label style="font-weight:600">Мөнгөн гүйлгээний үзүүлэлт <span style="color:var(--re)">*</span></label>
+          <select id="bulk-cf-cat" style="font-size:13px;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+            <option value="">— Сонгох —</option>
+          </select>
+        </div>
       </div>
+
       <div style="display:flex;gap:8px;margin-top:14px">
-        <button class="btn bp" onclick="saveBulkLink()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bp" id="bulk-save-btn" onclick="saveBulkAction()"><i class="ti ti-check"></i>Хадгалах</button>
         <button class="btn bg" onclick="closeModal('bulk-link-modal')">Цуцлах</button>
       </div>
     </div>
@@ -9865,46 +9909,257 @@ window.removeClassification = async (txnId) => {
 };
 
 // ─── BULK ХОЛБОХ ─────────────────────────────────────────────────────────────
-let bulkSelectedIds = [], bulkType = '';
+let bulkSelectedIds = [], bulkType = '', bulkActionType = '';
 
 window.openBulkLinkModal = () => {
   const checked = document.querySelectorAll('.txn-bulk-chk:checked');
   if(checked.length === 0) { alert('Мөр сонгоно уу.'); return; }
   bulkSelectedIds = Array.from(checked).map(c => c.dataset.id);
   const txns = bulkSelectedIds.map(id=>bankTxns.find(t=>t.id===id)).filter(Boolean);
-  // Орлого/Зарлага хольж болохгүй
   const incCount = txns.filter(t=>(t.income||0)>0).length;
   const expCount = txns.filter(t=>(t.expense||0)>0).length;
-  if(incCount>0 && expCount>0){alert('Орлого болон зарлагыг хольж сонгож болохгүй.');return;}
-  bulkType = incCount>0?'income':'expense';
-  document.getElementById('bulk-info').innerHTML=`<b>${bulkSelectedIds.length}</b> ${bulkType==='income'?'орлогын':'зарлагын'} гүйлгээ сонгогдлоо.`;
-  const expFields=document.getElementById('bulk-exp-fields');
-  if(expFields) expFields.style.display=bulkType==='expense'?'block':'none';
-  const cfSel=document.getElementById('bulk-cf-cat');
-  const cats = bulkType==='income'?CASHFLOW_INCOME_CATS:CASHFLOW_EXPENSE_CATS;
-  cfSel.innerHTML='<option value="">— Сонгох —</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const totalAmt = txns.reduce((a,t)=>a+(t.income||0)+(t.expense||0),0);
+
+  const mixedWarn = document.getElementById('bulk-mixed-warn');
+  const tabsDiv   = document.getElementById('bulk-action-tabs');
+  const isMixed = incCount>0 && expCount>0;
+  if(mixedWarn) mixedWarn.style.display = isMixed ? 'block' : 'none';
+  if(tabsDiv)   tabsDiv.style.display   = isMixed ? 'none'  : 'flex';
+
+  bulkType = incCount>0 ? 'income' : 'expense';
+  document.getElementById('bulk-info').innerHTML =
+    `<b>${bulkSelectedIds.length}</b> гүйлгээ сонгосон &nbsp; · &nbsp; Нийт дүн: <b>${fmt(totalAmt)}</b> &nbsp; · &nbsp; Төрөл: <b>${bulkType==='income'?'Орлого':'Зарлага'}</b>`;
+
+  // Зардлын/Мөнгөн гүйлгээний dropdown-уудыг бэлдэх (одоо байгаа master list-ээс)
   const expSel=document.getElementById('bulk-exp-cat');
   if(expSel) expSel.innerHTML='<option value="">— Сонгох —</option>'+EXPENSE_CATEGORIES.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const expCfSel=document.getElementById('bulk-exp-cf-cat');
+  if(expCfSel) expCfSel.innerHTML='<option value="">— Сонгох —</option>'+CASHFLOW_EXPENSE_CATS.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const cfSel=document.getElementById('bulk-cf-cat');
+  const cats = bulkType==='income'?CASHFLOW_INCOME_CATS:CASHFLOW_EXPENSE_CATS;
+  if(cfSel) cfSel.innerHTML='<option value="">— Сонгох —</option>'+cats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  // Харилцагчийн сонголт
+  const custSel=document.getElementById('bulk-ar-cust');
+  if(custSel) custSel.innerHTML='<option value="">— Харилцагч сонгох —</option>'+customers.map(c=>`<option value="${c.id}">${c.customerCode?c.customerCode+' — ':''}${c.name}</option>`).join('');
+
+  if(!isMixed) {
+    // Default: орлого бол Авлага хаах, зарлага бол Зардал ангилах — §1 default rule
+    setBulkActionType(bulkType==='income' ? 'ar' : 'expense');
+  }
   openModal('bulk-link-modal');
 };
 
-window.saveBulkLink = async () => {
-  const cfCat = document.getElementById('bulk-cf-cat').value;
-  const expCat= bulkType==='expense'?document.getElementById('bulk-exp-cat').value:'';
-  if(!cfCat||(bulkType==='expense'&&!expCat)){alert('Шаардлагатай талбаруудыг бүгдийг бөглөнө үү.');return;}
+// Үйлдлийн төрөл сонгох — Орлого бол Авлага хаах/Мөнгөн гүйлгээ идэвхтэй,
+// Зарлага бол Зардал ангилах/Мөнгөн гүйлгээ идэвхтэй (§2-3)
+window.setBulkActionType = (type) => {
+  const arAllowed  = bulkType === 'income';
+  const expAllowed = bulkType === 'expense';
+  if(type==='ar' && !arAllowed) return;
+  if(type==='expense' && !expAllowed) return;
+  bulkActionType = type;
+
+  ['bat-ar','bat-exp','bat-cf'].forEach(id=>{
+    const b = document.getElementById(id); if(!b) return;
+    b.classList.remove('bp'); b.classList.add('bg'); b.disabled=false;
+  });
+  const arBtn = document.getElementById('bat-ar'); if(arBtn){ arBtn.disabled = !arAllowed; }
+  const expBtn = document.getElementById('bat-exp'); if(expBtn){ expBtn.disabled = !expAllowed; }
+  const activeBtn = document.getElementById('bat-'+(type==='ar'?'ar':type==='expense'?'exp':'cf'));
+  if(activeBtn){ activeBtn.classList.remove('bg'); activeBtn.classList.add('bp'); }
+
+  document.getElementById('bulk-ar-section').style.display  = type==='ar' ? 'block' : 'none';
+  document.getElementById('bulk-exp-fields').style.display  = type==='expense' ? 'block' : 'none';
+  document.getElementById('bulk-cf-fields').style.display   = type==='cashflow' ? 'block' : 'none';
+
+  if(type==='ar') { document.getElementById('bulk-ar-cust').value=''; document.getElementById('bulk-ar-recv-list').style.display='none'; }
+};
+
+// ─── АВЛАГА ХААХ (bulk) — одоо байгаа loadCustReceivables/saveLinkage-ийн
+// АДИЛ логик, сонгосон БҮХ банкны гүйлгээний НИЙЛБЭРИЙГ payment pool болгоно.
+window.loadBulkCustReceivables = () => {
+  const custId = document.getElementById('bulk-ar-cust').value;
+  const recvDiv = document.getElementById('bulk-ar-recv-list');
+  if(!custId) { recvDiv.style.display='none'; return; }
+  recvDiv.style.display = 'block';
+
+  const custSales = sales.filter(s => s.customerId === custId && s.recv > 0)
+    .sort((a,b) => a.date !== b.date ? a.date.localeCompare(b.date) : (a.docNumber||'').localeCompare(b.docNumber||''));
+
+  const tbody = document.getElementById('bulk-ar-recv-tbody');
+  if(custSales.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Нээлттэй авлага байхгүй</div></td></tr>';
+  } else {
+    tbody.innerHTML = custSales.map(s => `<tr>
+      <td style="text-align:center"><input type="checkbox" id="bulk-lk-chk-${s.id}" onchange="onBulkLinkChkChange('${s.id}')"></td>
+      <td style="font-size:11px;color:var(--tx3)">${s.date}</td>
+      <td style="font-family:monospace;font-size:11px;color:var(--pu)">${getDocNumDisplay(s)}</td>
+      <td style="text-align:right">${fmt(s.total)}</td>
+      <td style="text-align:right;color:var(--gr)">${fmt(s.paid)}</td>
+      <td style="text-align:right;color:var(--am);font-weight:600">${fmt(s.recv)}</td>
+      <td><input type="number" id="bulk-lk-amt-${s.id}" placeholder="0" min="0" data-docnum="${getDocNumDisplay(s)}"
+        style="width:100px;font-size:12px;padding:4px 8px;border:1px solid var(--bd);border-radius:var(--r)"
+        oninput="calcBulkLinkTotal()" disabled></td>
+    </tr>`).join('');
+  }
+  calcBulkLinkTotal();
+};
+window.onBulkLinkChkChange = (saleId) => {
+  const chk = document.getElementById('bulk-lk-chk-'+saleId);
+  const amtInput = document.getElementById('bulk-lk-amt-'+saleId);
+  const sale = sales.find(s=>s.id===saleId);
+  if(!chk||!amtInput||!sale) return;
+  if(chk.checked) {
+    amtInput.disabled = false;
+    const remaining = getBulkRemainingAlloc();
+    amtInput.value = amtInput.value || Math.min(sale.recv, remaining).toFixed(0);
+  } else {
+    amtInput.disabled = true; amtInput.value = '';
+  }
+  calcBulkLinkTotal();
+};
+function getBulkArCreditTotal() {
+  return bulkSelectedIds.reduce((a,id)=>{
+    const t = bankTxns.find(x=>x.id===id); if(!t) return a;
+    return a + (t.income||0) - computeTxnLinkedAmount(t);
+  }, 0);
+}
+function getBulkRemainingAlloc() {
+  const credit = getBulkArCreditTotal();
+  const used = Array.from(document.querySelectorAll('[id^="bulk-lk-amt-"]')).reduce((a,inp)=>a+(parseFloat(inp.value)||0),0);
+  return Math.max(0, credit - used);
+}
+window.calcBulkLinkTotal = () => {
+  const credit = getBulkArCreditTotal();
+  const alloc = Array.from(document.querySelectorAll('[id^="bulk-lk-amt-"]')).reduce((a,inp)=>a+(parseFloat(inp.value)||0),0);
+  const creditEl = document.getElementById('bulk-ar-credit-txt'); if(creditEl) creditEl.textContent = fmt(credit);
+  const allocEl  = document.getElementById('bulk-ar-alloc-txt');  if(allocEl)  allocEl.textContent  = fmt(alloc) + (alloc>credit+0.01 ? ' ⚠️ хэтэрсэн' : '');
+};
+
+// ─── ROUTER: Хадгалах товч ───────────────────────────────────────────────
+window.saveBulkAction = async () => {
+  if(bulkActionType === 'ar') { await saveBulkArClose(); return; }
+  if(bulkActionType === 'expense') { await saveBulkExpenseClassify(); return; }
+  if(bulkActionType === 'cashflow') { await saveBulkLink(); return; }
+  alert('Үйлдлийн төрөл сонгоно уу');
+};
+
+// ─── АВЛАГА ХААХ — save. Одоо байгаа saveLinkage-тэй ЯГ АДИЛ payment schema
+// (payments collection, bankTransactionId, allocations) ашиглана, зөвхөн
+// олон банкны гүйлгээгээр pool болгож хуваарилдаг. Шинэ AR engine зохиогоогүй.
+window.saveBulkArClose = async () => {
+  const custId = document.getElementById('bulk-ar-cust').value;
+  if(!custId) { alert('Харилцагч сонгоно уу'); return; }
+  const allocs = Array.from(document.querySelectorAll('[id^="bulk-lk-amt-"]'))
+    .map(inp => {
+      const saleId = inp.id.replace('bulk-lk-amt-','');
+      const chk = document.getElementById('bulk-lk-chk-'+saleId);
+      const amt = parseFloat(inp.value||0);
+      return { saleId, saleDocumentNumber: inp.dataset.docnum||'', allocatedAmount: amt, checked: chk?.checked };
+    }).filter(a=>a.checked && a.allocatedAmount>0);
+  if(!allocs.length) { alert('Авлага сонгож дүн оруулна уу'); return; }
+
+  const totalAlloc = allocs.reduce((a,x)=>a+x.allocatedAmount,0);
+  const creditTotal = getBulkArCreditTotal();
+  if(totalAlloc > creditTotal + 0.01) { alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) сонгосон гүйлгээний нийт үлдэгдлээс (${fmt(creditTotal)}) их байна`); return; }
+
+  const cust = customers.find(c=>c.id===custId) || {};
+  const txns = bulkSelectedIds.map(id=>bankTxns.find(t=>t.id===id)).filter(Boolean)
+    .filter(t=>(t.income||0)>0 && computeTxnLinkedAmount(t) < (t.income||0) - 0.01) // холбогдож дуусаагүй л
+    .sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+  // allocations-ийг сонгосон банкны гүйлгээ бүрт дараалан хуваарилна (нэг банкны
+  // гүйлгээ олон invoice-д хуваарилагдаж болно — §6)
+  let remainingAllocs = allocs.map(a=>({...a}));
+  try {
+    for(const txn of txns) {
+      const txnAvail = (txn.income||0) - computeTxnLinkedAmount(txn);
+      if(txnAvail <= 0.01) continue;
+      let txnBudget = txnAvail;
+      const thisTxnAllocs = [];
+      for(const a of remainingAllocs) {
+        if(a.allocatedAmount <= 0.01 || txnBudget <= 0.01) continue;
+        const take = Math.min(a.allocatedAmount, txnBudget);
+        thisTxnAllocs.push({ saleId:a.saleId, saleDocumentNumber:a.saleDocumentNumber, allocatedAmount: take });
+        a.allocatedAmount -= take;
+        txnBudget -= take;
+      }
+      if(thisTxnAllocs.length === 0) continue;
+      const thisTotal = thisTxnAllocs.reduce((s,a)=>s+a.allocatedAmount,0);
+
+      const existingPaySnap = await getDocs(query(collection(db,'payments'), where('bankTransactionId','==',txn.id)));
+      const isUpdate = !existingPaySnap.empty;
+      const paymentRef = isUpdate ? doc(db,'payments',existingPaySnap.docs[0].id) : doc(collection(db,'payments'));
+      const tpDocNum = isUpdate ? existingPaySnap.docs[0].data().documentNumber : await getNextDocNum('payment');
+
+      const batch = writeBatch(db);
+      const payData = {
+        documentNumber: tpDocNum, customerId: custId, customerCode: cust.customerCode||'', customerName: cust.name||'',
+        paymentDate: txn.date, amount: thisTotal, paymentType: 'transfer',
+        bankAccountId: txn.accountId||'', bankTransactionId: txn.id, description: txn.description||'',
+        note: 'Олноор холбох (bulk)', allocations: thisTxnAllocs, status:'active', isCancelled:false, source:'bank_import',
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      };
+      if(!isUpdate) { payData.createdAt = serverTimestamp(); payData.createdBy = currentUser.email; batch.set(paymentRef, payData); }
+      else batch.update(paymentRef, payData);
+
+      for(const a of thisTxnAllocs) {
+        const saleRef = doc(db,'sales',a.saleId);
+        const saleSnap = await getDoc(saleRef);
+        if(!saleSnap.exists()) continue;
+        const s = saleSnap.data();
+        const newPaid = (s.paid||0) + a.allocatedAmount;
+        const newRecv = Math.max(0, (s.total||0) - newPaid);
+        batch.update(saleRef, { paid:newPaid, recv:newRecv, status: newRecv<=0?'paid':newPaid>0?'partial':'unpaid' });
+      }
+
+      const linkedAmt = computeTxnLinkedAmount(txn) + thisTotal;
+      batch.update(doc(db,'bankTxns',txn.id), {
+        linkedAmount: linkedAmt, unlinkedAmount: Math.max(0,(txn.income||0)-linkedAmt),
+        status: linkedAmt >= (txn.income||0)-0.01 ? 'linked' : 'partial', linkStatus: linkedAmt >= (txn.income||0)-0.01 ? 'linked' : 'partial',
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+      await batch.commit();
+    }
+    clearTxnSelection();
+    closeModal('bulk-link-modal');
+    alert(`✅ ${txns.length} банкны гүйлгээ ${allocs.length} авлагад амжилттай холбогдлоо!`);
+    bulkSelectedIds=[]; bulkType=''; bulkActionType='';
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+// ─── ЗАРДАЛ АНГИЛАХ (bulk) — одоо байгаа expenseCategory/cashFlowCategory
+// field-үүдийг л шинэчилнэ (saveExpLink-тэй адил field нэр).
+window.saveBulkExpenseClassify = async () => {
+  const expCat = document.getElementById('bulk-exp-cat').value;
+  const cfCat  = document.getElementById('bulk-exp-cf-cat').value;
+  if(!expCat || !cfCat) { alert('Зардлын төрөл болон Мөнгөн гүйлгээний үзүүлэлт хоёуланг сонгоно уу.'); return; }
   try {
     const batch = writeBatch(db);
     bulkSelectedIds.forEach(txnId => {
-      const d = { cashFlowCategory:cfCat, classifiedAt:serverTimestamp(), classifiedBy:currentUser.email };
-      if(bulkType==='expense') d.expenseCategory = expCat;
-      batch.update(doc(db,'bankTxns',txnId), d);
+      batch.update(doc(db,'bankTxns',txnId), { expenseCategory:expCat, cashFlowCategory:cfCat, classifiedAt:serverTimestamp(), classifiedBy:currentUser.email });
     });
     await batch.commit();
-    // Checkbox цэвэрлэх
     clearTxnSelection();
     closeModal('bulk-link-modal');
-    alert(`✅ ${bulkSelectedIds.length} гүйлгээ амжилттай холбогдлоо!`);
-    bulkSelectedIds=[]; bulkType='';
+    alert(`✅ ${bulkSelectedIds.length} зарлагын гүйлгээ амжилттай ангилагдлаа!`);
+    bulkSelectedIds=[]; bulkType=''; bulkActionType='';
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+
+// ─── МӨНГӨН ГҮЙЛГЭЭ АНГИЛАХ (зөвхөн cashFlowCategory) ─────────────────────
+window.saveBulkLink = async () => {
+  const cfCat = document.getElementById('bulk-cf-cat').value;
+  if(!cfCat) { alert('Мөнгөн гүйлгээний үзүүлэлт сонгоно уу.'); return; }
+  try {
+    const batch = writeBatch(db);
+    bulkSelectedIds.forEach(txnId => {
+      batch.update(doc(db,'bankTxns',txnId), { cashFlowCategory:cfCat, classifiedAt:serverTimestamp(), classifiedBy:currentUser.email });
+    });
+    await batch.commit();
+    clearTxnSelection();
+    closeModal('bulk-link-modal');
+    alert(`✅ ${bulkSelectedIds.length} гүйлгээ амжилттай ангилагдлаа!`);
+    bulkSelectedIds=[]; bulkType=''; bulkActionType='';
   } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
 
