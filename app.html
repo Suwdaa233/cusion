@@ -1038,6 +1038,13 @@ tbody tr:hover td{background:var(--sur2)}
         </div>
       </div>
     </div>
+    <div class="card" style="margin-top:14px">
+      <div class="ch"><span class="ct"><i class="ti ti-history"></i>Импортын түүх</span></div>
+      <div class="cb np"><div class="tw"><table>
+        <thead><tr><th>Огноо</th><th>Файлын нэр</th><th>Банк/Данс</th><th style="text-align:right">Гүйлгээний тоо</th><th style="text-align:right">Нийт орлого</th><th style="text-align:right">Нийт зарлага</th><th>Үйлдэл</th></tr></thead>
+        <tbody id="imp-batch-tbody"></tbody>
+      </table></div></div>
+    </div>
   </div>
   <div id="bt-paste" class="b-tab" style="display:none">
     <div class="card">
@@ -2136,6 +2143,7 @@ function subscribeAll() {
   onSnapshot(query(collection(db,'bankTxns'),orderBy('date','desc')), snap=>{
     bankTxns=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderTransactions();
+    if(typeof renderImportBatchesList==='function') renderImportBatchesList();
   });
   onSnapshot(query(collection(db,'bankLinks'),orderBy('linkedAt','desc')), snap=>{
     bankLinks=snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -5771,6 +5779,7 @@ window.showBankTab=(name,btn)=>{
     const opts='<option value="">-- Данс сонгох --</option>'+activeAccs.map(a=>`<option value="${a.id}">${a.bankName} — ${a.accountNumber}${a.isDefault?' (Үндсэн)':''}</option>`).join('');
     const impSel=document.getElementById('imp-account'); if(impSel){impSel.innerHTML=opts; const def=getDefaultBank('MNT'); if(def&&!impSel.value) impSel.value=def.id;}
     const pasteSel=document.getElementById('paste-account'); if(pasteSel){pasteSel.innerHTML=opts; const def=getDefaultBank('MNT'); if(def&&!pasteSel.value) pasteSel.value=def.id;}
+    if(name==='import' && typeof renderImportBatchesList==='function') renderImportBatchesList();
   }
 };
 
@@ -5861,7 +5870,7 @@ window.handleImportFile = async (input) => {
         // Хаан банкны формат автомат таних
         const fmt = detectKhanBankFormat(rows);
         if(fmt) {
-          processKhanBankRows(rows, fmt, accountId);
+          processKhanBankRows(rows, fmt, accountId, file.name);
         } else {
           // Автомат таниагүй бол хэрэглэгчид мэдэгдэх
           alert('Хаан банкны хуулгын формат таньж чадсангүй.\nExcel файлын 8-р мөрт "Гүйлгээний огноо" гэсэн гарчиг байх ёстой.');
@@ -5872,7 +5881,7 @@ window.handleImportFile = async (input) => {
   } catch(err) { alert('XLSX library ачаалахад алдаа: ' + err.message); }
 };
 
-function processKhanBankRows(rows, fmt, accountId) {
+function processKhanBankRows(rows, fmt, accountId, importFileName) {
   const dataRows = rows.slice(fmt.dataStart);
   const result = [];
 
@@ -5913,6 +5922,7 @@ function processKhanBankRows(rows, fmt, accountId) {
       counterAccount: counter,
       source: 'excel_khan',
       accountId,
+      importFileName,
       isDup
     });
   }
@@ -5952,6 +5962,9 @@ window.submitImport = async () => {
     for(const r of newRows) {
       await addDoc(collection(db, 'bankTxns'), {
         docNumber:      impDocNum,
+        importBatchId:  impDocNum, // одоогийн docNumber-той адил — цаашид тодорхой нэрээр
+        importFileName: r.importFileName || '',
+        importedAt:     serverTimestamp(),
         accountId:      r.accountId,
         date:           r.date,
         description:    r.description,
@@ -6046,7 +6059,8 @@ window.submitPaste=async()=>{
   const newRows=pasteMapped.filter(r=>!r.isDup);
   if(!newRows.length){alert('Хадгалах шинэ мөр байхгүй');return;}
   try{
-    for(const r of newRows)await addDoc(collection(db,'bankTxns'),{accountId:r.accountId,date:r.date,description:r.description,income:r.income,expense:r.expense,balance:0,txnNum:'',source:'paste',linkedAmount:0,unlinkedAmount:r.income,status:r.income>0?'unlinked':'expense',createdBy:currentUser.email,createdAt:serverTimestamp()});
+    const pasteBatchId = await getNextDocNum('bankImport');
+    for(const r of newRows)await addDoc(collection(db,'bankTxns'),{accountId:r.accountId,date:r.date,description:r.description,income:r.income,expense:r.expense,balance:0,txnNum:'',docNumber:pasteBatchId,importBatchId:pasteBatchId,importFileName:'',importedAt:serverTimestamp(),source:'paste',linkedAmount:0,unlinkedAmount:r.income,status:r.income>0?'unlinked':'expense',createdBy:currentUser.email,createdAt:serverTimestamp()});
     document.getElementById('paste-preview').style.display='none';
     document.getElementById('paste-data').value='';pasteMapped=[];
     alert(`${newRows.length} мөр амжилттай хадгалагдлаа!`);
@@ -8421,78 +8435,77 @@ window.executeCancelPayment = async () => {
 
 
 // ─── БАНКНЫ ХОЛБОЛТ САЛГАХ ────────────────────────────────────────────────────
+// Дахин ашиглах боломжтой дотоод reversal функц (prompt-гүй) — нэг мөрийн
+// "Холболт салгах" болон batch устгалт хоёулаа ЯГ ЭНЭ логикийг ашиглана.
+async function unlinkBankTxnInternal(txnId, reason) {
+  const txn = bankTxns.find(t => t.id === txnId);
+  if(!txn) throw new Error('Гүйлгээ олдсонгүй');
+
+  const pmSnap = await getDocs(query(collection(db,'payments'), where('bankTransactionId','==',txnId)));
+
+  if(!pmSnap.empty) {
+    const pmDoc = pmSnap.docs[0];
+    const pm = pmDoc.data();
+
+    const batch = writeBatch(db);
+
+    for(const al of (pm.allocations || [])) {
+      if(!al.saleId) continue;
+      const saleSnap = await getDoc(doc(db,'sales',al.saleId));
+      if(!saleSnap.exists()) continue;
+      const s = saleSnap.data();
+      const rPaid = Math.max(0,(s.paid||0)-(al.allocatedAmount||0));
+      const rRecv = (s.total||0)-rPaid;
+      batch.update(doc(db,'sales',al.saleId),{
+        paid:rPaid, recv:rRecv,
+        status: rRecv===0?'paid':rPaid>0?'partial':'unpaid'
+      });
+    }
+
+    batch.update(doc(db,'payments',pmDoc.id),{
+      status:'cancelled', isCancelled:true,
+      cancelledAt:serverTimestamp(), cancelledBy:currentUser.email,
+      cancellationReason:`Банкны холболт салгагдсан: ${reason}`,
+      updatedAt:serverTimestamp(), updatedBy:currentUser.email
+    });
+
+    batch.update(doc(db,'bankTxns',txnId),{
+      linkedAmount:   0,
+      unlinkedAmount: txn.income || txn.credit || 0,
+      linkStatus:     'unlinked',
+      status:         'unlinked',
+      paymentId:      null,
+      linkedCustomerId:null,
+      updatedAt:      serverTimestamp(),
+      updatedBy:      currentUser.email
+    });
+
+    await batch.commit();
+  } else {
+    await updateDoc(doc(db,'bankTxns',txnId),{
+      linkedAmount:   0,
+      unlinkedAmount: txn.income || txn.credit || 0,
+      linkStatus:     'unlinked',
+      status:         'unlinked',
+      paymentId:      null,
+      linkedCustomerId:null,
+      updatedAt:      serverTimestamp(),
+      updatedBy:      currentUser.email
+    });
+  }
+
+  await addDoc(collection(db,'auditLogs'),{
+    action:'bank_unlinked', bankTransactionId:txnId,
+    reason, userId:currentUser.email, timestamp:serverTimestamp()
+  });
+}
 window.unlinkBankTxn = async (txnId) => {
   const txn = bankTxns.find(t => t.id === txnId);
   if(!txn) { alert('Гүйлгээ олдсонгүй'); return; }
   const reason = prompt(`Холболт салгах шалтгаан:\n(${txn.description}):`);
   if(!reason) return;
-
   try {
-    // Холбосон payment олох
-    const pmSnap = await getDocs(query(collection(db,'payments'), where('bankTransactionId','==',txnId)));
-    
-    if(!pmSnap.empty) {
-      const pmDoc = pmSnap.docs[0];
-      const pm = pmDoc.data();
-      
-      // Batch write
-      const batch = writeBatch(db);
-      
-      // Sale-уудын авлагыг буцаах
-      for(const al of (pm.allocations || [])) {
-        if(!al.saleId) continue;
-        const saleSnap = await getDoc(doc(db,'sales',al.saleId));
-        if(!saleSnap.exists()) continue;
-        const s = saleSnap.data();
-        const rPaid = Math.max(0,(s.paid||0)-(al.allocatedAmount||0));
-        const rRecv = (s.total||0)-rPaid;
-        batch.update(doc(db,'sales',al.saleId),{
-          paid:rPaid, recv:rRecv,
-          status: rRecv===0?'paid':rPaid>0?'partial':'unpaid'
-        });
-      }
-      
-      // Payment soft cancel
-      batch.update(doc(db,'payments',pmDoc.id),{
-        status:'cancelled', isCancelled:true,
-        cancelledAt:serverTimestamp(), cancelledBy:currentUser.email,
-        cancellationReason:`Банкны холболт салгагдсан: ${reason}`,
-        updatedAt:serverTimestamp(), updatedBy:currentUser.email
-      });
-      
-      // Bank transaction reset
-      batch.update(doc(db,'bankTxns',txnId),{
-        linkedAmount:   0,
-        unlinkedAmount: txn.income || txn.credit || 0,
-        linkStatus:     'unlinked',
-        status:         'unlinked',
-        paymentId:      null,
-        linkedCustomerId:null,
-        updatedAt:      serverTimestamp(),
-        updatedBy:      currentUser.email
-      });
-      
-      await batch.commit();
-    } else {
-      // Payment байхгүй — зүгээр банк txn reset
-      await updateDoc(doc(db,'bankTxns',txnId),{
-        linkedAmount:   0,
-        unlinkedAmount: txn.income || txn.credit || 0,
-        linkStatus:     'unlinked',
-        status:         'unlinked',
-        paymentId:      null,
-        linkedCustomerId:null,
-        updatedAt:      serverTimestamp(),
-        updatedBy:      currentUser.email
-      });
-    }
-    
-    // Audit log
-    await addDoc(collection(db,'auditLogs'),{
-      action:'bank_unlinked', bankTransactionId:txnId,
-      reason, userId:currentUser.email, timestamp:serverTimestamp()
-    });
-    
+    await unlinkBankTxnInternal(txnId, reason);
     alert('✅ Холболт салгагдлаа. Авлага буцаан тооцогдлоо.');
   } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
@@ -8520,6 +8533,128 @@ window.deleteBankTxn = async (txnId) => {
     });
     alert('✅ Гүйлгээ устгагдлаа.');
   } catch(e) { alert('Алдаа: '+e.message); }
+};
+
+// ═══ ИМПОРТЫН БАГЦААР УСТГАХ ═══════════════════════════════════════════════
+// Аудит: bankTxns бичлэг бүр 'docNumber' (Excel/Paste импортын үед бүгд нэг
+// импортоос ирсэн мөрүүдэд ижилхэн оноогддог) эсвэл шинэ 'importBatchId'
+// талбартай байна. Найдвартай batch key байхгүй (хуучин, migration хийгдээгүй
+// paste импортын) мөрүүдийг ЗУРАГ ТААМАГЛАЛГҮЙ орхино — §8 шаардлагын дагуу.
+function getImportBatches() {
+  const groups = {};
+  bankTxns.forEach(t => {
+    if(t.status === 'deleted' || t.isDeleted) return;
+    if(t.source !== 'excel_khan' && t.source !== 'paste') return; // зөвхөн bulk import эх сурвалж
+    const batchKey = t.importBatchId || t.docNumber || null;
+    if(!batchKey) return; // найдваргүй/тодорхойгүй batch — таамаглахгүй
+    if(!groups[batchKey]) {
+      const acc = bankAccounts.find(a=>a.id===t.accountId);
+      groups[batchKey] = {
+        batchId: batchKey, date: t.date,
+        fileName: t.importFileName || (t.source==='paste' ? '(Paste импорт)' : ''),
+        accountId: t.accountId,
+        accountLabel: acc ? `${acc.bankName} ${acc.accountNumber}` : '—',
+        rows: []
+      };
+    }
+    groups[batchKey].rows.push(t);
+  });
+  return Object.values(groups).map(g => ({
+    ...g,
+    count: g.rows.length,
+    totalIncome: g.rows.reduce((a,t)=>a+(t.income||0),0),
+    totalExpense: g.rows.reduce((a,t)=>a+(t.expense||0),0),
+    linkedCount: g.rows.filter(t => computeReceivableLinkStatus(t)==='linked' || computeReceivableLinkStatus(t)==='partial').length
+  })).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+}
+
+window.renderImportBatchesList = () => {
+  const tbody = document.getElementById('imp-batch-tbody'); if(!tbody) return;
+  const list = getImportBatches();
+  if(list.length===0){ tbody.innerHTML = '<tr><td colspan="7"><div class="empty">Импортын түүх байхгүй (эсвэл найдвартай batch тодорхойлолтгүй хуучин импорт)</div></td></tr>'; return; }
+  tbody.innerHTML = list.map(g=>`<tr>
+    <td style="font-size:11px;color:var(--tx3)">${g.date}</td>
+    <td style="font-size:11px">${g.fileName||'—'}</td>
+    <td style="font-size:11px">${g.accountLabel}</td>
+    <td style="text-align:right">${g.count}</td>
+    <td style="text-align:right;color:var(--gr)">${fmt(g.totalIncome)}</td>
+    <td style="text-align:right;color:var(--re)">${fmt(g.totalExpense)}</td>
+    <td style="white-space:nowrap"><button class="btn bd2 bxs" onclick="confirmDeleteImportBatch('${g.batchId}')" title="Багцыг устгах"><i class="ti ti-trash"></i>Устгах</button></td>
+  </tr>`).join('');
+};
+
+window.confirmDeleteImportBatch = (batchId) => {
+  const list = getImportBatches();
+  const g = list.find(x=>x.batchId===batchId);
+  if(!g) { alert('Импортын багц олдсонгүй'); return; }
+
+  let modal = document.getElementById('delete-import-batch-modal');
+  if(!modal) {
+    modal = document.createElement('div');
+    modal.id = 'delete-import-batch-modal';
+    modal.className = 'modal-ov';
+    modal.style.cssText = 'align-items:flex-start;overflow-y:auto;padding:16px';
+    document.body.appendChild(modal);
+  }
+  modal.innerHTML = `<div class="modal">
+    <div class="mh"><span><i class="ti ti-alert-triangle" style="color:var(--re)"></i> Импортын багцыг устгах уу?</span><button class="btn bg bxs" onclick="closeModal('delete-import-batch-modal')"><i class="ti ti-x"></i></button></div>
+    <div style="font-size:13px;line-height:1.8">
+      <div>Файл: <b>${g.fileName||'—'}</b></div>
+      <div>Данс: <b>${g.accountLabel}</b></div>
+      <div>Импортолсон: <b>${g.count} гүйлгээ</b></div>
+      <div>Нийт орлого: <b style="color:var(--gr)">${fmt(g.totalIncome)}</b></div>
+      <div>Нийт зарлага: <b style="color:var(--re)">${fmt(g.totalExpense)}</b></div>
+      ${g.linkedCount>0 ? `<div class="al al-warn" style="margin-top:10px"><i class="ti ti-alert-triangle"></i>Энэ импортын багцад <b>холбогдсон ${g.linkedCount} гүйлгээ</b> байна. Устгахад тэдгээрийн авлагын холболт мөн автоматаар салгагдаж, авлага буцаан тооцогдоно.</div>` : ''}
+    </div>
+    <div style="margin-top:14px;font-size:13px;color:var(--tx2)">Энэ үйлдлээр тухайн файлаар импортолсон бүх банкны гүйлгээ устгагдана. Буцаах боломжгүй.</div>
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn bd2" onclick="deleteImportBatch('${batchId}')"><i class="ti ti-trash"></i>Багцыг устгах</button>
+      <button class="btn bg" onclick="closeModal('delete-import-batch-modal')"><i class="ti ti-arrow-left"></i>Болих</button>
+    </div>
+  </div>`;
+  openModal('delete-import-batch-modal');
+};
+
+window.deleteImportBatch = async (batchId) => {
+  closeModal('delete-import-batch-modal');
+  const list = getImportBatches();
+  const g = list.find(x=>x.batchId===batchId);
+  if(!g) { alert('Импортын багц олдсонгүй'); return; }
+
+  const total = g.rows.length;
+  let succeeded = 0;
+  const failed = [];
+
+  for(const txn of g.rows) {
+    try {
+      const linkStatus = computeReceivableLinkStatus(txn);
+      if(linkStatus === 'linked' || linkStatus === 'partial') {
+        await unlinkBankTxnInternal(txn.id, `Импортын багц (${g.fileName||batchId}) устгагдсанаар автоматаар салгагдсан`);
+      }
+      await updateDoc(doc(db,'bankTxns',txn.id), {
+        status: 'deleted', isDeleted: true,
+        deletedAt: serverTimestamp(), deletedBy: currentUser.email,
+        deletedViaBatch: batchId
+      });
+      succeeded++;
+    } catch(e) {
+      console.error('Batch delete алдаа:', txn.id, e);
+      failed.push({ id: txn.id, error: e.message });
+    }
+  }
+
+  await writeGenericAuditLog('bank_import_batch_deleted', {
+    importBatchId: batchId, fileName: g.fileName, totalRows: total, succeeded, failedCount: failed.length
+  });
+
+  if(failed.length === 0) {
+    alert(`✅ ${succeeded} гүйлгээтэй импортын багц амжилттай устгагдлаа.`);
+  } else {
+    // Хэзээ ч "бүрэн амжилттай" гэж худал мэдэгдэхгүй — яг хэдэн нь амжилттай/амжилтгүйг тодорхой харуулна
+    alert(`⚠️ Багц дутуу устгагдлаа!\n${succeeded}/${total} гүйлгээ амжилттай устгагдав.\n${failed.length} гүйлгээ дээр алдаа гарлаа — дахин оролдоно уу эсвэл нэг мөрөөр устгана уу.`);
+  }
+  if(typeof renderImportBatchesList==='function') renderImportBatchesList();
+  if(typeof renderTransactions==='function') renderTransactions();
 };
 
 
