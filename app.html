@@ -5902,6 +5902,45 @@ function cleanDate(val) {
   return s.slice(0, 10);
 }
 
+// ─── CANONICAL DATE NORMALIZER (banking transaction date comparison) ──────
+// bankTxns.date талбар хуучин/шинэ дата дээр өөр өөр төрөлтэй байж болно:
+// Firestore Timestamp, JS Date, "YYYY-MM-DD" string, "YYYY-MM-DD HH:mm:ss"
+// string гэх мэт. Шүүлтүүрийн харьцуулалт хийхээс өмнө БҮГДИЙГ нэг
+// 'YYYY-MM-DD' (local calendar) key болгож normalize хийнэ. Огноог ямар ч
+// UTC conversion-оор шилжүүлэхгүй (Монголын +08:00 timezone-д аюулгүй).
+function normalizeBankTxnDate(value) {
+  if(value === null || value === undefined || value === '') return null;
+
+  // 1) Firestore Timestamp (.toDate() метод бүхий)
+  if(typeof value === 'object' && typeof value.toDate === 'function') {
+    const d = value.toDate();
+    if(isNaN(d)) return null;
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  }
+  // 2) Native JS Date object
+  if(value instanceof Date) {
+    if(isNaN(value)) return null;
+    return `${value.getFullYear()}-${String(value.getMonth()+1).padStart(2,'0')}-${String(value.getDate()).padStart(2,'0')}`;
+  }
+  // 3) Аль хэдийн зөв 'YYYY-MM-DD' (эсвэл цаг хугацаатай) string — импортын
+  //    parser (cleanDate) АЛЬ ХЭДИЙН энэ форматыг үйлдвэрлэдэг тул reuse хийнэ.
+  const s = String(value).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
+  if(/^\d{4}\/\d{2}\/\d{2}/.test(s)) return s.slice(0,10).replace(/\//g,'-');
+
+  // 4) Excel serial number (raw numeric, cellDates:false үед боломжтой,
+  //    хуучин/өөр import замаас үлдсэн байж болзошгүй) — 1900 epoch-оос тоолно.
+  const num = Number(s);
+  if(!isNaN(num) && num > 20000 && num < 80000) {
+    // Excel-ийн 1900 leap-year bug-ийг оруулаад стандарт хөрвүүлэлт
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const d = new Date(excelEpoch.getTime() + num * 86400000);
+    if(!isNaN(d)) return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+  }
+
+  return null; // Танигдаагүй формат — таамгаар parse хийхгүй
+}
+
 window.handleImportFile = async (input) => {
   const file = input.files[0]; if(!file) return;
   const accountId = document.getElementById('imp-account')?.value;
@@ -6140,9 +6179,22 @@ window.renderTransactions=()=>{
     return true;
   });
   console.debug('[TXN DEBUG] 0) Firestore-оос уншсан идэвхтэй нийт:', list.length);
-  if(accId){list=list.filter(t=>t.accountId===accId); console.debug('[TXN DEBUG] 1) Account filter дараа:', list.length, 'accId=', accId);}
-  if(from){list=list.filter(t=>t.date>=from); console.debug('[TXN DEBUG] 2) From-date filter дараа:', list.length, 'from=', from);}
-  if(to){list=list.filter(t=>t.date<=to); console.debug('[TXN DEBUG] 3) To-date filter дараа:', list.length, 'to=', to);}
+  if(accId){
+    list=list.filter(t=>t.accountId===accId);
+    console.debug('[TXN DEBUG] 1) Account filter дараа:', list.length, 'accId=', accId);
+    // Эхний 5 transaction-ийн raw date талбарыг шалгах (root cause баталгаажуулалт)
+    list.slice(0,5).forEach(t => {
+      console.debug('[TXN DEBUG] raw date:', t.id, '| value=', t.date, '| typeof=', typeof t.date, '| ctor=', t.date?.constructor?.name, '| normalized=', normalizeBankTxnDate(t.date));
+    });
+  }
+  if(from){
+    list=list.filter(t=>{ const nd=normalizeBankTxnDate(t.date); return nd!==null && nd>=from; });
+    console.debug('[TXN DEBUG] 2) From-date filter дараа:', list.length, 'from=', from);
+  }
+  if(to){
+    list=list.filter(t=>{ const nd=normalizeBankTxnDate(t.date); return nd!==null && nd<=to; });
+    console.debug('[TXN DEBUG] 3) To-date filter дараа:', list.length, 'to=', to);
+  }
   if(type==='income'){list=list.filter(t=>t.income>0); console.debug('[TXN DEBUG] 4) Type=income filter дараа:', list.length);}
   if(type==='expense'){list=list.filter(t=>t.expense>0); console.debug('[TXN DEBUG] 4) Type=expense filter дараа:', list.length);}
   if(status){list=list.filter(t=>computeReceivableLinkStatus(t)===status); console.debug('[TXN DEBUG] 5) Status filter дараа:', list.length, 'status=', status);}
@@ -6162,8 +6214,8 @@ window.renderTransactions=()=>{
   // search шүүлтүүр энд хамаарахгүй (ангилал бүх төрлийн гүйлгээг хамарна).
   let scopedTxns = bankTxns.filter(t => !t.isDeleted && t.status !== 'deleted');
   if(accId) scopedTxns = scopedTxns.filter(t=>t.accountId===accId);
-  if(from)  scopedTxns = scopedTxns.filter(t=>t.date>=from);
-  if(to)    scopedTxns = scopedTxns.filter(t=>t.date<=to);
+  if(from)  scopedTxns = scopedTxns.filter(t=>{ const nd=normalizeBankTxnDate(t.date); return nd!==null && nd>=from; });
+  if(to)    scopedTxns = scopedTxns.filter(t=>{ const nd=normalizeBankTxnDate(t.date); return nd!==null && nd<=to; });
   const allTxns = scopedTxns;
   console.debug('[TXN DEBUG] Ангилаагүй summary-ийн scope (account+date-той тааруулсан):', allTxns.length);
   const unclInc  = allTxns.filter(t => (t.income||0)>0  && getTxnLinkStatus(t)==='unclassified');
