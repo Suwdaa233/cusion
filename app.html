@@ -1087,9 +1087,8 @@ tbody tr:hover td{background:var(--sur2)}
           <select id="txn-type-filter" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүгд</option><option value="income">Орлого</option><option value="expense">Зарлага</option></select>
           <select id="txn-status-filter" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
           <option value="">Бүх статус</option>
-          <option value="linked">Бүрэн холбогдсон</option>
-          <option value="unlinked">Холбогдоогүй</option>
-          <option value="partial">Хэсэгчлэн</option>
+          <option value="connected">Холбогдсон</option>
+          <option value="unconnected">Холбогдоогүй</option>
         </select>
           <input type="text" id="txn-search" placeholder="Утгаар хайх..." style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);width:140px">
           <button class="btn bp bxs" onclick="renderTransactions()"><i class="ti ti-filter"></i>Шүүх</button>
@@ -6218,7 +6217,13 @@ window.renderTransactions=()=>{
   }
   if(type==='income'){list=list.filter(t=>t.income>0); console.debug('[TXN DEBUG] 4) Type=income filter дараа:', list.length);}
   if(type==='expense'){list=list.filter(t=>t.expense>0); console.debug('[TXN DEBUG] 4) Type=expense filter дараа:', list.length);}
-  if(status){list=list.filter(t=>computeReceivableLinkStatus(t)===status); console.debug('[TXN DEBUG] 5) Status filter дараа:', list.length, 'status=', status);}
+  if(status){
+    list=list.filter(t=>{
+      const isConn = getBankTransactionConnectionStatus(t).isConnected;
+      return status==='connected' ? isConn : !isConn;
+    });
+    console.debug('[TXN DEBUG] 5) Status filter дараа:', list.length, 'status=', status);
+  }
   if(search){list=list.filter(t=>t.description.toLowerCase().includes(search)); console.debug('[TXN DEBUG] 6) Search filter дараа:', list.length, 'search=', search);}
   console.debug('[TXN DEBUG] 7) ЭЦСИЙН table-д харагдах тоо:', list.length);
   const tbody=document.getElementById('txn-tbody');if(!tbody)return;
