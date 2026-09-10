@@ -2901,7 +2901,10 @@ window.submitSale = async () => {
     const savedId = saleRef.id;
     // Show preview modal with print options
     showSaleAfterSave(savedId);
-  } catch(e){ alert('Алдаа: '+e.message); }
+  } catch(e){
+    console.error('[submitSale алдаа]', { code: e.code, message: e.message, name: e.name, stack: e.stack, userRole, hasSalesCreatePerm: hasPerm('sales_create') });
+    alert('Алдаа: '+e.message);
+  }
 };
 
 window.showSaleAfterSave = (id) => {
@@ -9106,8 +9109,13 @@ window.editBankTxnFull = (id) => {
 // ─── ТАЙЛАНТ САРЫН НЭГДСЭН HELPER ───────────────────────────────────────────
 
 // localStorage-аас сар унших (default: өнгөрсөн сар)
+// АЮУЛГҮЙ: localStorage хориотой/дүүрсэн орчинд (жишээ Incognito/Private mode)
+// QuotaExceededError шидэхээс сэргийлж try/catch-той — апп-ийн init-ийг
+// хэзээ ч бүхэлд нь зогсоохгүй.
 function getDefaultYearMonth() {
-  const saved = localStorage.getItem('reportingMonth');
+  let saved = null;
+  try { saved = localStorage.getItem('reportingMonth'); }
+  catch(e) { console.warn('[reportingMonth] localStorage.getItem алдаа (үл тоомсорлоно):', e.name, e.message); }
   if(saved && /^\d{4}-\d{2}$/.test(saved)) return saved;
   const now = new Date();
   const y = now.getFullYear(), m = now.getMonth(); // 0-based
@@ -9173,7 +9181,8 @@ function applyReportingPeriod(yearMonth) {
 // Global сар солих handler
 window.onGlobalMonthChange = (yearMonth) => {
   if(!yearMonth) return;
-  localStorage.setItem('reportingMonth', yearMonth);
+  try { localStorage.setItem('reportingMonth', yearMonth); }
+  catch(e) { console.warn('[reportingMonth] localStorage.setItem алдаа (үл тоомсорлоно):', e.name, e.message); }
   applyReportingPeriod(yearMonth);
   // Одоо харагдаж байгаа хэсгийг refresh хийх
   const activeBtn = document.querySelector('.ni.on');
