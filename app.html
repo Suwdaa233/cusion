@@ -1080,10 +1080,10 @@ tbody tr:hover td{background:var(--sur2)}
       <div class="ch" style="flex-wrap:wrap;gap:8px">
         <span class="ct"><i class="ti ti-list"></i>Банкны гүйлгээ</span>
         <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-          <select id="txn-acc-filter" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх данс</option></select>
-          <input type="date" id="txn-from" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <select id="txn-acc-filter" onchange="onTxnFilterChange()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүх данс</option></select>
+          <input type="date" id="txn-from" onchange="onTxnFilterChange()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
           <span style="font-size:12px;color:var(--tx3)">—</span>
-          <input type="date" id="txn-to" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <input type="date" id="txn-to" onchange="onTxnFilterChange()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
           <select id="txn-type-filter" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүгд</option><option value="income">Орлого</option><option value="expense">Зарлага</option></select>
           <select id="txn-status-filter" onchange="renderTransactions()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
           <option value="">Бүх статус</option>
@@ -2164,7 +2164,8 @@ onAuthStateChanged(auth, async user => {
   // Эрхийн тохиргоо ачаалах + needsUidLink шалгах
   await loadCurrentPermissions(user.uid);
   await linkUserUidIfNeeded(user);
-  subscribeAll();
+  subscribeMasterData();
+  subscribeCoreFinancial();
 });
 
 window.doLogout = async () => {
@@ -2173,7 +2174,13 @@ window.doLogout = async () => {
 };
 
 // ─── FIRESTORE SUBSCRIPTIONS ─────────────────────────────────────────────────
-function subscribeAll() {
+// ═══ FIRESTORE SUBSCRIPTIONS — MASTER + CORE FINANCIAL (always-on) ═════════
+// Login хийх бүрд ЗӨВХӨН master data (жижиг, бүрэн шаардлагатай) болон
+// АВЛАГА/DASHBOARD-ийн бүрэн зөв тооцоололд ЗААВАЛ шаардлагатай sales/
+// payments/saleDiscounts-г л бүрэн ачаална. Бусад transaction collection
+// (bankTxns/invLogs/purchases/importPurchases/transfers/reconcileDocs/
+// bankLinks) тухайн module/tab нээгдэх үед л lazy ачаалагдана (§2-3,§10).
+function subscribeMasterData() {
   onSnapshot(query(collection(db,'customers'), orderBy('createdAt','desc')), snap => {
     customers = snap.docs.map(d => ({id:d.id,...d.data()}));
     populateSels(); renderCustomers();
@@ -2186,6 +2193,22 @@ function subscribeAll() {
     locations = snap.docs.map(d => ({id:d.id,...d.data()}));
     populateSels(); renderLocations();
   });
+  onSnapshot(doc(db,'stock','current'), snap => {
+    stockMap = snap.exists() ? snap.data() : {};
+    renderLocations(); renderProducts(); renderDashboard();
+  });
+  onSnapshot(query(collection(db,'bankAccounts'),orderBy('createdAt','desc')), snap=>{
+    bankAccounts=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderBankAccounts(); populateSels();
+  });
+}
+
+// ─── ЯГ ЗАЙЛШГҮЙ БҮРЭН ТҮҮХ ШААРДЛАГАТАЙ (§7-8): Авлагын үлдэгдэл нь БҮХ
+// цагийн sales/payments/saleDiscounts дээр суурилж тооцогддог тул ЭДГЭЭРИЙГ
+// огноогоор хязгаарлавал ХУУЧИН авлага алга болно. Иймд ЭНЭ 3 collection-г
+// ЗОРИУДААР бүрэн, global ажиллуулна (deliberate deviation, §18 тайланд
+// тодорхой тэмдэглэсэн).
+function subscribeCoreFinancial() {
   onSnapshot(query(collection(db,'sales'), orderBy('date','desc')), snap => {
     sales = snap.docs.map(d => ({id:d.id,...d.data()}));
     renderDashboard(); renderSalesTable(); renderRecvSummary();
@@ -2199,54 +2222,6 @@ function subscribeAll() {
     if(typeof renderInvReport==='function') renderInvReport();
     if(typeof renderSalesReport==='function') renderSalesReport();
   });
-  onSnapshot(query(collection(db,'invLogs'), orderBy('date','desc')), snap => {
-    invLogs = snap.docs.map(d => ({id:d.id,...d.data()}));
-    renderInvLog();
-    if(typeof renderInvReport==='function') renderInvReport();
-    if(typeof renderInGroupsList==='function') renderInGroupsList();
-    if(typeof renderOutGroupsList==='function') renderOutGroupsList();
-    if(typeof renderDocRegistry==='function') renderDocRegistry();
-  });
-  onSnapshot(query(collection(db,'purchases'), orderBy('purchaseDate','desc')), snap => {
-    purchases = snap.docs.map(d => ({id:d.id,...d.data()}));
-    if(typeof renderPurchaseList==='function') renderPurchaseList();
-    if(typeof renderDocRegistry==='function') renderDocRegistry();
-    if(typeof renderInvReport==='function') renderInvReport();
-  });
-  onSnapshot(query(collection(db,'importPurchases'), orderBy('purchaseDate','desc')), snap => {
-    importPurchases = snap.docs.map(d => ({id:d.id,...d.data()}));
-    if(typeof renderImportList==='function') renderImportList();
-    if(typeof renderDocRegistry==='function') renderDocRegistry();
-    if(typeof renderInvReport==='function') renderInvReport();
-  });
-  onSnapshot(doc(db,'stock','current'), snap => {
-    stockMap = snap.exists() ? snap.data() : {};
-    renderLocations(); renderProducts(); renderDashboard();
-  });
-  // Bank & Transfers
-  onSnapshot(query(collection(db,'bankAccounts'),orderBy('createdAt','desc')), snap=>{
-    bankAccounts=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderBankAccounts(); populateSels();
-  });
-  onSnapshot(query(collection(db,'bankTxns'),orderBy('date','desc')), snap=>{
-    bankTxns=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderTransactions();
-    if(typeof renderImportBatchesList==='function') renderImportBatchesList();
-  });
-  onSnapshot(query(collection(db,'bankLinks'),orderBy('linkedAt','desc')), snap=>{
-    bankLinks=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderLinks();
-  });
-  onSnapshot(query(collection(db,'transfers'),orderBy('date','desc')), snap=>{
-    transfers=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderTransferList();
-    if(typeof renderDocRegistry==='function') renderDocRegistry();
-    if(typeof renderInvReport==='function') renderInvReport();
-  });
-  onSnapshot(query(collection(db,'reconcileDocs'),orderBy('createdAt','desc')), snap=>{
-    reconcileDocs=snap.docs.map(d=>({id:d.id,...d.data()}));
-    renderReconcileList();
-  });
   onSnapshot(query(collection(db,'payments'),orderBy('paymentDate','desc')), snap=>{
     payments=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderRecvHistory(); renderRecvSummary(); renderDashboard();
@@ -2258,6 +2233,129 @@ function subscribeAll() {
     if(ledgerTab && ledgerTab.style.display !== 'none' && typeof renderLedger==='function') renderLedger();
   });
 }
+
+// ═══ LAZY MODULE SUBSCRIPTIONS (тухайн section/tab нээгдэх үед л) ══════════
+
+// БАНКНЫ ГҮЙЛГЭЭ — сонгосон данс + огнооны мужаар server-side query (§4,§12)
+// accountId хоосон бол зөвхөн огнооны муж (composite index шаардахгүй).
+// accountId сонгосон бол composite index ШААРДАГДАЖ БОЛЗОШГҮЙ — Firestore
+// Console-д линктэй алдаа гарвал тэр индексийг үүсгэнэ үү (§13).
+let lastBankTxnsScope = null;
+function subscribeBankTxns(accountId, from, to) {
+  const scopeKey = `${accountId}|${from}|${to}`;
+  if(scopeKey === lastBankTxnsScope && unsubBankTxns) return; // ижил хамрах хүрээ — дахин subscribe хийхгүй
+  lastBankTxnsScope = scopeKey;
+  if(unsubBankTxns) { unsubBankTxns(); unsubBankTxns = null; }
+  const conditions = [];
+  if(accountId) conditions.push(where('accountId','==',accountId));
+  if(from) conditions.push(where('date','>=',from));
+  if(to)   conditions.push(where('date','<=',to));
+  const q = query(collection(db,'bankTxns'), ...conditions, orderBy('date','desc'));
+  unsubBankTxns = onSnapshot(q, snap=>{
+    bankTxns=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderTransactions();
+    if(typeof renderImportBatchesList==='function') renderImportBatchesList();
+  }, err => {
+    console.error('[subscribeBankTxns] алдаа (composite index шаардаж болзошгүй):', err);
+  });
+}
+
+// БАРААНЫ ХӨДӨЛГӨӨН (invLogs) — огнооны мужаар (§5). Бодит үлдэгдэл
+// stock/current document-оос тооцогддог тул (эх сурвалж энэ файлд
+// өөрчлөгдөөгүй), invLogs бол зөвхөн ТҮҮХ/АУДИТ-д зориулагдсан тул
+// огноогоор хязгаарлах нь balance-ийн зөв байдалд НӨЛӨӨЛӨХГҮЙ.
+let lastInvLogsScope = null;
+function subscribeInvLogs(from, to) {
+  const scopeKey = `${from}|${to}`;
+  if(scopeKey === lastInvLogsScope && unsubInvLogs) return; // ижил хамрах хүрээ — дахин subscribe хийхгүй
+  lastInvLogsScope = scopeKey;
+  if(unsubInvLogs) { unsubInvLogs(); unsubInvLogs = null; }
+  const conditions = [];
+  if(from) conditions.push(where('date','>=',from));
+  if(to)   conditions.push(where('date','<=',to));
+  const q = query(collection(db,'invLogs'), ...conditions, orderBy('date','desc'));
+  unsubInvLogs = onSnapshot(q, snap => {
+    invLogs = snap.docs.map(d => ({id:d.id,...d.data()}));
+    renderInvLog();
+    if(typeof renderInvReport==='function') renderInvReport();
+    if(typeof renderInGroupsList==='function') renderInGroupsList();
+    if(typeof renderOutGroupsList==='function') renderOutGroupsList();
+    if(typeof renderDocRegistry==='function') renderDocRegistry();
+  }, err => {
+    console.error('[subscribeInvLogs] алдаа:', err);
+  });
+}
+
+// Худалдан авалт/Татан авалт/Шилжүүлэлт/Тооцоо нийлэлт/Bank links — жижиг
+// collection тул date-scope шаардлагагүй, зөвхөн LAZY (module нээгдэх үед
+// нэг л удаа subscribe хийгээд үлдэнэ — дахин орж ирэхэд дахин
+// subscribe хийхгүй, аль хэдийн идэвхтэй listener-ийг ашиглана).
+function subscribePurchases() {
+  if(unsubPurchases) return;
+  unsubPurchases = onSnapshot(query(collection(db,'purchases'), orderBy('purchaseDate','desc')), snap => {
+    purchases = snap.docs.map(d => ({id:d.id,...d.data()}));
+    if(typeof renderPurchaseList==='function') renderPurchaseList();
+    if(typeof renderDocRegistry==='function') renderDocRegistry();
+    if(typeof renderInvReport==='function') renderInvReport();
+  });
+}
+function subscribeImportPurchases() {
+  if(unsubImportPurchases) return;
+  unsubImportPurchases = onSnapshot(query(collection(db,'importPurchases'), orderBy('purchaseDate','desc')), snap => {
+    importPurchases = snap.docs.map(d => ({id:d.id,...d.data()}));
+    if(typeof renderImportList==='function') renderImportList();
+    if(typeof renderDocRegistry==='function') renderDocRegistry();
+    if(typeof renderInvReport==='function') renderInvReport();
+  });
+}
+function subscribeTransfers() {
+  if(unsubTransfers) return;
+  unsubTransfers = onSnapshot(query(collection(db,'transfers'),orderBy('date','desc')), snap=>{
+    transfers=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderTransferList();
+    if(typeof renderDocRegistry==='function') renderDocRegistry();
+    if(typeof renderInvReport==='function') renderInvReport();
+  });
+}
+function subscribeReconcileDocs() {
+  if(unsubReconcileDocs) return;
+  unsubReconcileDocs = onSnapshot(query(collection(db,'reconcileDocs'),orderBy('createdAt','desc')), snap=>{
+    reconcileDocs=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderReconcileList();
+  });
+}
+function subscribeBankLinks() {
+  if(unsubBankLinks) return;
+  unsubBankLinks = onSnapshot(query(collection(db,'bankLinks'),orderBy('linkedAt','desc')), snap=>{
+    bankLinks=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderLinks();
+  });
+}
+
+// Inventory section (Орлого/Зарлага/Шилжүүлэлт/Худалдан авалт/Татан
+// авалт/Баримтын жагсаалт/Тайлан) нээгдэх бүрд шаардлагатай lazy
+// collection-уудыг нэг дор идэвхжүүлнэ.
+function ensureInventorySubscriptions() {
+  const from = document.getElementById('doc-from')?.value || document.getElementById('rp-from')?.value || '';
+  const to   = document.getElementById('doc-to')?.value   || document.getElementById('rp-to')?.value   || '';
+  subscribeInvLogs(from, to);
+  subscribePurchases();
+  subscribeImportPurchases();
+  subscribeTransfers();
+}
+// Bank section нээгдэх бүрд.
+function ensureBankSubscriptions() {
+  const accId = document.getElementById('txn-acc-filter')?.value || '';
+  const from  = document.getElementById('txn-from')?.value || '';
+  const to    = document.getElementById('txn-to')?.value   || '';
+  subscribeBankTxns(accId, from, to);
+  subscribeBankLinks();
+}
+// Receivable section нээгдэх бүрд.
+function ensureReceivableSubscriptions() {
+  subscribeReconcileDocs();
+}
+
 
 // ─── STOCK HELPERS ────────────────────────────────────────────────────────────
 function sk(pid,lid){ return pid+'_'+lid; }
@@ -2596,6 +2694,11 @@ window.goSec = (name, btn) => {
   document.getElementById('sec-title').textContent = MTITLES[name]||name;
   if(name === 'users') loadUsers();
   if(name === 'internal-report') initIRReport();
+  // Lazy module subscriptions — тухайн section анх нээгдэх үед л Firestore
+  // listener идэвхжинэ (§2-3, §10)
+  if(name === 'inventory')   ensureInventorySubscriptions();
+  if(name === 'bank')        ensureBankSubscriptions();
+  if(name === 'receivable')  ensureReceivableSubscriptions();
 };
 window.showSalesTab = (name, btn) => {
   document.querySelectorAll('#sec-sales .s-tab').forEach(t=>t.style.display='none');
@@ -5542,6 +5645,15 @@ window.clearHistoryFilter = () => {
 
 // ─── STATE (bank & transfer) ──────────────────────────────────────────────────
 let bankAccounts=[],bankTxns=[],bankLinks=[],transfers=[];
+// Lazy-loaded transaction collection-уудын unsubscribe function-ууд — module
+// нээгдэх бүрд хуучин listener-ийг эхлээд таслаад шинийг эхлүүлнэ (§11).
+let unsubBankTxns = null;
+let unsubInvLogs = null;
+let unsubPurchases = null;
+let unsubImportPurchases = null;
+let unsubTransfers = null;
+let unsubReconcileDocs = null;
+let unsubBankLinks = null;
 
 // ─── БАНКНЫ ГҮЙЛГЭЭНИЙ АВЛАГА-ХОЛБОЛТЫН СТАТУС ─────────────────────────────
 // Нэг эх сурвалж (single source of truth): 'Банкны гүйлгээ' болон 'Авлага
@@ -6379,6 +6491,14 @@ window.clearTxnFilter=()=>{
     const el=document.getElementById(id); if(el) el.value='';
   });
   renderTransactions();
+};
+// Данс/огноо солигдоход server-side scope-ыг ШИНЭЭР subscribe хийнэ (§4,§11) —
+// type/status/search бол client-side хэвээрээ, renderTransactions() дотор.
+window.onTxnFilterChange = () => {
+  const accId = document.getElementById('txn-acc-filter')?.value || '';
+  const from  = document.getElementById('txn-from')?.value || '';
+  const to    = document.getElementById('txn-to')?.value   || '';
+  subscribeBankTxns(accId, from, to);
 };
 window.renderTransactions=()=>{
   const accId=document.getElementById('txn-acc-filter')?.value||'';
