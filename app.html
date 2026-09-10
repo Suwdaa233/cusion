@@ -1103,7 +1103,7 @@ tbody tr:hover td{background:var(--sur2)}
           <button class="btn bg bxs" onclick="clearTxnSelection()"><i class="ti ti-x"></i>Сонголт цэвэрлэх</button>
         </div>
         <div class="tw"><table>
-        <thead><tr><th style="width:36px;text-align:center"><input type="checkbox" id="txn-select-all" onchange="toggleAllTxnChk(this)" title="Бүгд сонгох"></th><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Орлого</th><th>Зарлага</th><th>Холбосон</th><th>Холбоогүй</th><th>Статус</th><th>Үйлдэл</th></tr></thead>
+        <thead><tr><th style="width:36px;text-align:center"><input type="checkbox" id="txn-select-all" onchange="toggleAllTxnChk(this)" title="Бүгд сонгох"></th><th>Огноо</th><th>Данс</th><th>Гүйлгээний утга</th><th>Орлого</th><th>Зарлага</th><th>Холболт</th><th>Үйлдэл</th></tr></thead>
         <tbody id="txn-tbody"></tbody>
       </table></div></div>
     </div>
@@ -6451,11 +6451,9 @@ window.renderTransactions=()=>{
         <div class="mc"><div class="ml">Холбогдоогүй</div><div class="mv am">${fmt(totalUnlnk)}</div></div>`;
     }
   }
-  if(list.length===0){tbody.innerHTML='<tr><td colspan="10"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
+  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
   tbody.innerHTML=list.map(t=>{
     const isInc = (t.income||0) > 0;
-    const linkedAmt = isInc ? computeTxnLinkedAmount(t) : 0;
-    const unlinkedAmt = isInc ? Math.max(0,(t.income||0)-linkedAmt) : 0;
     const rStatus = computeReceivableLinkStatus(t);
     const connStatus = getBankTransactionConnectionStatus(t);
     // Сонгож болох эсэх: import-с ирсэн, дүн>0, аль хэдийн ЯМАР Ч холбоосгүй
@@ -6463,12 +6461,14 @@ window.renderTransactions=()=>{
     const alreadyClassified = connStatus.isConnected;
     const hasAmount = (t.income||0) > 0 || (t.expense||0) > 0;
     const selectable = hasAmount && !alreadyClassified;
-    // Статус badge — 3 холболтын аль нэг байвал "Холбогдсон" (canonical, §6)
-    let statusBadgeHtml;
-    if(rStatus === 'linked' || rStatus === 'partial' || rStatus === 'other' || rStatus === 'expense') {
-      statusBadgeHtml = stBadge[rStatus] || rStatus; // AR-ийн нарийвчилсан badge хэвээр (Бүрэн холбосон/Хэсэгчлэн гэх мэт)
+    // ХОЛБОЛТ багана — нэг canonical helper-ээс: Бүрэн холбогдсон / Хэсэгчлэн холбогдсон / Холбогдоогүй
+    let connBadge;
+    if(rStatus === 'partial') {
+      connBadge = '<span class="ba bam2">Хэсэгчлэн холбогдсон</span>';
+    } else if(connStatus.isConnected) {
+      connBadge = '<span class="ba bgr">Бүрэн холбогдсон</span>';
     } else {
-      statusBadgeHtml = connStatus.isConnected ? stBadge.linked : stBadge.unlinked; // зардал/мөнгөн гүйлгээ ангилсан бол мөн "Холбогдсон"
+      connBadge = '<span class="ba bre">Холбогдоогүй</span>';
     }
     return `<tr>
     <td style="text-align:center">${selectable
@@ -6479,12 +6479,9 @@ window.renderTransactions=()=>{
     <td style="font-size:12px">${t.description}</td>
     <td style="color:var(--gr);font-weight:500">${t.income?fmt(t.income):''}</td>
     <td style="color:var(--re)">${t.expense?fmt(t.expense):''}</td>
-    <td style="color:var(--pu);font-weight:500">${isInc&&linkedAmt?fmt(linkedAmt):''}</td>
-    <td style="color:var(--am)">${isInc&&unlinkedAmt?fmt(unlinkedAmt):''}</td>
-    <td style="white-space:nowrap;cursor:pointer" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">${statusBadgeHtml}</td>
+    <td style="white-space:nowrap;cursor:pointer" onclick="editBankTxnFull('${t.id}')">${connBadge}</td>
     <td style="white-space:nowrap">
-      <button class="btn bg bxs" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" title="Холболт засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
-      <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Гүйлгээ засах" style="font-size:11px"><i class="ti ti-pencil"></i></button>
+      <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Дэлгэрэнгүй / Засах" style="font-size:11px"><i class="ti ti-pencil"></i></button>
       <button class="btn bd2 bxs" onclick="deleteBankTxn('${t.id}')" title="Устгах" style="font-size:11px"><i class="ti ti-trash"></i></button>
     </td>
   </tr>`;}).join('');
@@ -9079,6 +9076,7 @@ window.editBankTxnFull = (id) => {
         <div>Харилцагч: <b>${custName}</b></div>
         <div>Авлагын/борлуулалтын баримт №: <b>${docNums}</b></div>
         <div>Холбосон дүн: <b style="color:var(--pu)">${fmt(linkedAmt)}</b> &nbsp; Үлдэгдэл: <b style="color:${balance>0?'var(--am)':'var(--gr)'}">${fmt(balance)}</b></div>
+        <button class="btn bg bxs" style="margin-top:6px" onclick="closeModal('edit-bank-txn-modal');openIncLinkModal('${txn.id}')"><i class="ti ti-edit"></i>Холболт засах</button>
       </div>`;
     } else if(conn.connectionType === 'expense') {
       html = `<div style="padding:10px 12px;background:var(--sur2);border-radius:var(--r);font-size:12px">
@@ -9095,6 +9093,7 @@ window.editBankTxnFull = (id) => {
     } else {
       html = `<div style="padding:10px 12px;background:var(--sur2);border-radius:var(--r);font-size:12px;color:var(--tx3)">
         <i class="ti ti-link-off"></i> Холбогдсон эсэх: <b>Үгүй</b> — энэ гүйлгээ одоогоор холбогдоогүй/ангилагдаагүй байна.
+        <div style="margin-top:6px"><button class="btn bp bxs" onclick="closeModal('edit-bank-txn-modal');${(txn.income||0)>0?`openIncLinkModal('${txn.id}')`:`openExpLinkModal('${txn.id}')`}"><i class="ti ti-link"></i>Холбох</button></div>
       </div>`;
     }
     linkInfoEl.innerHTML = html;
