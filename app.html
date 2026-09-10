@@ -2266,7 +2266,9 @@ async function updateStock(changes) {
   const ref = doc(db,'stock','current');
   const upd = {};
   changes.forEach(({pid,lid,delta}) => { upd[sk(pid,lid)] = (stockMap[sk(pid,lid)]||0) + delta; });
-  await setDoc(ref, {...stockMap, ...upd}, {merge:true});
+  const payload = {...stockMap, ...upd};
+  console.log('[updateStock] бичих түлхүүрийн тоо:', Object.keys(payload).length, 'шинэчлэгдэж буй:', Object.keys(upd).length);
+  await setDoc(ref, payload, {merge:true});
 }
 function totByProd(pid){ return locations.reduce((a,l)=>a+gst(pid,l.id),0); }
 function totByLoc(lid){ return products.reduce((a,p)=>a+gst(p.id,lid),0); }
@@ -2863,8 +2865,13 @@ window.submitSale = async () => {
     };
   });
   try {
+    console.log('[SALE SAVE] 1 start');
+    console.log('[SALE SAVE] 2 validate — rows:', rows.length, 'cust:', cid, 'loc:', lid);
+    console.log('[SALE SAVE] 3 generate number — calling getNextDocNum...');
     const docNum = await getNextDocNum('sale');
+    console.log('[SALE SAVE] 3 done — docNum:', docNum);
     const payType = document.getElementById('s-pay-type')?.value||'cash';
+    console.log('[SALE SAVE] 4 create sale — calling addDoc(sales)...');
     const saleRef = await addDoc(collection(db,'sales'),{
       docNumber:docNum,
       date:sDate, customerId:cid, customerName:cust?.name||'',
@@ -2878,14 +2885,21 @@ window.submitSale = async () => {
       payments:paid>0?[{date:sDate,amount:paid,method,note:'Анхны төлбөр'}]:[],
       createdBy:currentUser.email, createdAt:serverTimestamp()
     });
+    console.log('[SALE SAVE] 4 done — saleId:', saleRef.id);
     // Update stock
+    console.log('[SALE SAVE] 5 stock movement — calling updateStock, changes:', rows.length);
     const stockChanges = rows.map(r=>({pid:r.pid,lid,delta:-r.qty}));
     await updateStock(stockChanges);
+    console.log('[SALE SAVE] 5 done');
     // Log
+    console.log('[SALE SAVE] 6 inventory log — writing', rows.length, 'invLogs doc(s)...');
     for(const r of rows){
       const p=products.find(x=>x.id===r.pid);
       await addDoc(collection(db,'invLogs'),{date:sDate,type:'sale',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,note:`Борлуулалт — ${cust?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
     }
+    console.log('[SALE SAVE] 6 done');
+    console.log('[SALE SAVE] 7 payment — sale.paid бол sales doc-д inline хадгалагдсан (тусдаа payment write байхгүй)');
+    console.log('[SALE SAVE] 8 audit — энэ save дээр audit log write байхгүй');
     // Reset form
     document.getElementById('s-rows').innerHTML=''; saleRowIdx=0; addSaleRow();
     document.getElementById('s-cust').value=''; document.getElementById('s-loc').value='';
@@ -2899,10 +2913,11 @@ window.submitSale = async () => {
     document.getElementById('s-date').value=today();
     // Хэвлэх preview автоматаар нээх
     const savedId = saleRef.id;
+    console.log('[SALE SAVE] 9 done — savedId:', savedId);
     // Show preview modal with print options
     showSaleAfterSave(savedId);
   } catch(e){
-    console.error('[submitSale алдаа]', { code: e.code, message: e.message, name: e.name, stack: e.stack, userRole, hasSalesCreatePerm: hasPerm('sales_create') });
+    console.error('[SALE SAVE ERROR]', { code: e.code, message: e.message, name: e.name, stack: e.stack, userRole, hasSalesCreatePerm: hasPerm('sales_create') });
     alert('Алдаа: '+e.message);
   }
 };
@@ -6868,11 +6883,13 @@ async function getNextDocNum(type) {
   const countKey = `${type}_${period}`;
   const countRef = doc(db, 'docCounters', countKey);
   let num;
+  console.log('[getNextDocNum] runTransaction эхэллээ, countKey:', countKey);
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(countRef);
     num = (snap.exists() ? snap.data().count : 0) + 1;
     tx.set(countRef, { count: num, period, type, updatedAt: serverTimestamp() }, { merge: true });
   });
+  console.log('[getNextDocNum] runTransaction дууслаа, num:', num);
   const prefix = DOC_PREFIXES[type] || type.toUpperCase();
   return `${prefix}-${period}-${String(num).padStart(6,'0')}`;
 }
