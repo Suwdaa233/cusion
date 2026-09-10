@@ -1469,6 +1469,44 @@ tbody tr:hover td{background:var(--sur2)}
 </div>
 
 <!-- EDIT BANK TRANSACTION MODAL -->
+<!-- ХӨНГӨЛӨЛТ БҮРТГЭХ MODAL -->
+<div class="modal-ov" id="discount-modal">
+  <div class="modal" style="max-width:480px">
+    <div class="mh">
+      <span><i class="ti ti-discount"></i> Хөнгөлөлт бүртгэх</span>
+      <button class="btn bg bxs" onclick="closeModal('discount-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div style="background:var(--sur2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.8">
+        <div>Баримт №: <b id="disc-docnum">—</b></div>
+        <div>Харилцагч: <b id="disc-cust">—</b></div>
+        <div>Борлуулалтын дүн: <b id="disc-total">—</b></div>
+        <div>Өмнөх төлөлт: <b style="color:var(--gr)" id="disc-paid">—</b></div>
+        <div>Өмнөх хөнгөлөлт: <b style="color:var(--am)" id="disc-prev-disc">—</b></div>
+        <div>Одоогийн авлагын үлдэгдэл: <b style="color:var(--am)" id="disc-balance">—</b></div>
+      </div>
+      <div class="fg">
+        <div class="fl"><label>Хөнгөлөлтийн дүн <span style="color:var(--re)">*</span></label>
+          <input type="number" id="disc-amount" min="1" placeholder="0" oninput="validateDiscountAmount()">
+        </div>
+        <div class="fl"><label>Огноо <span style="color:var(--re)">*</span></label>
+          <input type="date" id="disc-date">
+        </div>
+        <div class="fl" style="grid-column:1/-1"><label>Тайлбар / шалтгаан</label>
+          <input type="text" id="disc-note" placeholder="Борлуулалтын дараах нэмэлт хөнгөлөлт">
+        </div>
+      </div>
+      <div id="disc-warn" style="display:none;color:var(--re);font-size:12px;margin-top:6px"></div>
+      <input type="hidden" id="disc-sale-id">
+      <input type="hidden" id="disc-edit-id">
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn bp" id="disc-save-btn" onclick="saveDiscount()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('discount-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-ov" id="edit-bank-txn-modal">
   <div class="modal" style="max-width:520px">
     <div class="mh">
@@ -2073,6 +2111,7 @@ let userRole = 'viewer';
 let customers = [], products = [], locations = [], sales = [], invLogs = [], stockMap = {};
 let reconcileDocs = [];
 let payments = []; // Шинэ payments collection
+let saleDiscounts = []; // Борлуулалтын авлагад олгосон нэмэлт хөнгөлөлт (payment БИШ, cash-д орохгүй)
 let purchases = []; // Худалдан авалт (дотоод)
 // Засах горимын state-үүд — document ID/дугаар өөрчлөгдөхгүй, зөвхөн
 // хуучин movement-ийн нөлөөг буцааж, шинэ утгаар дахин тооцно.
@@ -2211,6 +2250,12 @@ function subscribeAll() {
   onSnapshot(query(collection(db,'payments'),orderBy('paymentDate','desc')), snap=>{
     payments=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderRecvHistory(); renderRecvSummary(); renderDashboard();
+  });
+  onSnapshot(query(collection(db,'saleDiscounts'),orderBy('discountDate','desc')), snap=>{
+    saleDiscounts=snap.docs.map(d=>({id:d.id,...d.data()}));
+    renderRecvHistory(); renderRecvSummary(); renderRecvDetail();
+    const ledgerTab = document.getElementById('rt-ledger');
+    if(ledgerTab && ledgerTab.style.display !== 'none' && typeof renderLedger==='function') renderLedger();
   });
 }
 
@@ -2452,6 +2497,14 @@ window.openSourceDocument = (sourceType, sourceId) => {
       const btn = document.querySelector('.ni[onclick*="receivable"]');
       goSec('receivable', btn||document.querySelector('.ni'));
       setTimeout(()=>{ openDocument('payment', sourceId); }, 150);
+      break;
+    }
+    case 'discount': {
+      const d = saleDiscounts.find(x=>x.id===sourceId);
+      if(!d) { alert('Хөнгөлөлт олдсонгүй'); return; }
+      const btn = document.querySelector('.ni[onclick*="sales"]');
+      goSec('sales', btn||document.querySelector('.ni'));
+      setTimeout(()=>{ if(typeof openEditSale==='function') openEditSale(d.saleId); }, 150);
       break;
     }
     case 'journalEntry': {
@@ -2948,6 +3001,130 @@ window.inlinePayment = async saleId => {
     status:(sale.recv-actual)===0?'paid':'partial',
     payments:[...(sale.payments||[]),{date:pDate,amount:actual,method,note,docNumber:tpNum}]
   });
+};
+
+// ─── ХӨНГӨЛӨЛТ (AR discount adjustment) — payment БИШ, cash/bank-д ОРОХГҮЙ ──
+// Борлуулалт үүссэний ДАРАА авлага дээр олгох нэмэлт хөнгөлөлт. sale.recv-ийг
+// шууд бууруулна (sale.paid/бусад бүх existing UI үүнийг л уншдаг тул
+// нэгдсэн эх сурвалж хэвээр үлдэнэ), sale.discountApplied-д хуримтлуулна.
+window.openDiscountModal = (saleId) => {
+  const sale = sales.find(s=>s.id===saleId); if(!sale) { alert('Борлуулалт олдсонгүй'); return; }
+  document.getElementById('disc-sale-id').value = saleId;
+  document.getElementById('disc-edit-id').value = '';
+  document.getElementById('disc-docnum').textContent = sale.docNumber || sale.id.slice(-6).toUpperCase();
+  document.getElementById('disc-cust').textContent = sale.customerName || '—';
+  document.getElementById('disc-total').textContent = fmt(sale.total);
+  document.getElementById('disc-paid').textContent = fmt(sale.paid);
+  document.getElementById('disc-prev-disc').textContent = fmt(sale.discountApplied||0);
+  document.getElementById('disc-balance').textContent = fmt(sale.recv);
+  document.getElementById('disc-amount').value = '';
+  document.getElementById('disc-date').value = today();
+  document.getElementById('disc-note').value = '';
+  document.getElementById('disc-warn').style.display = 'none';
+  document.getElementById('disc-save-btn').innerHTML = '<i class="ti ti-check"></i>Хадгалах';
+  openModal('discount-modal');
+};
+window.validateDiscountAmount = () => {
+  const saleId = document.getElementById('disc-sale-id').value;
+  const editId = document.getElementById('disc-edit-id').value;
+  const sale = sales.find(s=>s.id===saleId); if(!sale) return;
+  const amt = parseFloat(document.getElementById('disc-amount').value)||0;
+  const warnEl = document.getElementById('disc-warn');
+  let maxAllowed = sale.recv;
+  if(editId) { const old = saleDiscounts.find(d=>d.id===editId); if(old) maxAllowed = sale.recv + (old.amount||0); }
+  if(amt > maxAllowed) {
+    warnEl.textContent = `Хөнгөлөлтийн дүн авлагын үлдэгдлээс (${fmt(maxAllowed)}) их байж болохгүй`;
+    warnEl.style.display = 'block';
+  } else {
+    warnEl.style.display = 'none';
+  }
+};
+window.saveDiscount = async () => {
+  const saleId = document.getElementById('disc-sale-id').value;
+  const editId = document.getElementById('disc-edit-id').value;
+  const sale = sales.find(s=>s.id===saleId);
+  if(!sale) { alert('Борлуулалт олдсонгүй'); return; }
+  const amount = parseFloat(document.getElementById('disc-amount').value)||0;
+  const dDate = document.getElementById('disc-date').value || today();
+  const note = document.getElementById('disc-note').value.trim();
+  if(amount <= 0) { alert('Хөнгөлөлтийн дүн 0-ээс их байна'); return; }
+  try {
+    if(editId) {
+      // ЗАСАХ: хуучин нөлөөг буцааж, шинэ дүнгээр дахин тооцно
+      const old = saleDiscounts.find(d=>d.id===editId);
+      if(!old) { alert('Хөнгөлөлт олдсонгүй'); return; }
+      const restoredRecv = sale.recv + (old.amount||0);
+      if(amount > restoredRecv) { alert(`Хөнгөлөлтийн дүн авлагын үлдэгдлээс (${fmt(restoredRecv)}) их байж болохгүй`); return; }
+      const newRecv = restoredRecv - amount;
+      const newDiscountApplied = Math.max(0, (sale.discountApplied||0) - (old.amount||0) + amount);
+      await updateDoc(doc(db,'saleDiscounts',editId), {
+        amount, discountDate: dDate, note,
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+      await updateDoc(doc(db,'sales',saleId), {
+        recv: newRecv, discountApplied: newDiscountApplied,
+        status: newRecv===0?'paid':'partial'
+      });
+      alert('✅ Хөнгөлөлт амжилттай шинэчлэгдлээ!');
+    } else {
+      if(amount > sale.recv) { alert(`Хөнгөлөлтийн дүн авлагын үлдэгдлээс (${fmt(sale.recv)}) их байж болохгүй`); return; }
+      const docNum = await getNextDocNum('discount');
+      const cust = customers.find(c=>c.id===sale.customerId) || {};
+      await addDoc(collection(db,'saleDiscounts'), {
+        documentNumber: docNum,
+        saleId, customerId: sale.customerId, customerName: sale.customerName||cust.name||'',
+        amount, discountDate: dDate, note,
+        sourceType: 'sales_discount',
+        status: 'active',
+        createdAt: serverTimestamp(), createdBy: currentUser.email,
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+      const newRecv = sale.recv - amount;
+      const newDiscountApplied = (sale.discountApplied||0) + amount;
+      await updateDoc(doc(db,'sales',saleId), {
+        recv: newRecv, discountApplied: newDiscountApplied,
+        status: newRecv===0?'paid':'partial'
+      });
+      alert(`✅ Хөнгөлөлт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
+    }
+    closeModal('discount-modal');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+};
+window.editDiscountModal = (id) => {
+  const d = saleDiscounts.find(x=>x.id===id); if(!d) { alert('Хөнгөлөлт олдсонгүй'); return; }
+  const sale = sales.find(s=>s.id===d.saleId); if(!sale) { alert('Борлуулалт олдсонгүй'); return; }
+  document.getElementById('disc-sale-id').value = d.saleId;
+  document.getElementById('disc-edit-id').value = id;
+  document.getElementById('disc-docnum').textContent = sale.docNumber || sale.id.slice(-6).toUpperCase();
+  document.getElementById('disc-cust').textContent = sale.customerName || '—';
+  document.getElementById('disc-total').textContent = fmt(sale.total);
+  document.getElementById('disc-paid').textContent = fmt(sale.paid);
+  document.getElementById('disc-prev-disc').textContent = fmt(sale.discountApplied||0);
+  document.getElementById('disc-balance').textContent = fmt(sale.recv);
+  document.getElementById('disc-amount').value = d.amount;
+  document.getElementById('disc-date').value = d.discountDate;
+  document.getElementById('disc-note').value = d.note||'';
+  document.getElementById('disc-warn').style.display = 'none';
+  document.getElementById('disc-save-btn').innerHTML = '<i class="ti ti-check"></i>Өөрчлөлт хадгалах';
+  openModal('discount-modal');
+};
+window.cancelDiscount = async (id) => {
+  if(!hasPerm('receivable_create')){ alert('Эрх байхгүй байна'); return; }
+  const d = saleDiscounts.find(x=>x.id===id); if(!d) { alert('Хөнгөлөлт олдсонгүй'); return; }
+  const sale = sales.find(s=>s.id===d.saleId); if(!sale) { alert('Борлуулалт олдсонгүй'); return; }
+  if(!confirm(`${fmt(d.amount)} хөнгөлөлтийг цуцлах уу? Авлагын үлдэгдэл нэмэгдэнэ.`)) return;
+  try {
+    const newRecv = sale.recv + d.amount;
+    const newDiscountApplied = Math.max(0, (sale.discountApplied||0) - d.amount);
+    await updateDoc(doc(db,'saleDiscounts',id), {
+      status: 'cancelled', cancelledAt: serverTimestamp(), cancelledBy: currentUser.email
+    });
+    await updateDoc(doc(db,'sales',d.saleId), {
+      recv: newRecv, discountApplied: newDiscountApplied,
+      status: newRecv===0?'paid':(sale.paid>0?'partial':'unpaid')
+    });
+    alert('✅ Хөнгөлөлт цуцлагдаж, авлага буцаан нэмэгдлээ.');
+  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
 
 // ─── INVENTORY ───────────────────────────────────────────────────────────────
@@ -4729,6 +4906,7 @@ window.renderRecvDetail = () => {
             ${s.recv>0?`<div style="font-size:11px;color:var(--am)">Авлага: ${fmt(s.recv)}</div>`:`<div style="font-size:11px;color:var(--gr)">Бүрэн төлөгдсөн</div>`}
           </div>
           ${s.recv>0&&hasPerm('receivable_create')?`<button class="btn bs bxs" onclick="event.stopPropagation();openPay('${s.id}')"><i class="ti ti-cash"></i>Төлөлт</button>`:''}
+          ${s.recv>0&&hasPerm('receivable_create')?`<button class="btn bg bxs" onclick="event.stopPropagation();openDiscountModal('${s.id}')"><i class="ti ti-discount"></i>Хөнгөлөлт</button>`:''}
           <button class="btn bg bxs" onclick="event.stopPropagation();openInvoice('${s.id}')"><i class="ti ti-file-invoice"></i></button>
           <i class="ti ti-chevron-down" style="color:var(--tx3);font-size:16px" id="rv-ch-${s.id}"></i>
         </div>
@@ -4745,6 +4923,7 @@ window.renderRecvDetail = () => {
           <div style="background:var(--sur2);border-radius:var(--r);padding:8px 10px"><div style="font-size:10px;color:var(--tx3)">Хэрэгсэл</div><div><span class="ba ${MBADGE[s.method]||'bgr2'}" style="font-size:11px">${MLABELS[s.method]||s.method}</span></div></div>
         </div>
         ${(s.payments||[]).length>0?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Төлөлтийн түүх</div><div>${(s.payments||[]).map((pm,i)=>`<div class="pay-hist-row"><span style="color:var(--tx3)">${i+1}. ${pm.date}</span><span class="ba ${MBADGE[pm.method]||'bgr2'}">${MLABELS[pm.method]||pm.method}</span><span style="color:var(--gr);font-weight:600">+${fmt(pm.amount)}</span>${pm.note?`<span style="color:var(--tx3)">${pm.note}</span>`:''}</div>`).join('')}</div></div>`:''}
+        ${saleDiscounts.filter(d=>d.saleId===s.id && d.status!=='cancelled').length>0?`<div style="margin-bottom:8px"><div style="font-size:11px;font-weight:600;color:var(--tx2);margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px">Хөнгөлөлтийн түүх</div><div>${saleDiscounts.filter(d=>d.saleId===s.id && d.status!=='cancelled').map((d,i)=>`<div class="pay-hist-row"><span style="color:var(--tx3)">${i+1}. ${d.discountDate}</span><span class="ba bam2">${d.documentNumber||'Хөнгөлөлт'}</span><span style="color:var(--am);font-weight:600">-${fmt(d.amount)}</span>${d.note?`<span style="color:var(--tx3)">${d.note}</span>`:''}${hasPerm('receivable_create')?`<button class="btn bg bxs" style="font-size:10px" onclick="event.stopPropagation();editDiscountModal('${d.id}')" title="Засах"><i class="ti ti-edit"></i></button><button class="btn bd2 bxs" style="font-size:10px" onclick="event.stopPropagation();cancelDiscount('${d.id}')" title="Цуцлах"><i class="ti ti-x"></i></button>`:''}</div>`).join('')}</div></div>`:''}
         ${s.recv>0&&hasPerm('receivable_create')?`<div style="background:var(--grl);border:1px solid #B8DCA0;border-radius:var(--r);padding:10px 12px">
           <div style="font-size:11px;font-weight:600;color:var(--gr);margin-bottom:8px">Шинэ төлөлт нэмэх</div>
           <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:8px;align-items:end">
@@ -6678,7 +6857,7 @@ function numToWords(n) {
 }
 
 // ─── БАРИМТЫН ДУГААРЛАЛТ ─────────────────────────────────────────────────────
-const DOC_PREFIXES = { sale:'BB', payment:'TP', invoice:'NH', reconcile:'TN', transfer:'TR', stockIn:'BR', stockOut:'BZ', bankImport:'BK', purchase:'HA', importPurchase:'TA' };
+const DOC_PREFIXES = { sale:'BB', payment:'TP', invoice:'NH', reconcile:'TN', transfer:'TR', stockIn:'BR', stockOut:'BZ', bankImport:'BK', purchase:'HA', importPurchase:'TA', discount:'HD' };
 
 async function getNextDocNum(type) {
   const now = new Date();
@@ -6738,7 +6917,7 @@ window.renderLedger = () => {
         <td style="padding:7px 10px;text-align:center;color:var(--tx3)">${m.idx}</td>
         <td style="padding:7px 10px;font-size:11px;color:var(--tx3)">${m.date}</td>
         <td style="padding:7px 10px;font-family:monospace;font-size:11px;cursor:pointer;color:var(--pu)"
-          ${m.saleId ? `onclick="openSourceDocument('sale','${m.saleId}')"` : m.paymentId ? `onclick="openSourceDocument('payment','${m.paymentId}')"` : ''}>${m.docNum}</td>
+          ${m.discountId ? `onclick="openSourceDocument('discount','${m.discountId}')"` : m.saleId ? `onclick="openSourceDocument('sale','${m.saleId}')"` : m.paymentId ? `onclick="openSourceDocument('payment','${m.paymentId}')"` : ''}>${m.docNum}</td>
         <td style="padding:7px 10px;font-size:12px">${m.desc}</td>
         <td style="padding:7px 10px;font-size:12px">${m.type}</td>
         <td style="padding:7px 10px;text-align:right;color:var(--re)">${m.debit ? fmt(m.debit) : ''}</td>
@@ -8171,6 +8350,27 @@ function calculateReceivableStatement({ customerId, startDate, endDate }) {
         });
       });
     }
+  });
+
+  // === ХӨНГӨЛӨЛТ (AR discount adjustment) — payment БИШ, cash/bank-д ОРОХГҮЙ,
+  // тусдаа "Хөнгөлөлт" төрлөөр credit мөр болно (§6-9) ===
+  const custDiscounts = saleDiscounts.filter(d => {
+    if(d.status === 'cancelled') return false;
+    if(customerId && d.customerId !== customerId) return false;
+    return true;
+  });
+  custDiscounts.forEach(d => {
+    txns.push({
+      date:   toDateStr(d.discountDate),
+      sort2:  toDateStr(d.createdAt),
+      docNum: d.documentNumber || '—',
+      desc:   d.note || 'Борлуулалтын хөнгөлөлт',
+      type:   'Хөнгөлөлт',
+      debit:  0,
+      credit: d.amount || 0,
+      discountId: d.id,
+      saleId: d.saleId
+    });
   });
 
   // Эрэмбэлэх
