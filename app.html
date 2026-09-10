@@ -5379,6 +5379,26 @@ function computeReceivableLinkStatus(txn) {
   if(linked < income - 0.01) return 'partial';
   return 'linked';
 }
+
+// ─── CANONICAL CONNECTION-STATUS (Modal БОЛОН Table ХОЁУЛАА ЭНЭ ЛОГИКИЙГ
+// ашиглана — тусдаа зөрчилтэй логик хэрэглэхгүй) ────────────────────────────
+// "Холбогдсон" гэдгийг 3 боломжит холболтын АЛЬ НЭГ нь хангавал ТИЙМ гэж үзнэ:
+//   A. Авлагатай холбогдсон (AR)         — computeReceivableLinkStatus ='linked'/'partial'
+//   B. Зардал ангилсан                   — txn.expenseCategory байна
+//   C. Мөнгөн гүйлгээ ангилсан           — txn.cashFlowCategory байна
+function getBankTransactionConnectionStatus(txn) {
+  const rStatus = computeReceivableLinkStatus(txn);
+  if(rStatus === 'linked' || rStatus === 'partial') {
+    return { isConnected: true, connectionType: 'ar', rStatus };
+  }
+  if(txn.expenseCategory) {
+    return { isConnected: true, connectionType: 'expense', rStatus };
+  }
+  if(txn.cashFlowCategory) {
+    return { isConnected: true, connectionType: 'cashflow', rStatus };
+  }
+  return { isConnected: false, connectionType: 'none', rStatus };
+}
 let trCounter={};
 let trIdx=0;
 let importData=[],importMapped=[],pasteData=[],pasteMapped=[];
@@ -6252,10 +6272,19 @@ window.renderTransactions=()=>{
     const linkedAmt = isInc ? computeTxnLinkedAmount(t) : 0;
     const unlinkedAmt = isInc ? Math.max(0,(t.income||0)-linkedAmt) : 0;
     const rStatus = computeReceivableLinkStatus(t);
-    // Сонгож болох эсэх: import-с ирсэн, дүн>0, аль хэдийн ангилагдаагүй
-    const alreadyClassified = !!t.cashFlowCategory;
+    const connStatus = getBankTransactionConnectionStatus(t);
+    // Сонгож болох эсэх: import-с ирсэн, дүн>0, аль хэдийн ЯМАР Ч холбоосгүй
+    // (AR/зардал/мөнгөн гүйлгээ аль нь ч биш) — canonical connStatus ашиглана
+    const alreadyClassified = connStatus.isConnected;
     const hasAmount = (t.income||0) > 0 || (t.expense||0) > 0;
     const selectable = hasAmount && !alreadyClassified;
+    // Статус badge — 3 холболтын аль нэг байвал "Холбогдсон" (canonical, §6)
+    let statusBadgeHtml;
+    if(rStatus === 'linked' || rStatus === 'partial' || rStatus === 'other' || rStatus === 'expense') {
+      statusBadgeHtml = stBadge[rStatus] || rStatus; // AR-ийн нарийвчилсан badge хэвээр (Бүрэн холбосон/Хэсэгчлэн гэх мэт)
+    } else {
+      statusBadgeHtml = connStatus.isConnected ? stBadge.linked : stBadge.unlinked; // зардал/мөнгөн гүйлгээ ангилсан бол мөн "Холбогдсон"
+    }
     return `<tr>
     <td style="text-align:center">${selectable
       ? `<input type="checkbox" class="txn-bulk-chk" data-id="${t.id}" onclick="event.stopPropagation()" onchange="updateTxnBulkToolbar()">`
@@ -6267,7 +6296,7 @@ window.renderTransactions=()=>{
     <td style="color:var(--re)">${t.expense?fmt(t.expense):''}</td>
     <td style="color:var(--pu);font-weight:500">${isInc&&linkedAmt?fmt(linkedAmt):''}</td>
     <td style="color:var(--am)">${isInc&&unlinkedAmt?fmt(unlinkedAmt):''}</td>
-    <td style="white-space:nowrap;cursor:pointer" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">${stBadge[rStatus]||rStatus}</td>
+    <td style="white-space:nowrap;cursor:pointer" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')">${statusBadgeHtml}</td>
     <td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="${isInc?'openIncLinkModal':'openExpLinkModal'}('${t.id}')" title="Холболт засах" style="font-size:11px"><i class="ti ti-edit"></i></button>
       <button class="btn bg bxs" onclick="editBankTxnFull('${t.id}')" title="Гүйлгээ засах" style="font-size:11px"><i class="ti ti-pencil"></i></button>
@@ -8826,12 +8855,12 @@ window.editBankTxnFull = (id) => {
       `<option value="${a.id}" ${a.id === txn.accountId ? 'selected' : ''}>${a.bankName} — ${a.accountNumber}</option>`
     ).join('');
 
-  // ─── ХОЛБОЛТЫН МЭДЭЭЛЭЛ (§3) ────────────────────────────────────────────
+  // ─── ХОЛБОЛТЫН МЭДЭЭЛЭЛ (§3) — Table-тэй ЯГ АДИЛ canonical helper ашиглана ──
   const linkInfoEl = document.getElementById('ebt-link-info');
   if(linkInfoEl) {
-    const rStatus = computeReceivableLinkStatus(txn);
+    const conn = getBankTransactionConnectionStatus(txn);
     let html = '';
-    if(rStatus === 'linked' || rStatus === 'partial') {
+    if(conn.connectionType === 'ar') {
       // AR/авлагатай холбогдсон — payments collection-оос дэлгэрэнгүйг олно
       const pm = payments.find(p => p.bankTransactionId === txn.id && !p.isCancelled && p.status !== 'cancelled');
       const linkedAmt = computeTxnLinkedAmount(txn);
@@ -8845,13 +8874,13 @@ window.editBankTxnFull = (id) => {
         <div>Авлагын/борлуулалтын баримт №: <b>${docNums}</b></div>
         <div>Холбосон дүн: <b style="color:var(--pu)">${fmt(linkedAmt)}</b> &nbsp; Үлдэгдэл: <b style="color:${balance>0?'var(--am)':'var(--gr)'}">${fmt(balance)}</b></div>
       </div>`;
-    } else if(txn.expenseCategory) {
+    } else if(conn.connectionType === 'expense') {
       html = `<div style="padding:10px 12px;background:var(--sur2);border-radius:var(--r);font-size:12px">
         <div style="font-weight:700;margin-bottom:4px"><i class="ti ti-tag"></i> Холболтын мэдээлэл</div>
         <div>Холбогдсон эсэх: <b>Тийм</b> &nbsp; Холболтын төрөл: <b>Зардал ангилсан</b></div>
         <div>Зардлын ангилал: <b>${txn.expenseCategory}</b> &nbsp; Мөнгөн гүйлгээний үзүүлэлт: <b>${txn.cashFlowCategory||'—'}</b></div>
       </div>`;
-    } else if(txn.cashFlowCategory) {
+    } else if(conn.connectionType === 'cashflow') {
       html = `<div style="padding:10px 12px;background:var(--sur2);border-radius:var(--r);font-size:12px">
         <div style="font-weight:700;margin-bottom:4px"><i class="ti ti-arrows-exchange"></i> Холболтын мэдээлэл</div>
         <div>Холбогдсон эсэх: <b>Тийм</b> &nbsp; Холболтын төрөл: <b>Мөнгөн гүйлгээ ангилсан</b></div>
