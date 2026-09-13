@@ -2241,6 +2241,7 @@ function subscribeCoreFinancial() {
 // accountId сонгосон бол composite index ШААРДАГДАЖ БОЛЗОШГҮЙ — Firestore
 // Console-д линктэй алдаа гарвал тэр индексийг үүсгэнэ үү (§13).
 let lastBankTxnsScope = null;
+let bankTxnsQueryFailed = false; // query bodit fail болсон эсэхийг хадгалах — "Гүйлгээ байхгүй" биш "Алдаа гарлаа" харуулна
 function subscribeBankTxns(accountId, from, to) {
   const scopeKey = `${accountId}|${from}|${to}`;
   if(scopeKey === lastBankTxnsScope && unsubBankTxns) return; // ижил хамрах хүрээ — дахин subscribe хийхгүй
@@ -2252,11 +2253,21 @@ function subscribeBankTxns(accountId, from, to) {
   if(to)   conditions.push(where('date','<=',to));
   const q = query(collection(db,'bankTxns'), ...conditions, orderBy('date','desc'));
   unsubBankTxns = onSnapshot(q, snap=>{
+    bankTxnsQueryFailed = false;
     bankTxns=snap.docs.map(d=>({id:d.id,...d.data()}));
     renderTransactions();
     if(typeof renderImportBatchesList==='function') renderImportBatchesList();
   }, err => {
-    console.error('[subscribeBankTxns] алдаа (composite index шаардаж болзошгүй):', err);
+    // §1: error.code/message бүрэн log — composite index root cause батлах
+    console.error('[subscribeBankTxns ERROR]', { code: err.code, message: err.message, accountId, from, to });
+    if(err.code === 'failed-precondition' || /requires an index/i.test(err.message||'')) {
+      console.error('[subscribeBankTxns] COMPOSITE INDEX ШААРДЛАГАТАЙ. Дараах URL-ээр Firestore Console дээр индекс үүсгэнэ үү (алдааны текст дотор байгаа бол):', err.message);
+    }
+    // §2: хуучин bankTxns-ийг "одоогийн үр дүн" гэж ашиглахгүй — query fail төлөвийг тэмдэглээд
+    // тодорхой алдааны мессеж харуулна ("Гүйлгээ байхгүй" биш).
+    bankTxnsQueryFailed = true;
+    bankTxns = [];
+    renderTransactions();
   });
 }
 
@@ -6279,7 +6290,7 @@ window.handleImportFile = async (input) => {
   try {
     const XLSX = await import('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/xlsx.mjs');
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = async (e) => {
       try {
         const wb = XLSX.read(e.target.result, { type: 'binary', cellDates: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
@@ -6288,7 +6299,7 @@ window.handleImportFile = async (input) => {
         // Хаан банкны формат автомат таних
         const fmt = detectKhanBankFormat(rows);
         if(fmt) {
-          processKhanBankRows(rows, fmt, accountId, file.name);
+          await processKhanBankRows(rows, fmt, accountId, file.name);
         } else {
           // Автомат таниагүй бол хэрэглэгчид мэдэгдэх
           alert('Хаан банкны хуулгын формат таньж чадсангүй.\nExcel файлын 8-р мөрт "Гүйлгээний огноо" гэсэн гарчиг байх ёстой.');
@@ -6299,9 +6310,38 @@ window.handleImportFile = async (input) => {
   } catch(err) { alert('XLSX library ачаалахад алдаа: ' + err.message); }
 };
 
-function processKhanBankRows(rows, fmt, accountId, importFileName) {
+// §6: Устгагдсан (soft-deleted) гүйлгээг davхардал гэж ТООЦОХГҮЙ (§7) —
+// key: date|income|expense|description
+async function buildDupCheckSet(accountId, minDate, maxDate) {
+  let snap;
+  try {
+    snap = await getDocs(query(collection(db,'bankTxns'),
+      where('accountId','==',accountId),
+      where('date','>=',minDate),
+      where('date','<=',maxDate)
+    ));
+  } catch(e) {
+    console.warn('[buildDupCheckSet] composite query алдаа (индекс дутуу байж болзошгүй), accountId-аар л fallback:', e.code, e.message);
+    try {
+      snap = await getDocs(query(collection(db,'bankTxns'), where('accountId','==',accountId)));
+    } catch(e2) {
+      console.error('[buildDupCheckSet] fallback query ч бүтэлгүйтлээ:', e2);
+      return null; // duplicate шалгах боломжгүй — дуудсан тал анхаарна
+    }
+  }
+  const dupSet = new Set();
+  snap.docs.forEach(d => {
+    const t = d.data();
+    if(t.status === 'deleted' || t.isDeleted) return; // §7: устгагдсан мөрийг давхардал гэж тооцохгүй
+    const key = `${t.date}|${Math.round(t.income||0)}|${Math.round(t.expense||0)}|${(t.description||'').trim()}`;
+    dupSet.add(key);
+  });
+  return dupSet;
+}
+
+async function processKhanBankRows(rows, fmt, accountId, importFileName) {
   const dataRows = rows.slice(fmt.dataStart);
-  const result = [];
+  const parsed = [];
 
   for(const row of dataRows) {
     if(!row || !row[0]) continue; // Хоосон мөр
@@ -6322,28 +6362,24 @@ function processKhanBankRows(rows, fmt, accountId, importFileName) {
 
     if(income === 0 && expense === 0) continue; // Хөдөлгөөнгүй мөр
 
-    // Давхардах шалгалт
-    const isDup = bankTxns.some(t =>
-      t.accountId === accountId &&
-      t.date === dateStr &&
-      Math.abs(t.income - income) < 1 &&
-      Math.abs(t.expense - expense) < 1 &&
-      t.description === desc
-    );
-
-    result.push({
-      date: dateStr,
-      description: desc,
-      income,
-      expense,
-      balance,
-      counterAccount: counter,
-      source: 'excel_khan',
-      accountId,
-      importFileName,
-      isDup
-    });
+    parsed.push({ date: dateStr, description: desc, income, expense, balance, counterAccount: counter, source:'excel_khan', accountId, importFileName });
   }
+
+  if(parsed.length === 0) { importMapped = []; showImportPreview([]); return; }
+
+  // §6: Импортын файлын бодит min/max огноогоор НЭГ scoped Firestore query
+  const dates = parsed.map(r => r.date).sort();
+  const minDate = dates[0], maxDate = dates[dates.length-1];
+  const dupSet = await buildDupCheckSet(accountId, minDate, maxDate);
+  if(dupSet === null) {
+    alert('⚠️ Давхардал шалгах query амжилтгүй боллоо. Аюулгүйн үүднээс импортыг цуцаллаа — дахин оролдоно уу.');
+    return;
+  }
+
+  const result = parsed.map(r => {
+    const key = `${r.date}|${Math.round(r.income)}|${Math.round(r.expense)}|${r.description.trim()}`;
+    return { ...r, isDup: dupSet.has(key) };
+  });
 
   importMapped = result;
   showImportPreview(result);
@@ -6568,13 +6604,19 @@ window.renderTransactions=()=>{
   const unclSumEl = document.getElementById('txn-uncl-summary');
   if(unclSumEl) {
     const total = unclInc.length + unclExp.length + partExp.length;
-    unclSumEl.innerHTML = total === 0
-      ? '<span style="color:var(--gr);font-size:12px"><i class="ti ti-circle-check"></i> Бүх гүйлгээ ангилагдсан</span>'
-      : `<span style="font-size:12px;color:var(--tx2)">
+    if(bankTxnsQueryFailed) {
+      unclSumEl.innerHTML = '<span style="color:var(--re);font-size:12px"><i class="ti ti-alert-triangle"></i> Гүйлгээ ачаалахад алдаа гарлаа</span>';
+    } else if(allTxns.length === 0) {
+      unclSumEl.innerHTML = '<span style="color:var(--tx3);font-size:12px"><i class="ti ti-inbox"></i> Гүйлгээ байхгүй</span>';
+    } else if(total === 0) {
+      unclSumEl.innerHTML = '<span style="color:var(--gr);font-size:12px"><i class="ti ti-circle-check"></i> Бүх гүйлгээ ангилагдсан</span>';
+    } else {
+      unclSumEl.innerHTML = `<span style="font-size:12px;color:var(--tx2)">
           Ангилаагүй орлого: <b style="color:var(--am)">${unclInc.length}ш (${fmt(unclInc.reduce((a,t)=>a+t.income,0))})</b> &nbsp;
           Ангилаагүй зарлага: <b style="color:var(--re)">${unclExp.length}ш (${fmt(unclExp.reduce((a,t)=>a+t.expense,0))})</b> &nbsp;
           Дутуу: <b style="color:var(--am)">${partExp.length}ш</b>
          </span>`;
+    }
   }
 
   const sumEl = document.getElementById('txn-summary');
@@ -6589,7 +6631,12 @@ window.renderTransactions=()=>{
         <div class="mc"><div class="ml">Холбогдоогүй</div><div class="mv am">${fmt(totalUnlnk)}</div></div>`;
     }
   }
-  if(list.length===0){tbody.innerHTML='<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';return;}
+  if(list.length===0){
+    tbody.innerHTML = bankTxnsQueryFailed
+      ? '<tr><td colspan="8"><div class="empty" style="color:var(--re)"><i class="ti ti-alert-triangle"></i> Гүйлгээ ачаалахад алдаа гарлаа</div></td></tr>'
+      : '<tr><td colspan="8"><div class="empty">Гүйлгээ байхгүй</div></td></tr>';
+    return;
+  }
   tbody.innerHTML=list.map(t=>{
     const isInc = (t.income||0) > 0;
     const rStatus = computeReceivableLinkStatus(t);
@@ -9111,41 +9158,69 @@ window.confirmDeleteImportBatch = (batchId) => {
 
 window.deleteImportBatch = async (batchId) => {
   closeModal('delete-import-batch-modal');
-  const list = getImportBatches();
-  const g = list.find(x=>x.batchId===batchId);
-  if(!g) { alert('Импортын багц олдсонгүй'); return; }
+  try {
+    // §4: Firestore-с ШУУД query хий — local bankTxns array-д НАЙДАХГҮЙ.
+    // Шинэ импорт бүгд importBatchId-тай, харин docNumber ч ижилхэн байдаг
+    // (§8-ийн fallback архитектур) тул хоёуланг нь шалгана.
+    const [byBatchId, byDocNum] = await Promise.all([
+      getDocs(query(collection(db,'bankTxns'), where('importBatchId','==',batchId))),
+      getDocs(query(collection(db,'bankTxns'), where('docNumber','==',batchId)))
+    ]);
+    const seen = new Set();
+    const allDocs = [];
+    [...byBatchId.docs, ...byDocNum.docs].forEach(d => { if(!seen.has(d.id)) { seen.add(d.id); allDocs.push(d); } });
+    // Аль хэдийн soft-deleted мөрийг дахин боловсруулахгүй
+    const activeDocs = allDocs.filter(d => { const data = d.data(); return data.status !== 'deleted' && !data.isDeleted; });
 
-  const total = g.rows.length;
-  let succeeded = 0;
-  const failed = [];
+    const found = allDocs.length;
+    const toProcess = activeDocs.length;
+    console.log('[BATCH DELETE] expected =', found, '(идэвхтэй:', toProcess, ')');
 
-  for(const txn of g.rows) {
-    try {
-      const linkStatus = computeReceivableLinkStatus(txn);
-      if(linkStatus === 'linked' || linkStatus === 'partial') {
-        await unlinkBankTxnInternal(txn.id, `Импортын багц (${g.fileName||batchId}) устгагдсанаар автоматаар салгагдсан`);
+    if(found === 0) { alert('Импортын багц Firestore дээр олдсонгүй (аль хэдийн устгагдсан байж болзошгүй)'); return; }
+
+    let succeeded = 0;
+    const failed = [];
+    const fileNameForLog = allDocs[0]?.data()?.importFileName || '';
+
+    for(const d of activeDocs) {
+      const txn = { id: d.id, ...d.data() };
+      try {
+        const linkStatus = computeReceivableLinkStatus(txn);
+        if(linkStatus === 'linked' || linkStatus === 'partial') {
+          await unlinkBankTxnInternal(txn.id, `Импортын багц (${fileNameForLog||batchId}) устгагдсанаар автоматаар салгагдсан`);
+        }
+        await updateDoc(doc(db,'bankTxns',txn.id), {
+          status: 'deleted', isDeleted: true,
+          deletedAt: serverTimestamp(), deletedBy: currentUser.email,
+          deletedViaBatch: batchId
+        });
+        succeeded++;
+      } catch(e) {
+        console.error('[BATCH DELETE] мөр алдаа:', txn.id, e);
+        failed.push({ id: txn.id, error: e.message });
       }
-      await updateDoc(doc(db,'bankTxns',txn.id), {
-        status: 'deleted', isDeleted: true,
-        deletedAt: serverTimestamp(), deletedBy: currentUser.email,
-        deletedViaBatch: batchId
-      });
-      succeeded++;
-    } catch(e) {
-      console.error('Batch delete алдаа:', txn.id, e);
-      failed.push({ id: txn.id, error: e.message });
     }
-  }
+    console.log('[BATCH DELETE] processed =', succeeded, '/ failed =', failed.length);
 
-  await writeGenericAuditLog('bank_import_batch_deleted', {
-    importBatchId: batchId, fileName: g.fileName, totalRows: total, succeeded, failedCount: failed.length
-  });
+    // §5: Устгасны дараа Firestore-с ДАХИН query хийж баталгаажуулна
+    const verifySnap = await getDocs(query(collection(db,'bankTxns'), where('importBatchId','==',batchId)));
+    const remainingActive = verifySnap.docs.filter(d => { const data = d.data(); return data.status !== 'deleted' && !data.isDeleted; }).length;
+    console.log('[BATCH DELETE] remaining active =', remainingActive);
 
-  if(failed.length === 0) {
-    alert(`✅ ${succeeded} гүйлгээтэй импортын багц амжилттай устгагдлаа.`);
-  } else {
-    // Хэзээ ч "бүрэн амжилттай" гэж худал мэдэгдэхгүй — яг хэдэн нь амжилттай/амжилтгүйг тодорхой харуулна
-    alert(`⚠️ Багц дутуу устгагдлаа!\n${succeeded}/${total} гүйлгээ амжилттай устгагдав.\n${failed.length} гүйлгээ дээр алдаа гарлаа — дахин оролдоно уу эсвэл нэг мөрөөр устгана уу.`);
+    await writeGenericAuditLog('bank_import_batch_deleted', {
+      importBatchId: batchId, fileName: fileNameForLog, found, processed: succeeded, failedCount: failed.length, remainingActive
+    });
+
+    if(remainingActive > 0) {
+      alert(`⚠️ Багц бүрэн устгагдаагүй!\n${succeeded}/${toProcess} мөр боловсруулав.\nУстгагдаагүй ${remainingActive} мөр Firestore дээр ХЭВЭЭР БАЙНА — "Амжилттай" гэж БУРУУ мэдэгдэхгүй.`);
+    } else if(failed.length > 0) {
+      alert(`⚠️ Багц дутуу устгагдлаа!\n${succeeded}/${toProcess} гүйлгээ амжилттай устгагдав.\n${failed.length} гүйлгээ дээр алдаа гарлаа.`);
+    } else {
+      alert(`✅ ${succeeded} гүйлгээтэй импортын багц Firestore дээр бүрэн устгагдлаа (баталгаажсан).`);
+    }
+  } catch(e) {
+    console.error('[BATCH DELETE] ерөнхий алдаа:', e);
+    alert('Устгах явцад алдаа гарлаа: ' + e.message);
   }
   if(typeof renderImportBatchesList==='function') renderImportBatchesList();
   if(typeof renderTransactions==='function') renderTransactions();
