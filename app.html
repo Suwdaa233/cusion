@@ -2428,24 +2428,33 @@ function computeWeightedAvgCost(pid, incomingQty, incomingUnitCost, localQtyOver
   const currentQty = (typeof localQtyOverride === 'number') ? localQtyOverride : totByProd(pid);
   const denom = currentQty + incomingQty;
 
+  console.log('[COST LIVE] initial product.cost =', currentAvgCost);
+  console.log('[COST LIVE] currentQty =', currentQty);
+  console.log('[COST LIVE] incomingQty =', incomingQty);
+  console.log('[COST LIVE] incomingUnitCost =', incomingUnitCost);
+
   if(currentQty < 0) {
     console.warn('[COST ANOMALY]', {
       productId: pid, productName: p ? `${p.name}·${p.variant}` : pid,
       currentQty, incomingQty, incomingUnitCost, existingCost: currentAvgCost
     });
+    console.log('[COST LIVE] calculatedAvg = ANOMALY (currentQty<0, cost хэвээр)');
     return { newCost: currentAvgCost, anomaly: true, currentQty, denom };
   }
   if(denom <= 0 || !isFinite(denom)) {
     // currentQty>=0 боловч аль нэг талын утга буруу (жишээ incomingQty<=0) —
     // NaN/Infinity-ээс сэргийлж хуучин cost-ыг хэвээр үлдээнэ.
     console.warn('[COST ANOMALY] denom<=0, weighted average бодохгүй', { productId: pid, currentQty, incomingQty, denom });
+    console.log('[COST LIVE] calculatedAvg = ANOMALY (denom<=0, cost хэвээр)');
     return { newCost: currentAvgCost, anomaly: true, currentQty, denom };
   }
   let newAvg = (currentQty*currentAvgCost + incomingQty*incomingUnitCost) / denom;
   if(!isFinite(newAvg) || isNaN(newAvg) || newAvg < 0) {
     console.warn('[COST ANOMALY] тооцоолол NaN/Infinity/сөрөг гарлаа', { productId: pid, currentQty, currentAvgCost, incomingQty, incomingUnitCost, newAvg });
+    console.log('[COST LIVE] calculatedAvg = ANOMALY (NaN/Infinity/сөрөг, cost хэвээр)');
     return { newCost: currentAvgCost, anomaly: true, currentQty, denom };
   }
+  console.log('[COST LIVE] calculatedAvg =', Math.round(newAvg));
   return { newCost: Math.round(newAvg), anomaly: false, currentQty, denom };
 }
 
@@ -3029,6 +3038,8 @@ window.submitSale = async () => {
   const items=rows.map(r=>{
     const p=products.find(x=>x.id===r.pid);
     const unitCost=p?.cost||0;
+    console.log('[SALE COST] product.cost before sale =', p?.cost);
+    console.log('[SALE COST] item.unitCost =', unitCost);
     const lineSubtotal=r.price*r.qty;
     const discountAmount=r.discAmt||0;
     const lineTotal=lineSubtotal-discountAmount;
@@ -3047,6 +3058,7 @@ window.submitSale = async () => {
       unitCost,costAmount:Math.round(unitCost*r.qty)
     };
   });
+  items.forEach(it => console.log('[SALE COST] item.costAmount =', it.costAmount));
   try {
     console.log('[SALE SAVE] 1 start');
     console.log('[SALE SAVE] 2 validate — rows:', rows.length, 'cust:', cid, 'loc:', lid);
@@ -3427,6 +3439,7 @@ window.submitIn = async () => {
       localQtyTrack[r.pid] = baseQty + r.qty;
       if(anomaly) { const p=products.find(x=>x.id===r.pid); costAnomalies.push(p?.variant||r.pid); continue; }
       await updateDoc(doc(db,'products',r.pid), { cost: newCost });
+      console.log('[COST LIVE] product.cost after update (Орлого) =', newCost);
     }
     const stockChanges=rows.map(r=>({pid:r.pid,lid,delta:r.qty}));
     await updateStock(stockChanges);
@@ -3748,6 +3761,7 @@ window.submitPurchase = async () => {
       localQtyTrack[it.productId] = baseQty + it.quantity;
       if(anomaly) { costAnomalies.push(it.productName); continue; }
       await updateDoc(doc(db,'products',it.productId), { cost: newCost });
+      console.log('[COST LIVE] product.cost after update (Худалдан авалт) =', newCost);
     }
     const stockChanges = items.map(it=>({pid:it.productId, lid, delta:it.quantity}));
     await updateStock(stockChanges);
@@ -4069,6 +4083,7 @@ window.submitImportPurchase = async () => {
       localQtyTrack[it.productId] = baseQty + it.quantity;
       if(anomaly) { costAnomalies.push(it.productName); continue; }
       await updateDoc(doc(db,'products',it.productId), { cost: newCost });
+      console.log('[COST LIVE] product.cost after update (Татан авалт) =', newCost);
     }
     const stockChanges = items.map(it=>({pid:it.productId, lid, delta:it.quantity}));
     await updateStock(stockChanges);
