@@ -1471,6 +1471,41 @@ tbody tr:hover td{background:var(--sur2)}
 
 <!-- EDIT BANK TRANSACTION MODAL -->
 <!-- ХӨНГӨЛӨЛТ БҮРТГЭХ MODAL -->
+<!-- ӨРТГИЙН ЭХНИЙ ТОХИРУУЛГА MODAL -->
+<div class="modal-ov" id="cost-init-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="mh">
+      <span><i class="ti ti-adjustments"></i> Өртгийн эхний тохируулга</span>
+      <button class="btn bg bxs" onclick="closeModal('cost-init-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px">
+      <div style="background:var(--sur2);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:12px;line-height:1.8">
+        <div>Барааны нэр: <b id="ci-name">—</b></div>
+        <div>Одоогийн үлдэгдэл: <b id="ci-qty">—</b></div>
+        <div>Одоогийн product.cost: <b id="ci-old-cost">—</b></div>
+      </div>
+      <div class="fg">
+        <div class="fl" style="grid-column:1/-1"><label>Шинэ бодит дундаж өртөг <span style="color:var(--re)">*</span></label>
+          <input type="number" id="ci-new-cost" min="0" placeholder="0">
+        </div>
+        <div class="fl" style="grid-column:1/-1"><label>Тайлбар</label>
+          <input type="text" id="ci-note" placeholder="Жишээ: Хуучин 'Орлого'-ийн cost мэдээлэлгүй байсан тул гар аргаар тохируулав">
+        </div>
+      </div>
+      <div style="background:var(--aml);border-radius:var(--r);padding:8px 12px;margin-top:8px;font-size:11px;color:var(--am)">
+        <i class="ti ti-info-circle"></i> Энэ үйлдэл барааны үлдэгдэл (qty), борлуулалтын түүх, худалдан
+        авалт/татан авалтын баримтад ХҮРЭХГҮЙ — зөвхөн цаашдын weighted average тооцооллын шинэ
+        эхлэлийг л тогтооно.
+      </div>
+      <input type="hidden" id="ci-pid">
+      <div style="display:flex;gap:8px;margin-top:14px">
+        <button class="btn bp" onclick="saveCostInit()"><i class="ti ti-check"></i>Хадгалах</button>
+        <button class="btn bg" onclick="closeModal('cost-init-modal')">Цуцлах</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-ov" id="discount-modal">
   <div class="modal" style="max-width:480px">
     <div class="mh">
@@ -3085,6 +3120,43 @@ window.deleteProduct = async id => {
   } catch(e) { alert('Алдаа: '+e.message); }
 };
 
+// ─── ӨРТГИЙН ЭХНИЙ ТОХИРУУЛГА (Cost Initialization) — §4 ─────────────────────
+// Stock qty/sales history/purchase-import баримт огт хөндөгдөхгүй, зөвхөн
+// цаашдын weighted average-ийн шинэ эхлэлийг л product.cost дээр тогтооно.
+window.openCostInitModal = (pid) => {
+  const p = products.find(x=>x.id===pid); if(!p) { alert('Бараа олдсонгүй'); return; }
+  document.getElementById('ci-pid').value = pid;
+  document.getElementById('ci-name').textContent = `${p.name}·${p.variant}`;
+  document.getElementById('ci-qty').textContent = totByProd(pid) + 'ш';
+  document.getElementById('ci-old-cost').textContent = fmt(p.cost||0);
+  document.getElementById('ci-new-cost').value = '';
+  document.getElementById('ci-note').value = '';
+  openModal('cost-init-modal');
+};
+window.saveCostInit = async () => {
+  if(!hasPerm('inventory_edit')){ alert('Эрх байхгүй байна'); return; }
+  const pid = document.getElementById('ci-pid').value;
+  const p = products.find(x=>x.id===pid); if(!p) { alert('Бараа олдсонгүй'); return; }
+  const newCost = parseFloat(document.getElementById('ci-new-cost').value);
+  const note = document.getElementById('ci-note').value.trim();
+  if(!newCost || newCost <= 0) { alert('Шинэ дундаж өртгийг 0-ээс их утгаар оруулна уу'); return; }
+  const oldCost = p.cost || 0;
+  const qtySnapshot = totByProd(pid);
+  try {
+    // Зөвхөн product.cost — qty/sales/purchase/import баримт ХӨНДӨГДӨХГҮЙ
+    await updateDoc(doc(db,'products',pid), { cost: newCost });
+    await addDoc(collection(db,'costInitializations'), {
+      type: 'costInitialization',
+      productId: pid, productName: `${p.name}·${p.variant}`,
+      oldCost, newCost, qtySnapshot,
+      date: today(), note,
+      createdBy: currentUser.email, createdAt: serverTimestamp()
+    });
+    closeModal('cost-init-modal');
+    alert(`✅ "${p.name}·${p.variant}"-ийн дундаж өртөг ${fmt(oldCost)} → ${fmt(newCost)} болж тохируулагдлаа.\nҮлдэгдэл (${qtySnapshot}ш), борлуулалт/баримт огт хөндөгдөөгүй.`);
+  } catch(e) { alert('Алдаа: '+e.message); }
+};
+
 window.deleteSale = async id => {
   if(!hasPerm('sales_create')){alert('Борлуулалт бүртгэх эрх байхгүй байна');return;}
   if(!confirm('Устгах уу?')) return;
@@ -3316,8 +3388,9 @@ window.submitIn = async () => {
   document.querySelectorAll('#in-rows .inventory-item-row').forEach(row=>{
     const pid=row.querySelector('.row-prod-sel').value;
     const qty=parseInt(row.querySelector('.ir-qty').value)||0;
+    const unitCost=parseFloat(row.querySelector('.ir-cost')?.value)||0;
     if(!pid||qty<=0)return;
-    rows.push({pid,qty}); added++;
+    rows.push({pid,qty,unitCost}); added++;
   });
   if(!added){alert('Бараa болон тоо оруулна уу');return;}
   try {
@@ -3330,7 +3403,7 @@ window.submitIn = async () => {
       await updateStock([...reverseChanges, ...newChanges]);
       for(const r of rows){
         const p=products.find(x=>x.id===r.pid);
-        await addDoc(collection(db,'invLogs'),{docNumber:docNum,date:iDate,type:'in',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:r.qty,note:`${docNum} — ${note||'Орлого'} (засварласан)`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+        await addDoc(collection(db,'invLogs'),{docNumber:docNum,date:iDate,type:'in',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:r.qty,unitCost:r.unitCost||0,amount:Math.round((r.unitCost||0)*r.qty),note:`${docNum} — ${note||'Орлого'} (засварласан)`,createdBy:currentUser.email,createdAt:serverTimestamp()});
       }
       await writeGenericAuditLog('inventory_in_edited', { documentNumber: docNum, before: oldRows.map(l=>({productId:l.productId,qty:l.qty})), after: rows });
       editingInOutType = null; editingInOutDocNumber = null;
@@ -3342,15 +3415,32 @@ window.submitIn = async () => {
       return;
     }
     const docNum = await getNextDocNum('stockIn');
+    // §2: MOVING WEIGHTED AVERAGE COST — Худалдан авалт/Татан авалттай ижил engine.
+    // Хэрэглэгч unitCost=0 (эсвэл хоосон) орхивол cost шинэчлэлт огт хийхгүй (§зарчим:
+    // 0 гэсэн утга нь "мэдэгдэхгүй" гэсэн санамсаргүй cost-ыг product.cost-руу бичихээс сэргийлнэ).
+    const localQtyTrack = {};
+    const costAnomalies = [];
+    for(const r of rows) {
+      if(!r.unitCost || r.unitCost <= 0) continue; // Cost оруулаагүй бол weighted average-д оролцохгүй
+      const baseQty = (localQtyTrack[r.pid] !== undefined) ? localQtyTrack[r.pid] : totByProd(r.pid);
+      const { newCost, anomaly } = computeWeightedAvgCost(r.pid, r.qty, r.unitCost, baseQty);
+      localQtyTrack[r.pid] = baseQty + r.qty;
+      if(anomaly) { const p=products.find(x=>x.id===r.pid); costAnomalies.push(p?.variant||r.pid); continue; }
+      await updateDoc(doc(db,'products',r.pid), { cost: newCost });
+    }
     const stockChanges=rows.map(r=>({pid:r.pid,lid,delta:r.qty}));
     await updateStock(stockChanges);
     for(const r of rows){
       const p=products.find(x=>x.id===r.pid);
-      await addDoc(collection(db,'invLogs'),{docNumber:docNum,date:iDate,type:'in',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:r.qty,note:`${docNum} — ${note||'Орлого'}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      await addDoc(collection(db,'invLogs'),{docNumber:docNum,date:iDate,type:'in',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:r.qty,unitCost:r.unitCost||0,amount:Math.round((r.unitCost||0)*r.qty),note:`${docNum} — ${note||'Орлого'}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
     }
     document.getElementById('in-rows').innerHTML=''; document.getElementById('in-note').value='';
     addInRow(); document.getElementById('in-date').value=today();
-    alert('Орлого амжилттай бүртгэгдлээ!');
+    if(costAnomalies.length > 0) {
+      alert(`Орлого амжилттай бүртгэгдлээ!\n\n⚠️ Сөрөг үлдэгдэлтэй тул дараах барааны дундаж өртөг автоматаар шинэчлэгдсэнгүй:\n${costAnomalies.join(', ')}`);
+    } else {
+      alert('Орлого амжилттай бүртгэгдлээ!');
+    }
   } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
 window.editInGroup = (docNumber) => {
@@ -3369,6 +3459,7 @@ window.editInGroup = (docNumber) => {
     const row = rowsEl.lastElementChild;
     row.querySelector('.row-prod-sel').value = l.productId;
     row.querySelector('.ir-qty').value = Math.abs(l.qty);
+    const costEl = row.querySelector('.ir-cost'); if(costEl) costEl.value = l.unitCost || '';
   });
   populateSels();
   document.getElementById('in-form-mode-banner')?.remove();
@@ -5526,6 +5617,7 @@ window.renderProducts = () => {
     <td style="font-size:11px;color:var(--tx3)">${p.note||'—'}</td>
     <td style="white-space:nowrap">
       <button class="btn bg bxs" onclick="editProduct('${p.id}')"><i class="ti ti-edit"></i></button>
+      ${hasPerm('inventory_edit')?`<button class="btn bg bxs" onclick="openCostInitModal('${p.id}')" title="Өртгийн эхний тохируулга"><i class="ti ti-adjustments"></i></button>`:''}
       ${hasPerm('inventory_delete')?`<button class="btn bd2 bxs" onclick="deleteProduct('${p.id}')"><i class="ti ti-trash"></i></button>`:''}
     </td>
   </tr>`).join('');
