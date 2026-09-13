@@ -2381,6 +2381,39 @@ async function updateStock(changes) {
   await setDoc(ref, payload, {merge:true});
 }
 function totByProd(pid){ return locations.reduce((a,l)=>a+gst(pid,l.id),0); }
+
+// ─── MOVING WEIGHTED AVERAGE COST (шинэ бараа орж ирэх бүрд product.cost-г
+// шинэчилнэ) — зөвхөн Худалдан авалт/Татан авалт ШИНЭЭР бүртгэх үед л
+// дуудагдана (Edit/Delete-д ХҮРЭХГҮЙ, §6-ийн шийдвэрийн дагуу).
+// Буцаах утга: { newCost, anomaly } — anomaly=true бол product.cost-г
+// ӨӨРЧЛӨХГҮЙ (currentQty<0 үед), зөвхөн Console anomaly log + UI warning.
+function computeWeightedAvgCost(pid, incomingQty, incomingUnitCost, localQtyOverride) {
+  const p = products.find(x=>x.id===pid);
+  const currentAvgCost = p?.cost || 0;
+  const currentQty = (typeof localQtyOverride === 'number') ? localQtyOverride : totByProd(pid);
+  const denom = currentQty + incomingQty;
+
+  if(currentQty < 0) {
+    console.warn('[COST ANOMALY]', {
+      productId: pid, productName: p ? `${p.name}·${p.variant}` : pid,
+      currentQty, incomingQty, incomingUnitCost, existingCost: currentAvgCost
+    });
+    return { newCost: currentAvgCost, anomaly: true, currentQty, denom };
+  }
+  if(denom <= 0 || !isFinite(denom)) {
+    // currentQty>=0 боловч аль нэг талын утга буруу (жишээ incomingQty<=0) —
+    // NaN/Infinity-ээс сэргийлж хуучин cost-ыг хэвээр үлдээнэ.
+    console.warn('[COST ANOMALY] denom<=0, weighted average бодохгүй', { productId: pid, currentQty, incomingQty, denom });
+    return { newCost: currentAvgCost, anomaly: true, currentQty, denom };
+  }
+  let newAvg = (currentQty*currentAvgCost + incomingQty*incomingUnitCost) / denom;
+  if(!isFinite(newAvg) || isNaN(newAvg) || newAvg < 0) {
+    console.warn('[COST ANOMALY] тооцоолол NaN/Infinity/сөрөг гарлаа', { productId: pid, currentQty, currentAvgCost, incomingQty, incomingUnitCost, newAvg });
+    return { newCost: currentAvgCost, anomaly: true, currentQty, denom };
+  }
+  return { newCost: Math.round(newAvg), anomaly: false, currentQty, denom };
+}
+
 function totByLoc(lid){ return products.reduce((a,p)=>a+gst(p.id,lid),0); }
 
 // ════════════════════════════════════════════════════════════════════════════
@@ -3008,9 +3041,10 @@ window.submitSale = async () => {
     console.log('[SALE SAVE] 5 done');
     // Log
     console.log('[SALE SAVE] 6 inventory log — writing', rows.length, 'invLogs doc(s)...');
-    for(const r of rows){
+    for(const [idx, r] of rows.entries()){
       const p=products.find(x=>x.id===r.pid);
-      await addDoc(collection(db,'invLogs'),{date:sDate,type:'sale',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,note:`Борлуулалт — ${cust?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      const matchedItem = items[idx]; // rows-тай ижил дараалалтай, unitCost/costAmount агуулна
+      await addDoc(collection(db,'invLogs'),{date:sDate,type:'sale',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,unitCost:matchedItem?.unitCost||0,amount:matchedItem?.costAmount||0,note:`Борлуулалт — ${cust?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
     }
     console.log('[SALE SAVE] 6 done');
     console.log('[SALE SAVE] 7 payment — sale.paid бол sales doc-д inline хадгалагдсан (тусдаа payment write байхгүй)');
@@ -3613,6 +3647,17 @@ window.submitPurchase = async () => {
       updatedBy: currentUser.email
     });
     // Inventory movement (invLogs) + stock update — эх purchase баримт руу sourceType/sourceId хадгална
+    // §1: MOVING WEIGHTED AVERAGE COST — stock шинэчлэхээс ӨМНӨ (currentQty хуучин утгаараа
+    // байх үед) тооцоолно. Нэг purchase дотор ижил бараа давхар мөр байвал running qty ашиглана.
+    const localQtyTrack = {};
+    const costAnomalies = [];
+    for(const it of items) {
+      const baseQty = (localQtyTrack[it.productId] !== undefined) ? localQtyTrack[it.productId] : totByProd(it.productId);
+      const { newCost, anomaly } = computeWeightedAvgCost(it.productId, it.quantity, it.purchaseUnitPrice, baseQty);
+      localQtyTrack[it.productId] = baseQty + it.quantity;
+      if(anomaly) { costAnomalies.push(it.productName); continue; }
+      await updateDoc(doc(db,'products',it.productId), { cost: newCost });
+    }
     const stockChanges = items.map(it=>({pid:it.productId, lid, delta:it.quantity}));
     await updateStock(stockChanges);
     for(const it of items) {
@@ -3621,6 +3666,8 @@ window.submitPurchase = async () => {
         productId: it.productId, productLabel: it.productName,
         locationId: lid, locationName: loc?.name || '',
         qty: it.quantity,
+        unitCost: it.purchaseUnitPrice || 0,
+        amount: Math.round((it.purchaseUnitPrice||0) * it.quantity),
         note: `${docNum} — Худалдан авалт${supplier?.name?' — '+supplier.name:''}`,
         sourceType: 'purchase', sourceId: purchaseRef.id, sourceNumber: docNum,
         createdBy: currentUser.email, createdAt: serverTimestamp()
@@ -3629,7 +3676,11 @@ window.submitPurchase = async () => {
     document.getElementById('pu-rows').innerHTML=''; document.getElementById('pu-note').value='';
     addPurchaseRow(); document.getElementById('pu-date').value = today();
     calcPurchaseTotal();
-    alert(`✅ Худалдан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
+    if(costAnomalies.length > 0) {
+      alert(`✅ Худалдан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}\n\n⚠️ Сөрөг үлдэгдэлтэй тул дараах барааны дундаж өртөг автоматаар шинэчлэгдсэнгүй:\n${costAnomalies.join(', ')}`);
+    } else {
+      alert(`✅ Худалдан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
+    }
   } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
 window.editPurchase = (id) => {
@@ -3918,6 +3969,16 @@ window.submitImportPurchase = async () => {
       updatedAt: serverTimestamp(), updatedBy: currentUser.email
     });
     // Inventory movement (invLogs) — landed unit cost-оор орлого бүртгэнэ
+    // §1: MOVING WEIGHTED AVERAGE COST — landedUnitCost-г ашиглана (§2)
+    const localQtyTrack = {};
+    const costAnomalies = [];
+    for(const it of items) {
+      const baseQty = (localQtyTrack[it.productId] !== undefined) ? localQtyTrack[it.productId] : totByProd(it.productId);
+      const { newCost, anomaly } = computeWeightedAvgCost(it.productId, it.quantity, it.landedUnitCost, baseQty);
+      localQtyTrack[it.productId] = baseQty + it.quantity;
+      if(anomaly) { costAnomalies.push(it.productName); continue; }
+      await updateDoc(doc(db,'products',it.productId), { cost: newCost });
+    }
     const stockChanges = items.map(it=>({pid:it.productId, lid, delta:it.quantity}));
     await updateStock(stockChanges);
     for(const it of items) {
@@ -3926,6 +3987,8 @@ window.submitImportPurchase = async () => {
         productId: it.productId, productLabel: it.productName,
         locationId: lid, locationName: loc?.name || '',
         qty: it.quantity,
+        unitCost: it.landedUnitCost || 0,
+        amount: Math.round((it.landedUnitCost||0) * it.quantity),
         note: `${docNum} — Татан авалт${supplierName?' — '+supplierName:''}`,
         sourceType: 'importPurchase', sourceId: impRef.id, sourceNumber: docNum,
         createdBy: currentUser.email, createdAt: serverTimestamp()
@@ -3935,7 +3998,11 @@ window.submitImportPurchase = async () => {
     ['im-freight-intl','im-freight-dom','im-cargo','im-customs','im-vat','im-insurance','im-agency','im-other','im-invoice-num'].forEach(id=>{const el=document.getElementById(id); if(el) el.value='';});
     addImportRow(); document.getElementById('im-date').value = today();
     calcImportTotal();
-    alert(`✅ Татан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
+    if(costAnomalies.length > 0) {
+      alert(`✅ Татан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}\n\n⚠️ Сөрөг үлдэгдэлтэй тул дараах барааны дундаж өртөг автоматаар шинэчлэгдсэнгүй:\n${costAnomalies.join(', ')}`);
+    } else {
+      alert(`✅ Татан авалт амжилттай бүртгэгдлээ!\nБаримт №: ${docNum}`);
+    }
   } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
 };
 window.editImportPurchase = (id) => {
