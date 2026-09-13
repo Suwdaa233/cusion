@@ -7790,14 +7790,17 @@ window.openEditSale = (id) => {
   const pt = document.getElementById('es-pay-type');
   if(pt) pt.value = sale.paymentType || sale.payType || sale.method || 'cash';
   // Барааны мөрүүд — хөнгөлөлтийн мэдээлэл оруулах
+  // ЗАСВАР: canonical field (discountType/discountValue) — save схемтэй яг адил.
+  // Хуучин (legacy) sale документ discType/discVal ашигласан байж болзошгүй тул
+  // fallback хэвээр үлдээв, гэхдээ canonical талбарыг эхэлж шалгана.
   esItems = (sale.items || []).map(it => ({
     pid: it.pid || '',
     label: it.label || '',
     price: it.price || 0,
     qty: it.qty || 1,
-    discType: it.discType || 'none',
-    discVal: it.discVal || 0,
-    sub: it.sub || 0,
+    discType: it.discountType || it.discType || 'none',
+    discVal: (it.discountValue ?? it.discountPercent ?? it.discVal ?? 0),
+    sub: it.sub ?? it.lineTotal ?? 0,
     unitCost: it.unitCost || 0,
     costAmount: it.costAmount || 0
   }));
@@ -7812,8 +7815,8 @@ window.openEditSale = (id) => {
 
 function calcESSub(it) {
   const base = (it.price || 0) * (it.qty || 1);
-  if(it.discType === 'pct') return Math.round(base * (1 - (it.discVal||0)/100));
-  if(it.discType === 'amt') return Math.max(0, Math.round(base - (it.discVal||0)));
+  if(it.discType === 'percent') return Math.round(base * (1 - (it.discVal||0)/100));
+  if(it.discType === 'amount') return Math.max(0, Math.round(base - (it.discVal||0)));
   return Math.round(base);
 }
 
@@ -7979,7 +7982,24 @@ window.saveEditSale = async () => {
       customerEmail:   newCust.email   || sale.customerEmail   || '',
       locationId:   newLocId,
       locationName: newLoc.name || sale.locationName || '',
-      items:       esItems.map(it => ({ ...it, sub:Math.round(it.sub) })),
+      items:       esItems.map(it => {
+        const lineSubtotal = Math.round((it.price||0) * (it.qty||1));
+        const lineTotal = Math.round(it.sub || 0);
+        const discountAmount = Math.max(0, lineSubtotal - lineTotal);
+        return {
+          pid: it.pid, label: it.label, price: it.price, qty: it.qty,
+          barcode: it.barcode || '',
+          // Канон талбарууд — Print/Sales list/Report ЯГ ЭНЭ нэрсийг л уншдаг тул
+          // дотоод ажлын discType/discVal нэрсийг шууд бичихгүй.
+          discountType:    it.discType || 'none',
+          discountValue:   it.discVal || 0,
+          discountPercent: it.discType==='percent' ? (it.discVal||0) : 0,
+          discountAmount,
+          lineSubtotal, lineTotal,
+          sub: lineTotal,
+          unitCost: it.unitCost||0, costAmount: it.costAmount||0
+        };
+      }),
       total:       newTotal,
       totalCost:   newTotalCost,
       paid:        newPaid,
