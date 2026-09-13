@@ -9413,6 +9413,7 @@ function applyReportingPeriod(yearMonth) {
 // Global сар солих handler
 window.onGlobalMonthChange = (yearMonth) => {
   if(!yearMonth) return;
+  console.log('[RP TRACE] GLOBAL MONTH OVERRIDE TRIGGERED — onGlobalMonthChange(', yearMonth, ') нь rp-from/rp-to-г ДАРЖ БИЧНЭ (DATE_PAIRS-ээр). rp-from ӨМНӨ =', document.getElementById('rp-from')?.value, '| rp-to ӨМНӨ =', document.getElementById('rp-to')?.value);
   try { localStorage.setItem('reportingMonth', yearMonth); }
   catch(e) { console.warn('[reportingMonth] localStorage.setItem алдаа (үл тоомсорлоно):', e.name, e.message); }
   applyReportingPeriod(yearMonth);
@@ -9801,6 +9802,12 @@ window.showReport = (type) => {
 window.renderPLReport = () => {
   const from = document.getElementById('rp-from')?.value || '';
   const to   = document.getElementById('rp-to')?.value   || '';
+  console.log('[RP TRACE] rp-from input =', document.getElementById('rp-from')?.value);
+  console.log('[RP TRACE] rp-to input =', document.getElementById('rp-to')?.value);
+  console.log('[RP TRACE] button handler from =', from);
+  console.log('[RP TRACE] button handler to =', to);
+  console.log('[RP TRACE] renderIRPLReport from =', from);
+  console.log('[RP TRACE] renderIRPLReport to =', to);
   const body = document.getElementById('rp-pl-body');
   if(body) renderIRPLReport(from, to, body);
 };
@@ -10042,6 +10049,8 @@ window.closeIRReport = () => {
 };
 
 function renderIRPLReport(from, to, body) {
+  console.log('[RP TRACE] final label from =', from);
+  console.log('[RP TRACE] final label to =', to);
   // Зөвхөн бүрэн ангилсан (classified) зарлагын гүйлгээ авна
   const txns = bankTxns.filter(t =>
     (!from||t.date>=from) && (!to||t.date<=to) &&
@@ -10057,6 +10066,7 @@ function renderIRPLReport(from, to, body) {
   const salesList = sales.filter(s =>
     (!from||s.date>=from) && (!to||s.date<=to) && s.status!=='deleted'
   );
+  console.log('[RP TRACE] sales filter period =', from, '→', to, '| matched sales count =', salesList.length, '| total sales in memory =', sales.length);
   const totalRev   = salesList.reduce((a,s)=>a+(s.total||0), 0);
   // Борлуулсан барааны өртөг — борлуулалтын snapshot-оос
   const totalCost  = salesList.reduce((a,s)=>a+
