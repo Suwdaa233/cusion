@@ -545,6 +545,7 @@ tbody tr:hover td{background:var(--sur2)}
     <div class="fl"><label style="font-size:10px">Дуусах огноо</label>
       <input type="date" id="ir-to" style="font-size:12px;padding:6px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
     </div>
+    <button class="btn bp" onclick="applyIRFilter()"><i class="ti ti-filter"></i>Тайлан харах</button>
     <button class="btn bg" onclick="setIRPeriod('month')"><i class="ti ti-calendar"></i>Энэ сар</button>
     <button class="btn bg" onclick="setIRPeriod('year')"><i class="ti ti-calendar-stats"></i>Энэ жил</button>
   </div>
@@ -9974,6 +9975,8 @@ function downloadCSV(rows, filename) {
 
 
 // ─── ДОТООД ТАЙЛАН ───────────────────────────────────────────────────────────
+let irActiveReportType = null; // 'pl' | 'cf' | null — идэвхтэй Дотоод тайлангийн төрөл (CSS border-color string
+                                 // шалгалт биш, найдвартай module state)
 window.initIRReport = () => {
   // Global тайлант сарын огноог авах
   const ym = document.getElementById('global-month')?.value || getDefaultYearMonth();
@@ -9985,6 +9988,7 @@ window.initIRReport = () => {
   // Тайлан агуулга нуух
   const cnt = document.getElementById('ir-report-content');
   if(cnt) cnt.style.display = 'none';
+  irActiveReportType = null;
   // Товчны highlight цэвэрлэх
   ['ir-pl-btn','ir-cf-btn'].forEach(id => {
     const el = document.getElementById(id);
@@ -9992,26 +9996,38 @@ window.initIRReport = () => {
   });
 };
 
+// "Тайлан харах"/"Шүүх" — ir-from/ir-to-ийн одоогийн утгаар, ИДЭВХТЭЙ
+// тайлангийн төрлийг ХАДГАЛСААР дахин render хийнэ (§1, §7).
+window.applyIRFilter = () => {
+  const type = irActiveReportType || 'pl'; // анх удаа бол default-аар Орлогын тайлан
+  showIRReport(type);
+};
+
 window.setIRPeriod = (period) => {
   const now = new Date();
   const today = now.toISOString().slice(0,10);
   let from = today.slice(0,7)+'-01', to = today;
   if(period === 'year') { from = today.slice(0,4)+'-01-01'; }
+  console.log('[IR DATE] preset =', period, '| from =', from, '| to =', to);
   const fEl = document.getElementById('ir-from');
   const tEl = document.getElementById('ir-to');
   if(fEl) fEl.value = from;
   if(tEl) tEl.value = to;
-  // Хэрэв тайлан нээлттэй бол refresh
+  console.log('[IR DATE] active report =', irActiveReportType);
+  // §7: ИДЭВХТЭЙ тайлангийн төрлийг ХАДГАЛЖ, яг ТЭР тайлангаа дахин render хийнэ.
+  // Хуучин border-color-based шалгалт (CSS variable string, hex биш) хэзээ ч
+  // зөв тохирдоггүй байсан тул module state ашиглана.
   const cnt = document.getElementById('ir-report-content');
-  if(cnt && cnt.style.display !== 'none') {
-    const type = document.getElementById('ir-pl-btn')?.style.borderColor?.includes('534AB7') ? 'pl' : 'cf';
-    showIRReport(type);
+  if(cnt && cnt.style.display !== 'none' && irActiveReportType) {
+    showIRReport(irActiveReportType);
   }
 };
 
 window.showIRReport = (type) => {
   const from = document.getElementById('ir-from')?.value || '';
   const to   = document.getElementById('ir-to')?.value   || '';
+  console.log('[IR DATE] from =', from, '| to =', to, '| requested report =', type);
+  irActiveReportType = type;
   const cnt  = document.getElementById('ir-report-content');
   const body = document.getElementById('ir-report-body');
   const title= document.getElementById('ir-report-title');
@@ -10042,6 +10058,7 @@ window.showIRReport = (type) => {
 window.closeIRReport = () => {
   const cnt = document.getElementById('ir-report-content');
   if(cnt) cnt.style.display = 'none';
+  irActiveReportType = null;
   ['ir-pl-btn','ir-cf-btn'].forEach(id => {
     const el = document.getElementById(id);
     if(el) el.style.borderColor = 'transparent';
@@ -10083,6 +10100,11 @@ function renderIRPLReport(from, to, body) {
     return `<tr><td style="padding:5px 12px;${s}${p}">${lbl}</td><td style="padding:5px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
   }
   let html=`<div style="font-size:11px;color:var(--tx3);margin-bottom:8px">${from} — ${to}</div>`;
+  if(salesList.length===0 && txns.length===0) {
+    html += `<div class="empty" style="padding:24px;text-align:center;color:var(--tx3)"><i class="ti ti-inbox" style="font-size:24px"></i><br>Мэдээлэл байхгүй</div>`;
+    body.innerHTML = html;
+    return;
+  }
   html+=`<table style="width:100%;border-collapse:collapse;font-size:13px">`;
   html+=`<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right;width:180px">Дүн (₮)</th></tr></thead><tbody>`;
   html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. БОРЛУУЛАЛТЫН ОРЛОГО</td></tr>`;
@@ -10135,6 +10157,11 @@ function renderIRCFReport(from, to, body) {
     return `<tr><td style="padding:5px 12px;${s}${p}">${lbl}</td><td style="padding:5px 12px;text-align:right;${s}${c}">${val?fmt(val):'—'}</td></tr>`;
   }
   let html=`<div style="font-size:11px;color:var(--tx3);margin-bottom:8px">${from} — ${to}</div>`;
+  if(incTxns.length===0 && expTxns.length===0) {
+    html += `<div class="empty" style="padding:24px;text-align:center;color:var(--tx3)"><i class="ti ti-inbox" style="font-size:24px"></i><br>Мэдээлэл байхгүй</div>`;
+    body.innerHTML = html;
+    return;
+  }
   html+=`<table style="width:100%;border-collapse:collapse;font-size:13px">`;
   html+=`<thead><tr style="background:var(--gr);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right;width:180px">Дүн (₮)</th></tr></thead><tbody>`;
   html+=`<tr style="background:var(--sur2)"><td colspan="2" style="padding:6px 12px;font-weight:700;font-size:12px">I. МӨНГӨН ОРЛОГО</td></tr>`;
