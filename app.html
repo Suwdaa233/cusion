@@ -2504,78 +2504,99 @@ function buildProductTimeline(pid) {
 
 // productId-ийн БҮХ түүхийг (period-ийн ӨМНӨХ хэсгийг opening balance болгож,
 // дараа нь periodFrom-periodTo хооронд SALE snapshot-уудыг дахин тооцно).
-function recalcProductCost(pid, periodFrom, periodTo) {
+// ═══ FIFO (First In First Out) COST ENGINE ═══════════════════════════════════
+// §2-3: Product бүр тусдаа FIFO layer queue-тэй. Sale хийхэд ХАМГИЙН ХУУЧИН
+// (эхэлж орсон) layer-ээс эхэлж зарцуулна. product.cost ЭНЭ ENGINE-ийн source
+// of truth БИШ (§6-7) — зөвхөн buildProductTimeline()-ийн inbound/outbound
+// event-үүдээс (Орлого/Худалдан авалт/Татан авалт/Борлуулалт) FIFO layer-ийг
+// бүхэлд нь дахин сэргээнэ (§8: derived/rebuildable, cache биш source).
+function recalcProductCostFIFO(pid, periodFrom, periodTo) {
   const events = buildProductTimeline(pid);
-  let runningQty = 0, runningAvgCost = null;
+  // FIFO queue: {sourceType, sourceId, sourceNumber, sourceDate, qty(анхны), remainingQty, unitCost}
+  let layers = [];
   let openingCostMissing = false;
   const results = [];
 
+  function pushLayer(e) {
+    layers.push({
+      sourceType: e.sourceType, sourceId: e.sourceId, sourceNumber: e.sourceNumber,
+      sourceDate: e.date, qty: e.qty, remainingQty: e.qty,
+      unitCost: (e.unitCost!=null && e.unitCost>0) ? e.unitCost : null
+    });
+    if(e.unitCost==null || e.unitCost<=0) openingCostMissing = openingCostMissing || (e.date < periodFrom);
+  }
+  // FIFO-аар зарцуулна — sale-ийн qty-г бүрэн хангах хүртэл layer бүрээс remainingQty-гээр авна.
+  // §13: layer хүрэлцэхгүй бол shortfall-ийг 0/санамсаргүй утгаар ДҮҮРГЭХГҮЙ, тэмдэглэнэ.
+  function consumeFIFO(qtyNeeded) {
+    const consumed = []; // {sourceType,sourceId,sourceNumber,sourceDate,qty,unitCost,amount}
+    let remaining = qtyNeeded;
+    let unknownCostHit = false;
+    while(remaining > 0 && layers.length > 0) {
+      const layer = layers[0];
+      if(layer.remainingQty <= 0) { layers.shift(); continue; }
+      const take = Math.min(remaining, layer.remainingQty);
+      if(layer.unitCost == null) unknownCostHit = true;
+      consumed.push({
+        sourceType: layer.sourceType, sourceId: layer.sourceId, sourceNumber: layer.sourceNumber,
+        sourceDate: layer.sourceDate, qty: take, unitCost: layer.unitCost,
+        amount: (layer.unitCost!=null) ? Math.round(layer.unitCost*take) : null
+      });
+      layer.remainingQty -= take;
+      remaining -= take;
+      if(layer.remainingQty <= 0) layers.shift();
+    }
+    return { consumed, shortQty: remaining, unknownCostHit };
+  }
+
   events.forEach(e => {
     if(e.date < periodFrom) {
-      // ─── OPENING (period-ийн өмнөх) — зөвхөн running qty/cost тогтооход ашиглана ───
-      if(e.type==='IN') {
-        if(e.unitCost==null || e.unitCost<=0) {
-          openingCostMissing = true; // §4: opening cost эх сурвалж дутуу
-          runningQty += e.qty; // тоог нэмнэ, cost-ыг өөрчлөхгүй (таамаглахгүй)
-        } else {
-          const denom = runningQty + e.qty;
-          runningAvgCost = (denom>0 && runningQty>=0)
-            ? (runningQty*(runningAvgCost||0) + e.qty*e.unitCost)/denom
-            : e.unitCost;
-          runningQty += e.qty;
-        }
-      } else {
-        runningQty -= e.qty;
-      }
+      // ─── OPENING: period-ийн өмнөх бүх inbound/outbound-ийг FIFO-аар боловсруулж,
+      // periodFrom мөчийн opening layer state-ийг сэргээнэ ───
+      if(e.type==='IN') pushLayer(e);
+      else consumeFIFO(e.qty); // opening борлуулалт — зөвхөн layer-ийг зарцуулна, үр дүн бичихгүй
       return;
     }
-    if(e.date > periodTo) return; // period-ийн ард үлдэх хэсгийг энэ recalc-д оруулахгүй
+    if(e.date > periodTo) return;
 
     if(e.type==='IN') {
-      if(e.unitCost==null || e.unitCost<=0) {
-        runningQty += e.qty; // cost үл мэдэгдэх тул дундажийг өөрчлөхгүй, зөвхөн тоо нэмнэ
-      } else {
-        const denom = runningQty + e.qty;
-        if(runningQty < 0) {
-          // §4/6: сөрөг үлдэгдэлтэй үед weighted average-ийг НУУЖ, зөвхөн шинэ inbound
-          // cost-оор л reset хийнэ (анomaли, гэхдээ 0/санамсаргүй биш)
-          runningAvgCost = e.unitCost;
-        } else if(denom>0) {
-          runningAvgCost = (runningQty*(runningAvgCost||0) + e.qty*e.unitCost)/denom;
-        } else {
-          runningAvgCost = e.unitCost;
-        }
-        runningQty += e.qty;
-      }
+      pushLayer(e);
     } else {
-      // ─── SALE (OUT) — тухайн agrolsan мөчийн running average-г snapshot болгоно ───
-      let status, newUnitCost;
-      if(runningAvgCost == null) {
-        status = 'SOURCE MISSING'; newUnitCost = null;
-      } else if(runningQty <= 0) {
-        status = 'NEGATIVE STOCK'; newUnitCost = null; // §5: 0/санамсаргүй утгаар FINALIZE хийхгүй
+      // ─── SALE — FIFO-аар олон layer-с зарцуулж, costLayers array бүрдүүлнэ (§3) ───
+      const { consumed, shortQty, unknownCostHit } = consumeFIFO(e.qty);
+      const costAmount = consumed.reduce((a,c)=>a+(c.amount||0), 0);
+      const allocatedQty = consumed.reduce((a,c)=>a+c.qty, 0);
+      let status;
+      if(shortQty > 0) {
+        status = 'UNRESOLVED NEGATIVE STOCK'; // §13: дутуу — 0-ээр FINALIZE хийхгүй
+      } else if(unknownCostHit) {
+        status = 'MISSING OPENING COST'; // layer олдсон ч cost нь тодорхойгүй (§4-ийн opening cost эх сурвалжгүй тохиолдол)
       } else {
-        newUnitCost = Math.round(runningAvgCost);
         status = 'OK';
       }
-      const newCostAmount = (newUnitCost!=null) ? Math.round(newUnitCost*e.qty) : null;
+      const effectiveUnitCost = (allocatedQty>0 && !unknownCostHit && shortQty===0) ? Math.round(costAmount/allocatedQty) : null;
       const oldU = e.oldUnitCost, oldC = e.oldCostAmount;
       if(status==='OK') {
-        const changed = (oldU==null) || (Math.round(oldU)!==newUnitCost) || (oldC==null) || (Math.round(oldC)!==newCostAmount);
+        const changed = (oldC==null) || (Math.round(oldC)!==Math.round(costAmount)) || (oldU==null) || (Math.round(oldU)!==effectiveUnitCost);
         if(changed) status = 'CHANGED';
       }
       results.push({
         saleId:e.saleId, itemIndex:e.itemIndex, date:e.date, docNumber:e.docNumber,
         productId:pid, qty:e.qty,
         oldUnitCost:oldU, oldCostAmount:oldC,
-        newUnitCost, newCostAmount, status
+        newUnitCost: effectiveUnitCost,
+        newCostAmount: (status==='UNRESOLVED NEGATIVE STOCK'||status==='MISSING OPENING COST') ? null : Math.round(costAmount),
+        costLayers: consumed, neededQty:e.qty, availableQty:allocatedQty, shortQty,
+        status
       });
-      runningQty -= e.qty;
     }
   });
 
-  return { results, finalAvgCost: runningAvgCost, finalQty: runningQty, openingCostMissing };
+  const remainingValue = layers.reduce((a,l)=>a+((l.unitCost!=null)?l.unitCost*l.remainingQty:0), 0);
+  const remainingQty = layers.reduce((a,l)=>a+l.remainingQty, 0);
+  return { results, remainingLayers: layers, remainingQty, remainingValue, openingCostMissing };
 }
+// Хуучин нэрээр дуудаж болзошгүй кодтой нийцтэй байх alias (Moving Average-ийн оронд FIFO ажиллана)
+function recalcProductCost(pid, periodFrom, periodTo) { return recalcProductCostFIFO(pid, periodFrom, periodTo); }
 
 let lastRecalcPreview = null; // preview үр дүнг Save хийх хүртэл кэшлэнэ (Firestore дахин уншихгүй)
 
@@ -2600,24 +2621,30 @@ window.previewRecalc = () => {
 
   const targetProducts = onlyPid ? products.filter(p=>p.id===onlyPid) : products;
   const allResults = [];
-  const openingMissingProducts = [];
+  const skuSummaries = [];
 
   targetProducts.forEach(p => {
-    const { results, openingCostMissing } = recalcProductCost(p.id, from, to);
+    const { results, remainingQty, remainingValue, openingCostMissing } = recalcProductCostFIFO(p.id, from, to);
     results.forEach(r => { r.productName = `${p.name}·${p.variant}`; r.sku = p.sku||'—'; });
     allResults.push(...results);
-    if(openingCostMissing) openingMissingProducts.push(`${p.name}·${p.variant}`);
-  });
-
-  // openingMissingProducts-той SKU-ийн үр дүнг тусад нь MISSING OPENING COST болгож flag хийнэ
-  allResults.forEach(r => {
-    if(openingMissingProducts.includes(r.productName) && r.status==='SOURCE MISSING') r.status = 'MISSING OPENING COST';
+    if(results.length>0 || openingCostMissing) {
+      skuSummaries.push({
+        sku: p.sku||'—', productName: `${p.name}·${p.variant}`,
+        salesQty: results.reduce((a,r)=>a+r.qty,0),
+        oldCogs: results.reduce((a,r)=>a+(r.oldCostAmount||0),0),
+        newCogs: results.reduce((a,r)=>a+(r.newCostAmount||0),0),
+        remainingQty, remainingValue,
+        unresolvedQty: results.reduce((a,r)=>a+(r.shortQty||0),0),
+        openingCostMissing
+      });
+    }
   });
 
   lastRecalcPreview = { from, to, results: allResults };
 
-  // ─── SUMMARY (§8) ───
+  // ─── SUMMARY ───
   const changed = allResults.filter(r=>r.status==='CHANGED');
+  const unresolved = allResults.filter(r=>r.status==='UNRESOLVED NEGATIVE STOCK');
   const affectedSaleIds = new Set(changed.map(r=>r.saleId));
   const affectedSKUs = new Set(changed.map(r=>r.productId));
   const oldTotal = allResults.reduce((a,r)=>a+(r.oldCostAmount||0),0);
@@ -2626,10 +2653,22 @@ window.previewRecalc = () => {
     <div class="mg" style="margin-bottom:10px">
       <div class="mc"><div class="ml">Нөлөөлсөн борлуулалт</div><div class="mv pu">${affectedSaleIds.size}</div></div>
       <div class="mc"><div class="ml">Нөлөөлсөн бараа (SKU)</div><div class="mv pu">${affectedSKUs.size}</div></div>
-      <div class="mc"><div class="ml">Хуучин нийт өртөг</div><div class="mv">${fmt(oldTotal)}</div></div>
-      <div class="mc"><div class="ml">Шинэ нийт өртөг</div><div class="mv am">${fmt(newTotal)}</div></div>
+      <div class="mc"><div class="ml">Хуучин нийт COGS</div><div class="mv">${fmt(oldTotal)}</div></div>
+      <div class="mc"><div class="ml">Шинэ FIFO нийт COGS</div><div class="mv am">${fmt(newTotal)}</div></div>
       <div class="mc"><div class="ml">Зөрүү</div><div class="mv ${newTotal-oldTotal>=0?'re':'gr'}">${fmt(newTotal-oldTotal)}</div></div>
-    </div>`;
+      ${unresolved.length>0?`<div class="mc"><div class="ml">Шийдэгдээгүй (layer хүрэлцээгүй)</div><div class="mv re">${unresolved.length}</div></div>`:''}
+    </div>
+    <div style="font-size:12px;font-weight:600;margin:10px 0 6px">SKU-ийн үлдэгдэл (FIFO valuation)</div>
+    <div class="tw"><table style="font-size:12px;margin-bottom:8px"><thead><tr><th>SKU</th><th>Барааны нэр</th><th style="text-align:right">Борлуулсан тоо</th><th style="text-align:right">Хуучин COGS</th><th style="text-align:right">Шинэ FIFO COGS</th><th style="text-align:right">Үлдэгдэл (тоо)</th><th style="text-align:right">Үлдэгдэл (өртөг)</th><th style="text-align:right">Шийдэгдээгүй</th></tr></thead>
+    <tbody>${skuSummaries.map(s=>`<tr>
+      <td>${s.sku}</td><td>${s.productName}</td>
+      <td style="text-align:right">${s.salesQty}</td>
+      <td style="text-align:right">${fmt(s.oldCogs)}</td>
+      <td style="text-align:right;font-weight:600">${fmt(s.newCogs)}</td>
+      <td style="text-align:right">${s.remainingQty}</td>
+      <td style="text-align:right">${fmt(s.remainingValue)}</td>
+      <td style="text-align:right;color:${s.unresolvedQty>0?'var(--re)':'var(--gr)'}">${s.unresolvedQty}</td>
+    </tr>`).join('')}</tbody></table></div>`;
 
   // Month-by-month
   const byMonth = {};
@@ -2640,29 +2679,29 @@ window.previewRecalc = () => {
     byMonth[m].new += (r.newCostAmount!=null?r.newCostAmount:(r.oldCostAmount||0));
   });
   document.getElementById('rc-month-summary').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Сар бүрийн харьцуулалт</div>
-    <div class="tw"><table style="font-size:12px;margin-bottom:12px"><thead><tr><th>Сар</th><th style="text-align:right">Хуучин COGS</th><th style="text-align:right">Шинэ COGS</th><th style="text-align:right">Зөрүү</th></tr></thead>
+    <div class="tw"><table style="font-size:12px;margin-bottom:12px"><thead><tr><th>Сар</th><th style="text-align:right">Хуучин COGS</th><th style="text-align:right">Шинэ FIFO COGS</th><th style="text-align:right">Зөрүү</th></tr></thead>
     <tbody>${Object.keys(byMonth).sort().map(m=>`<tr><td>${m}</td><td style="text-align:right">${fmt(byMonth[m].old)}</td><td style="text-align:right">${fmt(byMonth[m].new)}</td><td style="text-align:right;color:${byMonth[m].new-byMonth[m].old>=0?'var(--re)':'var(--gr)'}">${fmt(byMonth[m].new-byMonth[m].old)}</td></tr>`).join('')}</tbody></table></div>`;
 
-  // ─── PREVIEW TABLE (§7) ───
-  document.getElementById('rc-thead').innerHTML = `<tr><th>SKU</th><th>Барааны нэр</th><th>Огноо</th><th>Баримт №</th><th style="text-align:right">Тоо</th><th style="text-align:right">Хуучин unitCost</th><th style="text-align:right">Шинэ unitCost</th><th style="text-align:right">Хуучин costAmount</th><th style="text-align:right">Шинэ costAmount</th><th style="text-align:right">Зөрүү</th><th>Статус</th></tr>`;
+  // ─── PREVIEW TABLE (FIFO layer source харагдана) ───
+  document.getElementById('rc-thead').innerHTML = `<tr><th>SKU</th><th>Барааны нэр</th><th>Огноо</th><th>Баримт №</th><th style="text-align:right">Тоо</th><th style="text-align:right">Хуучин COGS</th><th style="text-align:right">Шинэ FIFO COGS</th><th style="text-align:right">Зөрүү</th><th>FIFO Layer эх сурвалж</th><th>Статус</th></tr>`;
   const STBADGE = {
     OK:'<span class="ba bgr">OK</span>', CHANGED:'<span class="ba bam2">CHANGED</span>',
     'MISSING OPENING COST':'<span class="ba bre">MISSING OPENING COST</span>',
-    'NEGATIVE STOCK':'<span class="ba bre">NEGATIVE STOCK</span>',
-    'SOURCE MISSING':'<span class="ba bre">SOURCE MISSING</span>'
+    'UNRESOLVED NEGATIVE STOCK':'<span class="ba bre">UNRESOLVED NEGATIVE STOCK</span>'
   };
   allResults.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
-  document.getElementById('rc-tbody').innerHTML = allResults.length===0 ? '<tr><td colspan="11"><div class="empty">Тухайн хугацаанд борлуулалт байхгүй</div></td></tr>' : allResults.map(r=>{
+  document.getElementById('rc-tbody').innerHTML = allResults.length===0 ? '<tr><td colspan="10"><div class="empty">Тухайн хугацаанд борлуулалт байхгүй</div></td></tr>' : allResults.map(r=>{
     const diff = (r.newCostAmount!=null?r.newCostAmount:(r.oldCostAmount||0)) - (r.oldCostAmount||0);
+    const layerSrc = (r.costLayers||[]).map(c=>`${c.sourceNumber} (${c.sourceDate}) ${c.qty}ш@${c.unitCost!=null?fmt(c.unitCost):'?'}`).join('<br>');
+    const shortInfo = r.shortQty>0 ? `<br><span style="color:var(--re)">Хэрэгтэй:${r.neededQty} Байгаа:${r.availableQty} Дутуу:${r.shortQty}</span>` : '';
     return `<tr>
       <td>${r.sku}</td><td>${r.productName}</td><td>${r.date}</td>
       <td style="color:var(--pu);cursor:pointer;text-decoration:underline" onclick="openSourceDocument('sale','${r.saleId}')">${r.docNumber}</td>
       <td style="text-align:right">${r.qty}</td>
-      <td style="text-align:right">${r.oldUnitCost!=null?fmt(r.oldUnitCost):'—'}</td>
-      <td style="text-align:right;font-weight:600">${r.newUnitCost!=null?fmt(r.newUnitCost):'—'}</td>
       <td style="text-align:right">${r.oldCostAmount!=null?fmt(r.oldCostAmount):'—'}</td>
       <td style="text-align:right;font-weight:600">${r.newCostAmount!=null?fmt(r.newCostAmount):'—'}</td>
-      <td style="text-align:right;color:${diff>=0?'var(--re)':'var(--gr)'}">${fmt(diff)}</td>
+      <td style="text-align:right;color:${diff>=0?'var(--re)':'var(--gr)'}">${r.newCostAmount!=null?fmt(diff):'—'}</td>
+      <td style="font-size:10px">${layerSrc}${shortInfo}</td>
       <td>${STBADGE[r.status]||r.status}</td>
     </tr>`;
   }).join('');
@@ -2696,10 +2735,16 @@ window.saveRecalc = async () => {
         if(!change) return it;
         rollbackRecords.push({
           saleId, productId: change.productId, oldUnitCost: change.oldUnitCost, oldCostAmount: change.oldCostAmount,
-          newUnitCost: change.newUnitCost, newCostAmount: change.newCostAmount
+          newUnitCost: change.newUnitCost, newCostAmount: change.newCostAmount, costLayers: change.costLayers || []
         });
         affectedSaleIds.add(saleId); affectedSKUs.add(change.productId);
-        return { ...it, unitCost: change.newUnitCost, costAmount: change.newCostAmount };
+        // §14: FIFO source of truth — costLayers, effectiveUnitCost. Backward-compat: unitCost/costAmount.
+        return {
+          ...it,
+          unitCost: change.newUnitCost, costAmount: change.newCostAmount,
+          effectiveUnitCost: change.newUnitCost,
+          costLayers: change.costLayers || []
+        };
       });
       const newTotalCost = newItems.reduce((a,it)=>a+(it.costAmount||0),0);
       await updateDoc(doc(db,'sales',saleId), { items: newItems, totalCost: newTotalCost });
