@@ -812,10 +812,13 @@ tbody tr:hover td{background:var(--sur2)}
   <div id="it-invreport" class="i-tab" style="display:none">
     <div class="card">
       <div class="ch"><span class="ct"><i class="ti ti-report-analytics"></i>Бараа материалын тайлан</span>
-        <div class="date-filter">
-          <input type="date" id="invr-from" onchange="renderInvReport()">
-          <span style="font-size:12px;color:var(--tx3)">—</span>
-          <input type="date" id="invr-to" onchange="renderInvReport()">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="date-filter">
+            <input type="date" id="invr-from" onchange="renderInvReport()">
+            <span style="font-size:12px;color:var(--tx3)">—</span>
+            <input type="date" id="invr-to" onchange="renderInvReport()">
+          </div>
+          <button class="btn bg bxs" onclick="openRecalcModal()"><i class="ti ti-refresh"></i>Өртөг дахин бодох</button>
         </div>
       </div>
       <div class="cb">
@@ -1472,6 +1475,38 @@ tbody tr:hover td{background:var(--sur2)}
 <!-- EDIT BANK TRANSACTION MODAL -->
 <!-- ХӨНГӨЛӨЛТ БҮРТГЭХ MODAL -->
 <!-- ӨРТГИЙН ЭХНИЙ ТОХИРУУЛГА MODAL -->
+<!-- ӨРТӨГ ДАХИН БОДОХ (Historical Recalculation) MODAL -->
+<div class="modal-ov" id="recalc-modal">
+  <div class="modal modal-lg" style="max-width:900px">
+    <div class="mh">
+      <span><i class="ti ti-refresh"></i> Өртөг дахин бодох</span>
+      <button class="btn bg bxs" onclick="closeModal('recalc-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px;max-height:78vh;overflow-y:auto">
+      <div class="fg" style="margin-bottom:10px">
+        <div class="fl"><label>Эхлэх огноо <span style="color:var(--re)">*</span></label><input type="date" id="rc-from"></div>
+        <div class="fl"><label>Дуусах огноо <span style="color:var(--re)">*</span></label><input type="date" id="rc-to"></div>
+        <div class="fl"><label>Бараа (сонголт, хоосон бол бүх бараа)</label>
+          <select id="rc-product"><option value="">Бүх бараа</option></select>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <button class="btn bp" onclick="previewRecalc()"><i class="ti ti-eye"></i>Өртөг тооцоолох (Preview)</button>
+        <button class="btn bg" id="rc-save-btn" onclick="saveRecalc()" style="display:none"><i class="ti ti-device-floppy"></i>Өөрчлөлтийг хадгалах</button>
+      </div>
+      <div style="background:var(--sur2);border-radius:var(--r);padding:8px 12px;margin-bottom:8px;font-size:11px;color:var(--tx3)">
+        <i class="ti ti-shield-check"></i> Preview үе шатанд Firestore руу ЯМАР Ч бичилт хийгдэхгүй. Зөвхөн "Өөрчлөлтийг хадгалах" дарсны дараа л өөрчлөгдсөн (CHANGED) мөрүүд шинэчлэгдэнэ.
+      </div>
+      <div id="rc-summary"></div>
+      <div id="rc-month-summary"></div>
+      <div class="tw" style="max-height:400px;overflow-y:auto"><table style="font-size:11px" id="rc-preview-table">
+        <thead id="rc-thead"></thead>
+        <tbody id="rc-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-ov" id="cost-init-modal">
   <div class="modal" style="max-width:440px">
     <div class="mh">
@@ -2416,6 +2451,285 @@ async function updateStock(changes) {
   await setDoc(ref, payload, {merge:true});
 }
 function totByProd(pid){ return locations.reduce((a,l)=>a+gst(pid,l.id),0); }
+
+// ═══ HISTORICAL COST RECALCULATION ENGINE — цэвэр READ, ЯМАР Ч WRITE ХИЙХГҮЙ ═══
+// Canonical key: productId. Canonical date: BUSINESS transaction date
+// (purchaseDate/sale.date/l.date) — createdAt хэзээ ч ашиглахгүй.
+function buildProductTimeline(pid) {
+  const events = [];
+  // A. Орлого (invLogs type:'in') — устаагүй, идэвхтэй бичлэг
+  invLogs.filter(l=>l.type==='in' && l.productId===pid && l.status!=='deleted').forEach(l=>{
+    events.push({ date:l.date, type:'IN', qty:Math.abs(l.qty||0),
+      unitCost:(l.unitCost!=null?Number(l.unitCost):null),
+      sourceType:'Орлого', sourceId:l.id, sourceNumber:l.docNumber||l.id });
+  });
+  // B. Худалдан авалт
+  purchases.filter(p=>p.status!=='deleted' && p.status!=='cancelled').forEach(p=>{
+    (p.items||[]).filter(it=>it.productId===pid).forEach(it=>{
+      events.push({ date:p.purchaseDate, type:'IN', qty:it.quantity||0,
+        unitCost:(it.purchaseUnitPrice!=null?Number(it.purchaseUnitPrice):null),
+        sourceType:'Худалдан авалт', sourceId:p.id, sourceNumber:p.documentNumber });
+    });
+  });
+  // C. Татан авалт — BUSINESS DATE = purchaseDate (createdAt БИШ)
+  importPurchases.filter(p=>p.status!=='deleted' && p.status!=='cancelled').forEach(p=>{
+    (p.items||[]).filter(it=>it.productId===pid).forEach(it=>{
+      events.push({ date:p.purchaseDate, type:'IN', qty:it.quantity||0,
+        unitCost:(it.landedUnitCost!=null?Number(it.landedUnitCost):null),
+        sourceType:'Татан авалт', sourceId:p.id, sourceNumber:p.documentNumber });
+    });
+  });
+  // D. Борлуулалт (outbound) — sale item snapshot-той холбоно (rewrite хийхэд заавал хэрэгтэй)
+  sales.filter(s=>s.status!=='deleted' && !s.isDeleted && s.status!=='cancelled').forEach(s=>{
+    (s.items||[]).forEach((it,idx)=>{
+      if(it.pid!==pid) return;
+      events.push({ date:s.date, type:'OUT', qty:it.qty||0,
+        saleId:s.id, itemIndex:idx, docNumber:s.docNumber,
+        oldUnitCost:(it.unitCost!=null?Number(it.unitCost):null),
+        oldCostAmount:(it.costAmount!=null?Number(it.costAmount):null) });
+    });
+  });
+  // Шилжүүлэлт (transfer) — нэг барааны НИЙТ (бүх байршлаар) жинлэсэн дундажид IN/OUT
+  // тэнцүү (эх байршил -qty, очих байршил +qty) тул нийт дүнд НӨЛӨӨГҮЙ — зориудаар орхив.
+
+  // Хугацааны дараалал — ижил огноо бол IN эхэлж (тухайн өдөр орж ирээд зарагдсан гэсэн
+  // ажил хэрэгч таамаглал), дараа нь OUT.
+  events.sort((a,b) => {
+    if(a.date !== b.date) return (a.date||'').localeCompare(b.date||'');
+    if(a.type !== b.type) return a.type==='IN' ? -1 : 1;
+    return 0;
+  });
+  return events;
+}
+
+// productId-ийн БҮХ түүхийг (period-ийн ӨМНӨХ хэсгийг opening balance болгож,
+// дараа нь periodFrom-periodTo хооронд SALE snapshot-уудыг дахин тооцно).
+function recalcProductCost(pid, periodFrom, periodTo) {
+  const events = buildProductTimeline(pid);
+  let runningQty = 0, runningAvgCost = null;
+  let openingCostMissing = false;
+  const results = [];
+
+  events.forEach(e => {
+    if(e.date < periodFrom) {
+      // ─── OPENING (period-ийн өмнөх) — зөвхөн running qty/cost тогтооход ашиглана ───
+      if(e.type==='IN') {
+        if(e.unitCost==null || e.unitCost<=0) {
+          openingCostMissing = true; // §4: opening cost эх сурвалж дутуу
+          runningQty += e.qty; // тоог нэмнэ, cost-ыг өөрчлөхгүй (таамаглахгүй)
+        } else {
+          const denom = runningQty + e.qty;
+          runningAvgCost = (denom>0 && runningQty>=0)
+            ? (runningQty*(runningAvgCost||0) + e.qty*e.unitCost)/denom
+            : e.unitCost;
+          runningQty += e.qty;
+        }
+      } else {
+        runningQty -= e.qty;
+      }
+      return;
+    }
+    if(e.date > periodTo) return; // period-ийн ард үлдэх хэсгийг энэ recalc-д оруулахгүй
+
+    if(e.type==='IN') {
+      if(e.unitCost==null || e.unitCost<=0) {
+        runningQty += e.qty; // cost үл мэдэгдэх тул дундажийг өөрчлөхгүй, зөвхөн тоо нэмнэ
+      } else {
+        const denom = runningQty + e.qty;
+        if(runningQty < 0) {
+          // §4/6: сөрөг үлдэгдэлтэй үед weighted average-ийг НУУЖ, зөвхөн шинэ inbound
+          // cost-оор л reset хийнэ (анomaли, гэхдээ 0/санамсаргүй биш)
+          runningAvgCost = e.unitCost;
+        } else if(denom>0) {
+          runningAvgCost = (runningQty*(runningAvgCost||0) + e.qty*e.unitCost)/denom;
+        } else {
+          runningAvgCost = e.unitCost;
+        }
+        runningQty += e.qty;
+      }
+    } else {
+      // ─── SALE (OUT) — тухайн agrolsan мөчийн running average-г snapshot болгоно ───
+      let status, newUnitCost;
+      if(runningAvgCost == null) {
+        status = 'SOURCE MISSING'; newUnitCost = null;
+      } else if(runningQty <= 0) {
+        status = 'NEGATIVE STOCK'; newUnitCost = null; // §5: 0/санамсаргүй утгаар FINALIZE хийхгүй
+      } else {
+        newUnitCost = Math.round(runningAvgCost);
+        status = 'OK';
+      }
+      const newCostAmount = (newUnitCost!=null) ? Math.round(newUnitCost*e.qty) : null;
+      const oldU = e.oldUnitCost, oldC = e.oldCostAmount;
+      if(status==='OK') {
+        const changed = (oldU==null) || (Math.round(oldU)!==newUnitCost) || (oldC==null) || (Math.round(oldC)!==newCostAmount);
+        if(changed) status = 'CHANGED';
+      }
+      results.push({
+        saleId:e.saleId, itemIndex:e.itemIndex, date:e.date, docNumber:e.docNumber,
+        productId:pid, qty:e.qty,
+        oldUnitCost:oldU, oldCostAmount:oldC,
+        newUnitCost, newCostAmount, status
+      });
+      runningQty -= e.qty;
+    }
+  });
+
+  return { results, finalAvgCost: runningAvgCost, finalQty: runningQty, openingCostMissing };
+}
+
+let lastRecalcPreview = null; // preview үр дүнг Save хийх хүртэл кэшлэнэ (Firestore дахин уншихгүй)
+
+window.openRecalcModal = () => {
+  const prodSel = document.getElementById('rc-product');
+  if(prodSel) prodSel.innerHTML = '<option value="">Бүх бараа</option>' + products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  document.getElementById('rc-summary').innerHTML = '';
+  document.getElementById('rc-month-summary').innerHTML = '';
+  document.getElementById('rc-thead').innerHTML = '';
+  document.getElementById('rc-tbody').innerHTML = '';
+  document.getElementById('rc-save-btn').style.display = 'none';
+  lastRecalcPreview = null;
+  openModal('recalc-modal');
+};
+
+// §7-8: Preview — Firestore руу ЯМАР Ч бичилт хийхгүй (§14)
+window.previewRecalc = () => {
+  const from = document.getElementById('rc-from')?.value;
+  const to   = document.getElementById('rc-to')?.value;
+  const onlyPid = document.getElementById('rc-product')?.value || '';
+  if(!from || !to) { alert('Эхлэх болон дуусах огноог сонгоно уу'); return; }
+
+  const targetProducts = onlyPid ? products.filter(p=>p.id===onlyPid) : products;
+  const allResults = [];
+  const openingMissingProducts = [];
+
+  targetProducts.forEach(p => {
+    const { results, openingCostMissing } = recalcProductCost(p.id, from, to);
+    results.forEach(r => { r.productName = `${p.name}·${p.variant}`; r.sku = p.sku||'—'; });
+    allResults.push(...results);
+    if(openingCostMissing) openingMissingProducts.push(`${p.name}·${p.variant}`);
+  });
+
+  // openingMissingProducts-той SKU-ийн үр дүнг тусад нь MISSING OPENING COST болгож flag хийнэ
+  allResults.forEach(r => {
+    if(openingMissingProducts.includes(r.productName) && r.status==='SOURCE MISSING') r.status = 'MISSING OPENING COST';
+  });
+
+  lastRecalcPreview = { from, to, results: allResults };
+
+  // ─── SUMMARY (§8) ───
+  const changed = allResults.filter(r=>r.status==='CHANGED');
+  const affectedSaleIds = new Set(changed.map(r=>r.saleId));
+  const affectedSKUs = new Set(changed.map(r=>r.productId));
+  const oldTotal = allResults.reduce((a,r)=>a+(r.oldCostAmount||0),0);
+  const newTotal = allResults.reduce((a,r)=>a+(r.newCostAmount!=null?r.newCostAmount:(r.oldCostAmount||0)),0);
+  document.getElementById('rc-summary').innerHTML = `
+    <div class="mg" style="margin-bottom:10px">
+      <div class="mc"><div class="ml">Нөлөөлсөн борлуулалт</div><div class="mv pu">${affectedSaleIds.size}</div></div>
+      <div class="mc"><div class="ml">Нөлөөлсөн бараа (SKU)</div><div class="mv pu">${affectedSKUs.size}</div></div>
+      <div class="mc"><div class="ml">Хуучин нийт өртөг</div><div class="mv">${fmt(oldTotal)}</div></div>
+      <div class="mc"><div class="ml">Шинэ нийт өртөг</div><div class="mv am">${fmt(newTotal)}</div></div>
+      <div class="mc"><div class="ml">Зөрүү</div><div class="mv ${newTotal-oldTotal>=0?'re':'gr'}">${fmt(newTotal-oldTotal)}</div></div>
+    </div>`;
+
+  // Month-by-month
+  const byMonth = {};
+  allResults.forEach(r => {
+    const m = r.date.slice(0,7);
+    if(!byMonth[m]) byMonth[m] = { old:0, new:0 };
+    byMonth[m].old += (r.oldCostAmount||0);
+    byMonth[m].new += (r.newCostAmount!=null?r.newCostAmount:(r.oldCostAmount||0));
+  });
+  document.getElementById('rc-month-summary').innerHTML = `<div style="font-size:12px;font-weight:600;margin-bottom:6px">Сар бүрийн харьцуулалт</div>
+    <div class="tw"><table style="font-size:12px;margin-bottom:12px"><thead><tr><th>Сар</th><th style="text-align:right">Хуучин COGS</th><th style="text-align:right">Шинэ COGS</th><th style="text-align:right">Зөрүү</th></tr></thead>
+    <tbody>${Object.keys(byMonth).sort().map(m=>`<tr><td>${m}</td><td style="text-align:right">${fmt(byMonth[m].old)}</td><td style="text-align:right">${fmt(byMonth[m].new)}</td><td style="text-align:right;color:${byMonth[m].new-byMonth[m].old>=0?'var(--re)':'var(--gr)'}">${fmt(byMonth[m].new-byMonth[m].old)}</td></tr>`).join('')}</tbody></table></div>`;
+
+  // ─── PREVIEW TABLE (§7) ───
+  document.getElementById('rc-thead').innerHTML = `<tr><th>SKU</th><th>Барааны нэр</th><th>Огноо</th><th>Баримт №</th><th style="text-align:right">Тоо</th><th style="text-align:right">Хуучин unitCost</th><th style="text-align:right">Шинэ unitCost</th><th style="text-align:right">Хуучин costAmount</th><th style="text-align:right">Шинэ costAmount</th><th style="text-align:right">Зөрүү</th><th>Статус</th></tr>`;
+  const STBADGE = {
+    OK:'<span class="ba bgr">OK</span>', CHANGED:'<span class="ba bam2">CHANGED</span>',
+    'MISSING OPENING COST':'<span class="ba bre">MISSING OPENING COST</span>',
+    'NEGATIVE STOCK':'<span class="ba bre">NEGATIVE STOCK</span>',
+    'SOURCE MISSING':'<span class="ba bre">SOURCE MISSING</span>'
+  };
+  allResults.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+  document.getElementById('rc-tbody').innerHTML = allResults.length===0 ? '<tr><td colspan="11"><div class="empty">Тухайн хугацаанд борлуулалт байхгүй</div></td></tr>' : allResults.map(r=>{
+    const diff = (r.newCostAmount!=null?r.newCostAmount:(r.oldCostAmount||0)) - (r.oldCostAmount||0);
+    return `<tr>
+      <td>${r.sku}</td><td>${r.productName}</td><td>${r.date}</td>
+      <td style="color:var(--pu);cursor:pointer;text-decoration:underline" onclick="openSourceDocument('sale','${r.saleId}')">${r.docNumber}</td>
+      <td style="text-align:right">${r.qty}</td>
+      <td style="text-align:right">${r.oldUnitCost!=null?fmt(r.oldUnitCost):'—'}</td>
+      <td style="text-align:right;font-weight:600">${r.newUnitCost!=null?fmt(r.newUnitCost):'—'}</td>
+      <td style="text-align:right">${r.oldCostAmount!=null?fmt(r.oldCostAmount):'—'}</td>
+      <td style="text-align:right;font-weight:600">${r.newCostAmount!=null?fmt(r.newCostAmount):'—'}</td>
+      <td style="text-align:right;color:${diff>=0?'var(--re)':'var(--gr)'}">${fmt(diff)}</td>
+      <td>${STBADGE[r.status]||r.status}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('rc-save-btn').style.display = changed.length>0 ? 'inline-flex' : 'none';
+  if(changed.length===0) alert('Өөрчлөгдөх мөр олдсонгүй — одоогийн snapshot аль хэдийн зөв байна.');
+};
+
+// §9-12: Save — ЗӨВХӨН status==='CHANGED' мөрүүдийг л шинэчилнэ, audit log + rollback мэдээлэлтэй
+window.saveRecalc = async () => {
+  if(!lastRecalcPreview) { alert('Эхлээд Preview хийнэ үү'); return; }
+  if(!hasPerm('inventory_edit')) { alert('Эрх байхгүй байна'); return; }
+  const changed = lastRecalcPreview.results.filter(r=>r.status==='CHANGED');
+  if(changed.length===0) { alert('Өөрчлөгдөх мөр байхгүй'); return; }
+  if(!confirm(`${changed.length} борлуулалтын мөрийн cost snapshot шинэчлэгдэнэ. Үргэлжлүүлэх үү?`)) return;
+
+  const rollbackRecords = [];
+  const affectedSaleIds = new Set();
+  const affectedSKUs = new Set();
+
+  try {
+    // Sale тус бүрээр бүлэглэж, нэг sale доторх олон мөрийг НЭГ updateDoc-оор бичнэ
+    const bySale = {};
+    changed.forEach(r => { if(!bySale[r.saleId]) bySale[r.saleId]=[]; bySale[r.saleId].push(r); });
+
+    for(const saleId of Object.keys(bySale)) {
+      const sale = sales.find(s=>s.id===saleId);
+      if(!sale) continue;
+      const newItems = (sale.items||[]).map((it, idx) => {
+        const change = bySale[saleId].find(r=>r.itemIndex===idx);
+        if(!change) return it;
+        rollbackRecords.push({
+          saleId, productId: change.productId, oldUnitCost: change.oldUnitCost, oldCostAmount: change.oldCostAmount,
+          newUnitCost: change.newUnitCost, newCostAmount: change.newCostAmount
+        });
+        affectedSaleIds.add(saleId); affectedSKUs.add(change.productId);
+        return { ...it, unitCost: change.newUnitCost, costAmount: change.newCostAmount };
+      });
+      const newTotalCost = newItems.reduce((a,it)=>a+(it.costAmount||0),0);
+      await updateDoc(doc(db,'sales',saleId), { items: newItems, totalCost: newTotalCost });
+    }
+
+    const oldTotalCost = rollbackRecords.reduce((a,r)=>a+(r.oldCostAmount||0),0);
+    const newTotalCost = rollbackRecords.reduce((a,r)=>a+(r.newCostAmount||0),0);
+
+    // §12: Audit log + rollback мэдээлэл
+    await addDoc(collection(db,'costRecalculations'), {
+      recalculatedBy: currentUser.email, recalculatedAt: serverTimestamp(),
+      periodFrom: lastRecalcPreview.from, periodTo: lastRecalcPreview.to,
+      affectedSKUCount: affectedSKUs.size, affectedSaleCount: affectedSaleIds.size,
+      oldTotalCost, newTotalCost, status: 'completed',
+      rollbackRecords
+    });
+
+    alert(`✅ ${affectedSaleIds.size} борлуулалтын cost snapshot амжилттай шинэчлэгдлээ.\nХуучин нийт: ${fmt(oldTotalCost)}\nШинэ нийт: ${fmt(newTotalCost)}`);
+    closeModal('recalc-modal');
+    // §11: Холбогдох тайлангуудыг refresh хийнэ (sales snapshot онлайн шинэчлэгдсэн тул
+    // onSnapshot автоматаар дахин render хийнэ — гэхдээ идэвхтэй харагдаж буй тайланг шууд ч дуудна)
+    if(typeof renderSalesReportView==='function') renderSalesReportView();
+    if(typeof renderInvReport==='function') renderInvReport();
+    if(typeof renderDashboard==='function') renderDashboard();
+  } catch(e) {
+    alert('Алдаа: '+e.message);
+    console.error('[RECALC SAVE ERROR]', e);
+  }
+};
+
 
 // ─── MOVING WEIGHTED AVERAGE COST (шинэ бараа орж ирэх бүрд product.cost-г
 // шинэчилнэ) — зөвхөн Худалдан авалт/Татан авалт ШИНЭЭР бүртгэх үед л
