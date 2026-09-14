@@ -10848,7 +10848,7 @@ function renderIRPLReport(from, to, body) {
     if(t.isDeleted || t.status==='deleted') return false;
     if((t.expense||0) <= 0) return false;
     const cls = getBankTxnReportClassification(t);
-    const included = !!cls.expenseIndicatorId;
+    const included = cls.hasExpenseClassification && cls.expenseAmount > 0;
     if(!included) console.log('[BANK REPORT TRACE] excluded from P&L:', t.id, '| excludedReason=expenseIndicator байхгүй | savedExpenseIndicator=', t.expenseCategory, '| savedCashFlowIndicator=', t.cashFlowCategory);
     return included;
   });
@@ -10928,7 +10928,7 @@ function renderIRCFReport(from, to, body) {
     if(t.isDeleted || t.status==='deleted') return false;
     if((t.income||0) <= 0) return false;
     const cls = getBankTxnReportClassification(t);
-    const included = !!cls.cashFlowIndicatorId;
+    const included = cls.hasCashFlowClassification && cls.incomeAmount > 0;
     if(!included) console.log('[BANK REPORT TRACE] excluded from CF (income):', t.id, '| excludedReason=cashFlowIndicator байхгүй');
     return included;
   });
@@ -10939,7 +10939,7 @@ function renderIRCFReport(from, to, body) {
     if(t.isDeleted || t.status==='deleted') return false;
     if((t.expense||0) <= 0) return false;
     const cls = getBankTxnReportClassification(t);
-    const included = !!cls.cashFlowIndicatorId;
+    const included = cls.hasCashFlowClassification && cls.expenseAmount > 0;
     if(!included) console.log('[BANK REPORT TRACE] excluded from CF (expense):', t.id, '| excludedReason=cashFlowIndicator байхгүй | savedExpenseIndicator=', t.expenseCategory);
     return included;
   });
@@ -11035,17 +11035,22 @@ function getTxnLinkStatus(t) {
 // getTxnLinkStatus()-той адилгүй, тэр нь UI badge-д зориулагдсан хэвээрээ үлдэнэ.
 function getBankTxnReportClassification(tx) {
   const isIncome = (tx.income||0) > 0;
-  const amount = isIncome ? (tx.income||0) : (tx.expense||0);
+  const incomeAmount = tx.income||0;
+  const expenseAmount = tx.expense||0;
+  const amount = isIncome ? incomeAmount : expenseAmount;
   const direction = isIncome ? 'in' : 'out';
   const expenseIndicatorId = tx.expenseCategory || null;
   const expenseIndicatorName = tx.expenseCategory || null;
   const cashFlowIndicatorId = tx.cashFlowCategory || null;
   const cashFlowIndicatorName = tx.cashFlowCategory || null;
+  const hasExpenseClassification = !!expenseIndicatorId;
+  const hasCashFlowClassification = !!cashFlowIndicatorId;
   return {
     expenseIndicatorId, expenseIndicatorName,
     cashFlowIndicatorId, cashFlowIndicatorName,
-    direction, amount,
-    isClassified: !!(expenseIndicatorId || cashFlowIndicatorId)
+    direction, amount, incomeAmount, expenseAmount,
+    hasExpenseClassification, hasCashFlowClassification,
+    isClassified: hasExpenseClassification || hasCashFlowClassification
   };
 }
 
