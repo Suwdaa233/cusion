@@ -4898,11 +4898,20 @@ window.clearSalesListFilter = () => {
 // Cancelled/deleted борлуулалтыг тооцохгүй.
 let currentSalesReportView = 'customer';
 // ═══ TEMPORARY LIVE DIAGNOSTIC — 2026-05→2026-08 sales cost snapshot audit ═══
-// Browser Console дээр гараар дуудаж ажиллуулна: auditSalesCostHistory()
-// Заавал sales array бүрэн ачаалагдсаны дараа (Sales tab-руу нэг орсны дараа) дуудна уу.
+// Browser Console дээр гараар дуудна: auditSalesCostHistory()
+// Заавал Sales/Inventory tab-руу нэг орж sales/invLogs/purchases/importPurchases
+// array бүрэн ачаалагдсаны дараа дуудна уу.
 window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['cusion-21','cusion-22','cusion-23']) => {
-  const monthData = {}; // 'YYYY-MM' -> stats
-  const productMonthData = {}; // 'productName|YYYY-MM' -> stats
+  const monthData = {};
+  const productMonthData = {};
+  const anomalySales = []; // §4: sale-level anomaly list
+  const productIds = {};   // pName -> pid (жинхэнэ Firestore ID)
+
+  // Тест барааны Firestore ID-г тогтооно (нэрээр match)
+  watchProducts.forEach(pName => {
+    const p = products.find(x => (x.variant||'').toLowerCase().includes(pName.toLowerCase()) || `${x.name}·${x.variant}`.toLowerCase().includes(pName.toLowerCase()));
+    productIds[pName] = p ? p.id : null;
+  });
 
   sales.forEach(s => {
     if(s.status==='deleted' || s.isDeleted) return;
@@ -4919,29 +4928,90 @@ window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['
       md.qtySold += qty;
       const hasUnitCost = it.unitCost != null;
       const hasCostAmount = it.costAmount != null;
-      if(!hasUnitCost) md.missingUnitCost++; else if(Number(it.unitCost)===0) md.zeroUnitCost++;
-      if(!hasCostAmount) md.missingCostAmount++; else if(Number(it.costAmount)===0) md.zeroCostAmount++;
-      const cost = hasCostAmount ? Number(it.costAmount) : (hasUnitCost ? Number(it.unitCost)*qty : 0);
+      const uc = hasUnitCost ? Number(it.unitCost) : null;
+      const ca = hasCostAmount ? Number(it.costAmount) : null;
+      if(!hasUnitCost) md.missingUnitCost++; else if(uc===0) md.zeroUnitCost++;
+      if(!hasCostAmount) md.missingCostAmount++; else if(ca===0) md.zeroCostAmount++;
+      const cost = hasCostAmount ? ca : (hasUnitCost ? uc*qty : 0);
       md.costTotal += cost;
+      let mismatch = false;
       if(hasUnitCost && hasCostAmount) {
-        const expected = Math.round(Number(it.unitCost)*qty);
-        if(Math.abs(expected - Number(it.costAmount)) > 1) md.mismatchCount++;
+        const expected = Math.round(uc*qty);
+        if(Math.abs(expected - ca) > 1) { md.mismatchCount++; mismatch = true; }
       }
-      // Product breakdown (нэрээр дайчилж хайна, watchProducts массивт заасан substring-үүд)
+      // §4: anomaly-тай мөрийг жагсаалтад нэмнэ
+      if(!hasUnitCost || uc===0 || !hasCostAmount || ca===0 || mismatch) {
+        anomalySales.push({
+          date: s.date, saleNumber: s.docNumber||s.id, saleId: s.id,
+          productId: it.pid, productName: it.label||'', qty,
+          unitCost: hasUnitCost?uc:'MISSING', costAmount: hasCostAmount?ca:'MISSING',
+          expectedCostAmount: hasUnitCost?Math.round(uc*qty):'N/A',
+          reason: !hasUnitCost?'unitCost missing':uc===0?'unitCost=0':!hasCostAmount?'costAmount missing':ca===0?'costAmount=0':'mismatch'
+        });
+      }
+      // §3: Product breakdown — MIN/MAX unitCost нэмэгдсэн
       const label = (it.label||'').toLowerCase();
       watchProducts.forEach(pName => {
-        if(!label.includes(pName.toLowerCase())) return;
+        const matchById = productIds[pName] && it.pid===productIds[pName];
+        const matchByName = label.includes(pName.toLowerCase());
+        if(!matchById && !matchByName) return;
         const key = pName+'|'+month;
-        if(!productMonthData[key]) productMonthData[key] = { productName: pName, month, qty:0, costTotal:0, zeroCostQty:0, missingCostQty:0 };
+        if(!productMonthData[key]) productMonthData[key] = { productName: pName, month, qty:0, costTotal:0, zeroCostQty:0, missingCostQty:0, minUnitCost:null, maxUnitCost:null, saleCount:new Set() };
         const pmd = productMonthData[key];
-        pmd.qty += qty;
-        pmd.costTotal += cost;
+        pmd.qty += qty; pmd.costTotal += cost; pmd.saleCount.add(s.id);
         if(!hasUnitCost && !hasCostAmount) pmd.missingCostQty += qty;
         else if(cost === 0) pmd.zeroCostQty += qty;
+        if(hasUnitCost) {
+          pmd.minUnitCost = (pmd.minUnitCost===null) ? uc : Math.min(pmd.minUnitCost, uc);
+          pmd.maxUnitCost = (pmd.maxUnitCost===null) ? uc : Math.max(pmd.maxUnitCost, uc);
+        }
       });
     });
   });
 
+  // §6: INBOUND TIMELINE (Орлого/Худалдан авалт/Татан авалт) — 3 тест бараагаар
+  const inboundEvents = [];
+  watchProducts.forEach(pName => {
+    const pid = productIds[pName];
+    if(!pid) return;
+    invLogs.filter(l=>l.type==='in' && l.productId===pid && l.date>=fromM && l.date<=toM+'-31').forEach(l=>{
+      inboundEvents.push({ date:l.date, sourceType:'Орлого(гар)', docNumber:l.docNumber||l.id, productId:pid, productName:pName, qty:l.qty, unitCost:(l.unitCost!=null?l.unitCost:'SOURCE RECORD MISSING'), amount:(l.amount!=null?l.amount:'SOURCE RECORD MISSING') });
+    });
+    purchases.filter(p=>p.status!=='deleted').forEach(p=>{
+      if(p.purchaseDate<fromM || p.purchaseDate>toM+'-31') return;
+      (p.items||[]).filter(it=>it.productId===pid).forEach(it=>{
+        inboundEvents.push({ date:p.purchaseDate, sourceType:'Худалдан авалт', docNumber:p.documentNumber, productId:pid, productName:pName, qty:it.quantity, unitCost:it.purchaseUnitPrice, amount:it.purchaseAmount });
+      });
+    });
+    importPurchases.filter(p=>p.status!=='deleted').forEach(p=>{
+      if(p.purchaseDate<fromM || p.purchaseDate>toM+'-31') return;
+      (p.items||[]).filter(it=>it.productId===pid).forEach(it=>{
+        inboundEvents.push({ date:p.purchaseDate, sourceType:'Татан авалт', docNumber:p.documentNumber, productId:pid, productName:pName, qty:it.quantity, unitCost:it.landedUnitCost, amount:Math.round((it.landedUnitCost||0)*it.quantity) });
+      });
+    });
+  });
+  inboundEvents.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+
+  // §7: SALES BEFORE FIRST VALID RECEIPT
+  const salesBeforeReceipt = [];
+  watchProducts.forEach(pName => {
+    const pid = productIds[pName];
+    if(!pid) return;
+    const validReceipts = inboundEvents.filter(e=>e.productId===pid && typeof e.unitCost==='number' && e.unitCost>0).sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    const firstValidReceiptDate = validReceipts.length ? validReceipts[0].date : null;
+    if(!firstValidReceiptDate) return;
+    sales.forEach(s=>{
+      if(s.status==='deleted'||s.isDeleted) return;
+      (s.items||[]).forEach(it=>{
+        if(it.pid!==pid) return;
+        if(s.date < firstValidReceiptDate) {
+          salesBeforeReceipt.push({ saleDate:s.date, saleNumber:s.docNumber||s.id, productName:pName, qty:it.qty, unitCost:it.unitCost??'MISSING', receiptDate:firstValidReceiptDate, receiptCost:validReceipts[0].unitCost });
+        }
+      });
+    });
+  });
+
+  // ─── PRINT: §2 ───
   console.log('════════════════════════════════════════════════');
   console.log('[COST AUDIT] MONTH-BY-MONTH SUMMARY (' + fromM + ' → ' + toM + ')');
   console.log('════════════════════════════════════════════════');
@@ -4950,25 +5020,52 @@ window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['
     console.log(`[COST AUDIT] MONTH=${month} | SALE COUNT=${md.saleCount.size} | QTY SOLD=${md.qtySold} | COST TOTAL=${md.costTotal} | AVG COST/UNIT=${md.qtySold>0?Math.round(md.costTotal/md.qtySold):0} | MISSING unitCost=${md.missingUnitCost} | ZERO unitCost=${md.zeroUnitCost} | MISSING costAmount=${md.missingCostAmount} | ZERO costAmount=${md.zeroCostAmount} | MISMATCH=${md.mismatchCount}`);
   });
 
+  // ─── PRINT: §3 ───
   console.log('════════════════════════════════════════════════');
-  console.log('[COST AUDIT] PRODUCT BREAKDOWN');
+  console.log('[COST AUDIT] PRODUCT BREAKDOWN (MIN/MAX unitCost-той)');
   console.log('════════════════════════════════════════════════');
   Object.keys(productMonthData).sort().forEach(key => {
     const pmd = productMonthData[key];
-    console.log(`[COST AUDIT] PRODUCT=${pmd.productName} | MONTH=${pmd.month} | QTY=${pmd.qty} | COST TOTAL=${pmd.costTotal} | AVG COST=${pmd.qty>0?Math.round(pmd.costTotal/pmd.qty):0} | ZERO COST QTY=${pmd.zeroCostQty} | MISSING COST QTY=${pmd.missingCostQty}`);
+    console.log(`[COST AUDIT] PRODUCT=${pmd.productName} | MONTH=${pmd.month} | SALE COUNT=${pmd.saleCount.size} | QTY=${pmd.qty} | COST TOTAL=${pmd.costTotal} | AVG COST=${pmd.qty>0?Math.round(pmd.costTotal/pmd.qty):0} | MIN unitCost=${pmd.minUnitCost} | MAX unitCost=${pmd.maxUnitCost} | ZERO COST QTY=${pmd.zeroCostQty} | MISSING COST QTY=${pmd.missingCostQty}`);
   });
 
-  // 17,500 master cost шалгалт (§5)
+  // ─── PRINT: §4 ───
   console.log('════════════════════════════════════════════════');
-  console.log('[COST AUDIT] 17,500 MASTER COST CHECK');
+  console.log('[COST AUDIT] SALE-LEVEL ANOMALIES (' + anomalySales.length + ' мөр)');
+  console.log('════════════════════════════════════════════════');
+  anomalySales.forEach(a => console.log('[COST AUDIT ANOMALY]', a));
+
+  // ─── PRINT: §5 (cost history log байгаа эсэх) ───
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] PRODUCT.COST TIMELINE / HISTORY LOG');
   console.log('════════════════════════════════════════════════');
   watchProducts.forEach(pName => {
-    const p = products.find(x => `${x.name}·${x.variant}`.toLowerCase().includes(pName.toLowerCase()) || (x.variant||'').toLowerCase().includes(pName.toLowerCase()));
-    if(p) console.log(`[COST AUDIT] product=${pName} | current products/{${p.id}}.cost =`, p.cost);
-    else console.log(`[COST AUDIT] product=${pName} — олдсонгүй (нэрийг шалгана уу)`);
+    const pid = productIds[pName];
+    const p = products.find(x=>x.id===pid);
+    console.log(`[COST AUDIT] product=${pName} | id=${pid} | CURRENT products/{${pid}}.cost =`, p?p.cost:'олдсонгүй');
   });
+  console.log('[COST AUDIT] costInitializations collection-ийг локал ачаалдаггүй тул шууд харах боломжгүй — Firestore Console-с "costInitializations" collection-ийг шалгана уу. Weighted-average update-ийн ТУСДАА audit log (өөр байдлаар) БАЙХГҮЙ — зөвхөн console.log runtime дээр л харагддаг байсан, Firestore-д хадгалагдаагүй.');
 
-  return { monthData, productMonthData };
+  // ─── PRINT: §6 ───
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] INBOUND TIMELINE (Орлого/Худалдан авалт/Татан авалт)');
+  console.log('════════════════════════════════════════════════');
+  inboundEvents.forEach(e => console.log('[COST AUDIT INBOUND]', e));
+  if(inboundEvents.length===0) console.log('[COST AUDIT] Инбоунд эвент ОЛДСОНГҮЙ — эсвэл productId match хийгдээгүй, эсвэл эх сурвалж бүрмөсөн устсан ("SOURCE RECORD MISSING")');
+
+  // ─── PRINT: §7 ───
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] SALES BEFORE FIRST VALID RECEIPT (' + salesBeforeReceipt.length + ' мөр)');
+  console.log('════════════════════════════════════════════════');
+  salesBeforeReceipt.forEach(x => console.log('[COST AUDIT BEFORE-RECEIPT]', x));
+
+  // ─── PRINT: §9 Report vs Audit reconciliation ───
+  const auditTotalCost = Object.values(monthData).reduce((a,md)=>a+md.costTotal,0);
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] AUDIT TOTAL COST (' + fromM + '→' + toM + ') =', auditTotalCost);
+  console.log('Үүнийг Sales Report/P&L тайлангийн харуулж буй "Нийт өртөг"-той адилхан хугацаагаар харьцуулна уу (гараар).');
+
+  return { monthData, productMonthData, anomalySales, inboundEvents, salesBeforeReceipt, auditTotalCost, productIds };
 };
 
 function getSalesReportLines(filters={}) {
