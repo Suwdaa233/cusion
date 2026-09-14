@@ -407,7 +407,7 @@ tbody tr:hover td{background:var(--sur2)}
           <button class="tb" onclick="showSalesReportView('product',this)"><i class="ti ti-package"></i>Бараагаар</button>
         </div>
       </div>
-      <div class="cb np"><div class="tw"><table style="font-size:12px" id="srv-table">
+      <div class="cb np"><div id="srv-warning" style="margin:0 14px 8px"></div><div class="tw"><table style="font-size:12px" id="srv-table">
         <thead id="srv-thead"></thead>
         <tbody id="srv-tbody"></tbody>
         <tfoot id="srv-tfoot"></tfoot>
@@ -2579,6 +2579,10 @@ function getAllMovements() {
 
   // ─── ADJUSTMENT_IN / ADJUSTMENT_OUT (гар аргаар Орлого/Зарлага, invLogs type in/out) ─
   invLogs.filter(l => l.type === 'in' || l.type === 'out').forEach(l => {
+    // §1: nullish logic — 0 бол БОДИТ утга, undefined/null бол "field байхгүй" (хуучин legacy
+    // бичлэг). Хуучин бичлэгт unitCost/amount байхгүй тул 0 хэвээр (тааж болохгүй, §2).
+    const uCost = (l.unitCost != null) ? Number(l.unitCost) : 0;
+    const amt = (l.amount != null) ? Number(l.amount) : uCost * Math.abs(Number(l.qty || 0));
     list.push({
       transactionDate: l.date,
       productId:  l.productId,
@@ -2587,7 +2591,7 @@ function getAllMovements() {
       movementType: l.type === 'in' ? 'ADJUSTMENT_IN' : 'ADJUSTMENT_OUT',
       quantityIn:  l.type === 'in' ? Math.abs(l.qty) : 0,
       quantityOut: l.type === 'out' ? Math.abs(l.qty) : 0,
-      unitCost: 0, amount: 0,
+      unitCost: uCost, amount: amt,
       sourceType: 'inventoryLog',
       sourceId:   l.id,
       sourceNumber: l.docNumber || '',
@@ -4893,6 +4897,80 @@ window.clearSalesListFilter = () => {
 // ─── БОРЛУУЛАЛТЫН ТАЙЛАН — canonical source: sales + items (өөр collection ашиглахгүй) ─
 // Cancelled/deleted борлуулалтыг тооцохгүй.
 let currentSalesReportView = 'customer';
+// ═══ TEMPORARY LIVE DIAGNOSTIC — 2026-05→2026-08 sales cost snapshot audit ═══
+// Browser Console дээр гараар дуудаж ажиллуулна: auditSalesCostHistory()
+// Заавал sales array бүрэн ачаалагдсаны дараа (Sales tab-руу нэг орсны дараа) дуудна уу.
+window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['cusion-21','cusion-22','cusion-23']) => {
+  const monthData = {}; // 'YYYY-MM' -> stats
+  const productMonthData = {}; // 'productName|YYYY-MM' -> stats
+
+  sales.forEach(s => {
+    if(s.status==='deleted' || s.isDeleted) return;
+    const month = (s.date||'').slice(0,7);
+    if(month < fromM || month > toM) return;
+    if(!monthData[month]) monthData[month] = {
+      saleCount: new Set(), qtySold: 0, costTotal: 0,
+      missingUnitCost: 0, zeroUnitCost: 0, missingCostAmount: 0, zeroCostAmount: 0, mismatchCount: 0
+    };
+    const md = monthData[month];
+    md.saleCount.add(s.id);
+    (s.items||[]).forEach(it => {
+      const qty = Number(it.qty ?? 0);
+      md.qtySold += qty;
+      const hasUnitCost = it.unitCost != null;
+      const hasCostAmount = it.costAmount != null;
+      if(!hasUnitCost) md.missingUnitCost++; else if(Number(it.unitCost)===0) md.zeroUnitCost++;
+      if(!hasCostAmount) md.missingCostAmount++; else if(Number(it.costAmount)===0) md.zeroCostAmount++;
+      const cost = hasCostAmount ? Number(it.costAmount) : (hasUnitCost ? Number(it.unitCost)*qty : 0);
+      md.costTotal += cost;
+      if(hasUnitCost && hasCostAmount) {
+        const expected = Math.round(Number(it.unitCost)*qty);
+        if(Math.abs(expected - Number(it.costAmount)) > 1) md.mismatchCount++;
+      }
+      // Product breakdown (нэрээр дайчилж хайна, watchProducts массивт заасан substring-үүд)
+      const label = (it.label||'').toLowerCase();
+      watchProducts.forEach(pName => {
+        if(!label.includes(pName.toLowerCase())) return;
+        const key = pName+'|'+month;
+        if(!productMonthData[key]) productMonthData[key] = { productName: pName, month, qty:0, costTotal:0, zeroCostQty:0, missingCostQty:0 };
+        const pmd = productMonthData[key];
+        pmd.qty += qty;
+        pmd.costTotal += cost;
+        if(!hasUnitCost && !hasCostAmount) pmd.missingCostQty += qty;
+        else if(cost === 0) pmd.zeroCostQty += qty;
+      });
+    });
+  });
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] MONTH-BY-MONTH SUMMARY (' + fromM + ' → ' + toM + ')');
+  console.log('════════════════════════════════════════════════');
+  Object.keys(monthData).sort().forEach(month => {
+    const md = monthData[month];
+    console.log(`[COST AUDIT] MONTH=${month} | SALE COUNT=${md.saleCount.size} | QTY SOLD=${md.qtySold} | COST TOTAL=${md.costTotal} | AVG COST/UNIT=${md.qtySold>0?Math.round(md.costTotal/md.qtySold):0} | MISSING unitCost=${md.missingUnitCost} | ZERO unitCost=${md.zeroUnitCost} | MISSING costAmount=${md.missingCostAmount} | ZERO costAmount=${md.zeroCostAmount} | MISMATCH=${md.mismatchCount}`);
+  });
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] PRODUCT BREAKDOWN');
+  console.log('════════════════════════════════════════════════');
+  Object.keys(productMonthData).sort().forEach(key => {
+    const pmd = productMonthData[key];
+    console.log(`[COST AUDIT] PRODUCT=${pmd.productName} | MONTH=${pmd.month} | QTY=${pmd.qty} | COST TOTAL=${pmd.costTotal} | AVG COST=${pmd.qty>0?Math.round(pmd.costTotal/pmd.qty):0} | ZERO COST QTY=${pmd.zeroCostQty} | MISSING COST QTY=${pmd.missingCostQty}`);
+  });
+
+  // 17,500 master cost шалгалт (§5)
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] 17,500 MASTER COST CHECK');
+  console.log('════════════════════════════════════════════════');
+  watchProducts.forEach(pName => {
+    const p = products.find(x => `${x.name}·${x.variant}`.toLowerCase().includes(pName.toLowerCase()) || (x.variant||'').toLowerCase().includes(pName.toLowerCase()));
+    if(p) console.log(`[COST AUDIT] product=${pName} | current products/{${p.id}}.cost =`, p.cost);
+    else console.log(`[COST AUDIT] product=${pName} — олдсонгүй (нэрийг шалгана уу)`);
+  });
+
+  return { monthData, productMonthData };
+};
+
 function getSalesReportLines(filters={}) {
   const {from, to, locId, custId, prodId, payType} = filters;
   let list = sales.filter(s => s.status!=='deleted' && !s.isDeleted && s.status!=='cancelled');
@@ -4910,7 +4988,13 @@ function getSalesReportLines(filters={}) {
       const lineSell = it.lineSubtotal ?? (it.price||0)*(it.qty||0);
       const lineDisc  = it.discountAmount || 0;
       const lineNet   = it.lineTotal ?? it.sub ?? (lineSell-lineDisc);
-      const lineCost  = it.costAmount ?? ((it.unitCost||0)*(it.qty||0));
+      // §6: nullish logic — 0 бол БОДИТ утга, undefined/null бол "мэдээлэл байхгүй" (legacy).
+      const qtyNum = Number(it.qty ?? 0);
+      const uCostNullable = (it.unitCost != null) ? Number(it.unitCost) : null;
+      const lineCostNullable = (it.costAmount != null) ? Number(it.costAmount)
+        : (uCostNullable != null ? uCostNullable * qtyNum : null);
+      const costMissing = (lineCostNullable === null);
+      const lineCost = lineCostNullable ?? 0; // aggregate-д silent биш, дараа нь тусад нь тэмдэглэнэ
       lines.push({
         saleId: s.id, docNumber: getDocNumDisplay(s), date: s.date,
         customerId: s.customerId||'', customerName: s.customerName||'—', customerCode: s.customerCode||'',
@@ -4919,7 +5003,7 @@ function getSalesReportLines(filters={}) {
         pid: it.pid, productName: it.label||'', barcode: it.barcode||'',
         qty: it.qty||0, unitPrice: it.price||0,
         sellAmount: lineSell, discAmount: lineDisc, netAmount: lineNet,
-        costAmount: lineCost,
+        costAmount: lineCost, costMissing,
         paid: s.paid||0, recv: s.recv||0, total: s.total||0
       });
     });
@@ -4951,6 +5035,19 @@ window.renderSalesReportView = () => {
   }
 
   const lines = getSalesReportLines({from,to,locId,custId,prodId,payType});
+
+  // §8: Түүхэн cost мэдээлэлгүй мөрийг silent 0 болгож нуухгүй, тодорхой анхааруулна
+  const warnEl = document.getElementById('srv-warning');
+  if(warnEl) {
+    const missingLines = lines.filter(l=>l.costMissing);
+    if(missingLines.length > 0) {
+      const missingQty = missingLines.reduce((a,l)=>a+(l.qty||0),0);
+      const missingSaleIds = new Set(missingLines.map(l=>l.saleId));
+      warnEl.innerHTML = `<div class="al al-warn"><i class="ti ti-alert-triangle"></i> Анхааруулга: ${missingSaleIds.size} борлуулалтын ${missingQty}ш бараанд түүхэн өртгийн мэдээлэл байхгүй тул нийт өртөг дутуу байж болно.</div>`;
+    } else {
+      warnEl.innerHTML = '';
+    }
+  }
 
   if(currentSalesReportView==='customer') {
     thead.innerHTML = `<tr><th>Код</th><th>Харилцагч</th><th style="text-align:right">Баримт</th><th style="text-align:right">Нийт борлуулалт</th><th style="text-align:right">Хөнгөлөлт</th><th style="text-align:right">Цэвэр борлуулалт</th><th style="text-align:right">Төлсөн</th><th style="text-align:right">Авлага</th></tr>`;
@@ -10259,10 +10356,21 @@ function renderIRPLReport(from, to, body) {
   );
   console.log('[RP TRACE] sales filter period =', from, '→', to, '| matched sales count =', salesList.length, '| total sales in memory =', sales.length);
   const totalRev   = salesList.reduce((a,s)=>a+(s.total||0), 0);
-  // Борлуулсан барааны өртөг — борлуулалтын snapshot-оос
-  const totalCost  = salesList.reduce((a,s)=>a+
-    (s.totalCost || (s.items||[]).reduce((b,it)=>b+(it.costAmount||((it.unitCost||0)*(it.qty||1))),0)),
-  0);
+  // §7: Борлуулсан барааны өртөг — borrлуулалтын snapshot-оос, nullish logic (0 бодит утга,
+  // undefined/null "мэдээлэл байхгүй"). Хэзээ ч current product.cost ашиглан нөхөхгүй (§9).
+  let plMissingCostQty = 0, plMissingCostCount = 0;
+  const totalCost  = salesList.reduce((a,s)=>{
+    if(s.totalCost != null) return a + Number(s.totalCost);
+    let saleCost = 0;
+    (s.items||[]).forEach(it=>{
+      const qtyN = Number(it.qty ?? 0);
+      const uc = (it.unitCost != null) ? Number(it.unitCost) : null;
+      const ca = (it.costAmount != null) ? Number(it.costAmount) : (uc != null ? uc*qtyN : null);
+      if(ca === null) { plMissingCostQty += qtyN; plMissingCostCount++; }
+      else saleCost += ca;
+    });
+    return a + saleCost;
+  }, 0);
   const grossProfit = totalRev - totalCost;
   const totalExp   = EXPENSE_CATEGORIES.reduce((a,c)=>a+(byExp[c]||0), 0);
   const ebitda     = grossProfit - totalExp;
@@ -10278,6 +10386,9 @@ function renderIRPLReport(from, to, body) {
     html += `<div class="empty" style="padding:24px;text-align:center;color:var(--tx3)"><i class="ti ti-inbox" style="font-size:24px"></i><br>Мэдээлэл байхгүй</div>`;
     body.innerHTML = html;
     return;
+  }
+  if(plMissingCostQty > 0) {
+    html += `<div class="al al-warn" style="margin-bottom:10px"><i class="ti ti-alert-triangle"></i> Анхааруулга: ${plMissingCostCount} борлуулалтын ${plMissingCostQty}ш бараанд түүхэн өртгийн мэдээлэл байхгүй тул нийт өртөг дутуу байж болно.</div>`;
   }
   html+=`<table style="width:100%;border-collapse:collapse;font-size:13px">`;
   html+=`<thead><tr style="background:var(--pu);color:#fff"><th style="padding:8px 12px;text-align:left">Үзүүлэлт</th><th style="padding:8px 12px;text-align:right;width:180px">Дүн (₮)</th></tr></thead><tbody>`;
