@@ -6426,6 +6426,35 @@ window.clearHistoryFilter = () => {
 
 // ─── STATE (bank & transfer) ──────────────────────────────────────────────────
 let bankAccounts=[],bankTxns=[],bankLinks=[],transfers=[];
+// §6: Дотоод тайлан (P&L/Cash Flow)-д зориулсан ТУСДАА bankTxns массив/query —
+// Bank Statement дэлгэцийн scoped (сонгосон данс/огноо) bankTxns-тэй ХОЛИХГҮЙ.
+// Тайлан өөрийн хүссэн (илүү өргөн) хугацаагаараа шууд Firestore-с уншина.
+let irBankTxns = [];
+let unsubIRBankTxns = null;
+let lastIRBankTxnsScope = null;
+function subscribeIRBankTxns(from, to) {
+  const scopeKey = `${from}|${to}`;
+  if(scopeKey === lastIRBankTxnsScope && unsubIRBankTxns) return Promise.resolve();
+  lastIRBankTxnsScope = scopeKey;
+  if(unsubIRBankTxns) { unsubIRBankTxns(); unsubIRBankTxns = null; }
+  return new Promise((resolve) => {
+    const conditions = [];
+    if(from) conditions.push(where('date','>=',from));
+    if(to)   conditions.push(where('date','<=',to));
+    const q = query(collection(db,'bankTxns'), ...conditions, orderBy('date','desc'));
+    let firstLoad = true;
+    unsubIRBankTxns = onSnapshot(q, snap => {
+      irBankTxns = snap.docs.map(d=>({id:d.id,...d.data()}));
+      console.log('[BANK REPORT TRACE] irBankTxns loaded =', irBankTxns.length, '| scope =', from, '→', to);
+      if(firstLoad) { firstLoad = false; resolve(); }
+      // Дахин ирсэн snapshot (жишээ шинэ classification) бол ИДЭВХТЭЙ тайлангаа дахин render хийнэ
+      else if(irActiveReportType) showIRReport(irActiveReportType);
+    }, err => {
+      console.error('[subscribeIRBankTxns ERROR]', { code: err.code, message: err.message, from, to });
+      if(firstLoad) { firstLoad = false; resolve(); }
+    });
+  });
+}
 // Lazy-loaded transaction collection-уудын unsubscribe function-ууд — module
 // нээгдэх бүрд хуучин listener-ийг эхлээд таслаад шинийг эхлүүлнэ (§11).
 let unsubBankTxns = null;
@@ -10792,7 +10821,7 @@ window.setIRPeriod = (period) => {
   }
 };
 
-window.showIRReport = (type) => {
+window.showIRReport = async (type) => {
   const from = document.getElementById('ir-from')?.value || '';
   const to   = document.getElementById('ir-to')?.value   || '';
   console.log('[IR DATE] from =', from, '| to =', to, '| requested report =', type);
@@ -10810,6 +10839,11 @@ window.showIRReport = (type) => {
   if(cfBtn) cfBtn.style.borderColor = type==='cf' ? 'var(--gr)' : 'transparent';
 
   cnt.style.display = 'block';
+  body.innerHTML = '<div class="empty"><i class="ti ti-loader-2"></i> Ачаалж байна...</div>';
+
+  // §6,§10: Дотоод тайлан ӨӨРИЙН тусдаа bankTxns query-г хэрэглэгчийн сонгосон
+  // ЯГ ТЭР хугацаагаар ачаална — Bank Statement-ийн scoped bankTxns-тэй ХОЛИХГҮЙ.
+  await subscribeIRBankTxns(from, to);
 
   if(type === 'pl') {
     if(title) title.innerHTML = '<i class="ti ti-chart-bar"></i> Орлого үр дүнгийн тайлан';
@@ -10841,7 +10875,7 @@ function renderIRPLReport(from, to, body) {
   // §8-9: canonical helper ашиглана — зөвхөн expenseIndicator байгаа эсэхийг шалгана,
   // cashFlowCategory-той хамааралгүй (Мөнгөн гүйлгээ ангилах цэвэр cashflow-only bulk
   // action ашигласан ч, expenseCategory тусад нь байхгүй байсан ч P&L-ээс хасагдахгүй)
-  const txns = bankTxns.filter(t => {
+  const txns = irBankTxns.filter(t => {
     const nd = normalizeBankTxnDate(t.date);
     if(nd===null) return false;
     if(!(!from||nd>=from) || !(!to||nd<=to)) return false;
@@ -10921,7 +10955,7 @@ function renderIRCFReport(from, to, body) {
   // §8-9: canonical helper — cashFlowIndicator байгаа эсэхийг л шалгана, expenseCategory-той
   // хамааралгүй (Зардал ангилах цэвэр expense-only байсан ч cashFlowCategory байвал орно,
   // мөн эсрэгээрээ ч мөн адил)
-  const incTxns = bankTxns.filter(t => {
+  const incTxns = irBankTxns.filter(t => {
     const nd = normalizeBankTxnDate(t.date);
     if(nd===null) return false;
     if(!(!from||nd>=from) || !(!to||nd<=to)) return false;
@@ -10932,7 +10966,7 @@ function renderIRCFReport(from, to, body) {
     if(!included) console.log('[BANK REPORT TRACE] excluded from CF (income):', t.id, '| excludedReason=cashFlowIndicator байхгүй');
     return included;
   });
-  const expTxns = bankTxns.filter(t => {
+  const expTxns = irBankTxns.filter(t => {
     const nd = normalizeBankTxnDate(t.date);
     if(nd===null) return false;
     if(!(!from||nd>=from) || !(!to||nd<=to)) return false;
@@ -10985,7 +11019,7 @@ window.exportIRCSV = (type) => {
   const to   = document.getElementById('ir-to')?.value   || '';
   if(type==='pl') {
     const rows = [['Үзүүлэлт','Дүн (₮)']];
-    const txns = bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted);
+    const txns = irBankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted);
     const byExp={};
     txns.forEach(t=>{if(t.expenseCategory&&t.expense>0) byExp[t.expenseCategory]=(byExp[t.expenseCategory]||0)+t.expense;});
     const sl=sales.filter(s=>(!from||s.date>=from)&&(!to||s.date<=to)&&s.status!=='deleted');
@@ -10997,7 +11031,7 @@ window.exportIRCSV = (type) => {
     downloadCSV(rows,'pl_report.csv');
   } else {
     const rows=[['Үзүүлэлт','Дүн (₮)']];
-    const txns=bankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted);
+    const txns=irBankTxns.filter(t=>(!from||t.date>=from)&&(!to||t.date<=to)&&!t.isDeleted);
     const byCF={};
     txns.forEach(t=>{if(t.cashFlowCategory){const a=(t.income||0)>0?(t.income||0):-(t.expense||0);byCF[t.cashFlowCategory]=(byCF[t.cashFlowCategory]||0)+a;}});
     const inc=txns.reduce((a,t)=>a+(t.income||0),0),exp=txns.reduce((a,t)=>a+(t.expense||0),0);
