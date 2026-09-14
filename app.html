@@ -4901,16 +4901,40 @@ let currentSalesReportView = 'customer';
 // Browser Console дээр гараар дуудна: auditSalesCostHistory()
 // Заавал Sales/Inventory tab-руу нэг орж sales/invLogs/purchases/importPurchases
 // array бүрэн ачаалагдсаны дараа дуудна уу.
+// §1: LIVE AUDIT-аас батлагдсан БОДИТ Firestore productId-г canonical key
+// болгож ашиглана — display/name string-ээр ХАЙХГҮЙ (өмнөх алдаа яг энэ байсан).
+const KNOWN_PRODUCT_IDS = {
+  'cusion-21': 'VvRLKyyYyCYRBBW2W8ZQ',
+  'cusion-22': '6EvxKb6C8hHpgMWNnQp3',
+  'cusion-23': '7N4WpZtR3T6lNLGu2NgQ'
+};
 window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['cusion-21','cusion-22','cusion-23']) => {
   const monthData = {};
   const productMonthData = {};
   const anomalySales = []; // §4: sale-level anomaly list
   const productIds = {};   // pName -> pid (жинхэнэ Firestore ID)
 
-  // Тест барааны Firestore ID-г тогтооно (нэрээр match)
+  // §1: Эхлээд KNOWN_PRODUCT_IDS-аас шууд авна (canonical, найдвартай).
+  // Хэрэв тэнд байхгүй бол ЛУУЖ л нэрээр match хийж оролдоно (fallback, сэрэмжтэй).
   watchProducts.forEach(pName => {
-    const p = products.find(x => (x.variant||'').toLowerCase().includes(pName.toLowerCase()) || `${x.name}·${x.variant}`.toLowerCase().includes(pName.toLowerCase()));
-    productIds[pName] = p ? p.id : null;
+    if(KNOWN_PRODUCT_IDS[pName]) {
+      productIds[pName] = KNOWN_PRODUCT_IDS[pName];
+    } else {
+      const p = products.find(x => (x.variant||'').toLowerCase().includes(pName.toLowerCase()) || `${x.name}·${x.variant}`.toLowerCase().includes(pName.toLowerCase()));
+      productIds[pName] = p ? p.id : null;
+      if(!p) console.warn(`[COST AUDIT] "${pName}" нэрээр олдсонгүй — KNOWN_PRODUCT_IDS-д ID-г нь гараар нэмнэ үү.`);
+    }
+  });
+
+  // §1: PRODUCT IDENTITY TRACE — резолвлогдсон product бүрийн бодит мэдээллийг хэвлэнэ
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] PRODUCT IDENTITY TRACE');
+  console.log('════════════════════════════════════════════════');
+  watchProducts.forEach(pName => {
+    const pid = productIds[pName];
+    const p = products.find(x=>x.id===pid);
+    if(!pid) { console.log(`[COST AUDIT] ${pName} → productId ОЛДСОНГҮЙ`); return; }
+    console.log(`[COST AUDIT] ${pName} → productId=${pid} | code=${p?.sku||'—'} | barcode=${p?.barcode||'—'} | name=${p?.name||'—'}·${p?.variant||'—'} | product.cost=${p?p.cost:'ОЛДСОНГҮЙ (products array-д энэ ID байхгүй)'}`);
   });
 
   sales.forEach(s => {
@@ -4992,6 +5016,18 @@ window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['
   });
   inboundEvents.sort((a,b)=>(a.date||'').localeCompare(b.date||''));
 
+  // §7: SOURCE DEDUPLICATION — ижил бараа/огноо/тоо хэмжээтэй, ӨӨР эх сурвалжаас
+  // ирсэн inbound event-үүдийг duplicate candidate гэж тэмдэглэнэ.
+  const duplicateCandidates = [];
+  for(let i=0;i<inboundEvents.length;i++){
+    for(let j=i+1;j<inboundEvents.length;j++){
+      const a = inboundEvents[i], b = inboundEvents[j];
+      if(a.productId===b.productId && a.date===b.date && a.qty===b.qty && a.sourceType!==b.sourceType){
+        duplicateCandidates.push({ event1: a, event2: b });
+      }
+    }
+  }
+
   // §7: SALES BEFORE FIRST VALID RECEIPT
   const salesBeforeReceipt = [];
   watchProducts.forEach(pName => {
@@ -5053,6 +5089,12 @@ window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['
   inboundEvents.forEach(e => console.log('[COST AUDIT INBOUND]', e));
   if(inboundEvents.length===0) console.log('[COST AUDIT] Инбоунд эвент ОЛДСОНГҮЙ — эсвэл productId match хийгдээгүй, эсвэл эх сурвалж бүрмөсөн устсан ("SOURCE RECORD MISSING")');
 
+  console.log('════════════════════════════════════════════════');
+  console.log('[COST AUDIT] SOURCE DEDUPLICATION CANDIDATES (' + duplicateCandidates.length + ')');
+  console.log('════════════════════════════════════════════════');
+  duplicateCandidates.forEach(d => console.log('[COST AUDIT DUPLICATE?]', d));
+  if(duplicateCandidates.length===0) console.log('[COST AUDIT] Давхардсан inbound (ижил бараа/огноо/тоо, өөр эх сурвалж) илрээгүй.');
+
   // ─── PRINT: §7 ───
   console.log('════════════════════════════════════════════════');
   console.log('[COST AUDIT] SALES BEFORE FIRST VALID RECEIPT (' + salesBeforeReceipt.length + ' мөр)');
@@ -5065,7 +5107,7 @@ window.auditSalesCostHistory = (fromM='2026-05', toM='2026-08', watchProducts=['
   console.log('[COST AUDIT] AUDIT TOTAL COST (' + fromM + '→' + toM + ') =', auditTotalCost);
   console.log('Үүнийг Sales Report/P&L тайлангийн харуулж буй "Нийт өртөг"-той адилхан хугацаагаар харьцуулна уу (гараар).');
 
-  return { monthData, productMonthData, anomalySales, inboundEvents, salesBeforeReceipt, auditTotalCost, productIds };
+  return { monthData, productMonthData, anomalySales, inboundEvents, salesBeforeReceipt, auditTotalCost, productIds, duplicateCandidates };
 };
 
 function getSalesReportLines(filters={}) {
