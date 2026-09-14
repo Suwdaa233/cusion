@@ -10837,13 +10837,21 @@ window.closeIRReport = () => {
 function renderIRPLReport(from, to, body) {
   console.log('[RP TRACE] final label from =', from);
   console.log('[RP TRACE] final label to =', to);
-  // Зөвхөн бүрэн ангилсан (classified) зарлагын гүйлгээ авна
-  const txns = bankTxns.filter(t =>
-    (!from||t.date>=from) && (!to||t.date<=to) &&
-    !t.isDeleted && t.status!=='deleted' &&
-    (t.expense||0) > 0 &&
-    getTxnLinkStatus(t) === 'classified'  // expenseCategory+cashFlowCategory хоёулаа байна
-  );
+  console.log('[BANK REPORT TRACE] renderIRPLReport period =', from, '→', to);
+  // §8-9: canonical helper ашиглана — зөвхөн expenseIndicator байгаа эсэхийг шалгана,
+  // cashFlowCategory-той хамааралгүй (Мөнгөн гүйлгээ ангилах цэвэр cashflow-only bulk
+  // action ашигласан ч, expenseCategory тусад нь байхгүй байсан ч P&L-ээс хасагдахгүй)
+  const txns = bankTxns.filter(t => {
+    const nd = normalizeBankTxnDate(t.date);
+    if(nd===null) return false;
+    if(!(!from||nd>=from) || !(!to||nd<=to)) return false;
+    if(t.isDeleted || t.status==='deleted') return false;
+    if((t.expense||0) <= 0) return false;
+    const cls = getBankTxnReportClassification(t);
+    const included = !!cls.expenseIndicatorId;
+    if(!included) console.log('[BANK REPORT TRACE] excluded from P&L:', t.id, '| excludedReason=expenseIndicator байхгүй | savedExpenseIndicator=', t.expenseCategory, '| savedCashFlowIndicator=', t.cashFlowCategory);
+    return included;
+  });
   const byExp = {};
   txns.forEach(t => {
     byExp[t.expenseCategory] = (byExp[t.expenseCategory]||0) + (t.expense||0);
@@ -10909,20 +10917,32 @@ function renderIRPLReport(from, to, body) {
 }
 
 function renderIRCFReport(from, to, body) {
-  // Бүрэн ангилсан орлого — cashFlowCategory тай credit
-  const incTxns = bankTxns.filter(t =>
-    (!from||t.date>=from) && (!to||t.date<=to) &&
-    !t.isDeleted && t.status!=='deleted' &&
-    (t.income||0) > 0 &&
-    getTxnLinkStatus(t) === 'classified'  // cashFlowCategory байна
-  );
-  // Бүрэн ангилсан зарлага — хоёулаа байна
-  const expTxns = bankTxns.filter(t =>
-    (!from||t.date>=from) && (!to||t.date<=to) &&
-    !t.isDeleted && t.status!=='deleted' &&
-    (t.expense||0) > 0 &&
-    getTxnLinkStatus(t) === 'classified'
-  );
+  console.log('[BANK REPORT TRACE] renderIRCFReport period =', from, '→', to);
+  // §8-9: canonical helper — cashFlowIndicator байгаа эсэхийг л шалгана, expenseCategory-той
+  // хамааралгүй (Зардал ангилах цэвэр expense-only байсан ч cashFlowCategory байвал орно,
+  // мөн эсрэгээрээ ч мөн адил)
+  const incTxns = bankTxns.filter(t => {
+    const nd = normalizeBankTxnDate(t.date);
+    if(nd===null) return false;
+    if(!(!from||nd>=from) || !(!to||nd<=to)) return false;
+    if(t.isDeleted || t.status==='deleted') return false;
+    if((t.income||0) <= 0) return false;
+    const cls = getBankTxnReportClassification(t);
+    const included = !!cls.cashFlowIndicatorId;
+    if(!included) console.log('[BANK REPORT TRACE] excluded from CF (income):', t.id, '| excludedReason=cashFlowIndicator байхгүй');
+    return included;
+  });
+  const expTxns = bankTxns.filter(t => {
+    const nd = normalizeBankTxnDate(t.date);
+    if(nd===null) return false;
+    if(!(!from||nd>=from) || !(!to||nd<=to)) return false;
+    if(t.isDeleted || t.status==='deleted') return false;
+    if((t.expense||0) <= 0) return false;
+    const cls = getBankTxnReportClassification(t);
+    const included = !!cls.cashFlowIndicatorId;
+    if(!included) console.log('[BANK REPORT TRACE] excluded from CF (expense):', t.id, '| excludedReason=cashFlowIndicator байхгүй | savedExpenseIndicator=', t.expenseCategory);
+    return included;
+  });
   const byCFInc = {}, byCFExp = {};
   incTxns.forEach(t => {
     byCFInc[t.cashFlowCategory] = (byCFInc[t.cashFlowCategory]||0) + (t.income||0);
@@ -11007,6 +11027,26 @@ function getTxnLinkStatus(t) {
     return 'unclassified';                          // Холбоогүй
   }
   return 'unclassified';
+}
+
+// §9: CANONICAL HELPER — P&L (Орлого үр дүнгийн тайлан) болон Cash Flow (Мөнгөн
+// гүйлгээний тайлан) ХОЁУЛАА ЭНЭ helper-ийг ашиглана. Expense mapping болон
+// cashFlow mapping-ийн орох эсэхийг ХАРИЛЦАН ХАМААРАЛГҮЙ шалгана (§8) —
+// getTxnLinkStatus()-той адилгүй, тэр нь UI badge-д зориулагдсан хэвээрээ үлдэнэ.
+function getBankTxnReportClassification(tx) {
+  const isIncome = (tx.income||0) > 0;
+  const amount = isIncome ? (tx.income||0) : (tx.expense||0);
+  const direction = isIncome ? 'in' : 'out';
+  const expenseIndicatorId = tx.expenseCategory || null;
+  const expenseIndicatorName = tx.expenseCategory || null;
+  const cashFlowIndicatorId = tx.cashFlowCategory || null;
+  const cashFlowIndicatorName = tx.cashFlowCategory || null;
+  return {
+    expenseIndicatorId, expenseIndicatorName,
+    cashFlowIndicatorId, cashFlowIndicatorName,
+    direction, amount,
+    isClassified: !!(expenseIndicatorId || cashFlowIndicatorId)
+  };
 }
 
 // Ангиллын статусын badge
