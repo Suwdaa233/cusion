@@ -11394,16 +11394,53 @@ function getBulkArCreditTotal() {
     return a + (t.income||0) - computeTxnLinkedAmount(t);
   }, 0);
 }
+// §3: Money normalization — "8,714,596" болон "8714596" хоёуланг адил тоо болгоно
+function parseMoneyInput(v) {
+  if(v == null) return 0;
+  const n = Number(String(v).replace(/,/g, '').trim());
+  return isNaN(n) ? 0 : n;
+}
+const BULK_EPS = 0.01; // §4: floating tolerance — тэнцүү бол VALID
 function getBulkRemainingAlloc() {
   const credit = getBulkArCreditTotal();
-  const used = Array.from(document.querySelectorAll('[id^="bulk-lk-amt-"]')).reduce((a,inp)=>a+(parseFloat(inp.value)||0),0);
+  const used = Array.from(document.querySelectorAll('[id^="bulk-lk-amt-"]')).reduce((a,inp)=>a+parseMoneyInput(inp.value),0);
   return Math.max(0, credit - used);
 }
 window.calcBulkLinkTotal = () => {
-  const credit = getBulkArCreditTotal();
-  const alloc = Array.from(document.querySelectorAll('[id^="bulk-lk-amt-"]')).reduce((a,inp)=>a+(parseFloat(inp.value)||0),0);
+  const credit = getBulkArCreditTotal(); // A. BANK LIMIT-ийн эх сурвалж (сонгосон банкны гүйлгээний боломжит үлдэгдэл)
+  const rows = Array.from(document.querySelectorAll('[id^="bulk-lk-amt-"]'));
+  const alloc = rows.reduce((a,inp)=>a+parseMoneyInput(inp.value),0);
+
+  // §2.B RECEIVABLE LIMIT — мөр бүрийг тухайн invoice-ийн s.recv-тэй харьцуулж, хэтэрсэн мөрийг тэмдэглэнэ
+  let anyRowExceedsReceivable = false;
+  rows.forEach(inp => {
+    const saleId = inp.id.replace('bulk-lk-amt-','');
+    const sale = sales.find(s=>s.id===saleId);
+    const rowAmt = parseMoneyInput(inp.value);
+    const exceedsRow = sale && rowAmt > (sale.recv||0) + BULK_EPS;
+    inp.style.borderColor = exceedsRow ? 'var(--re)' : '';
+    inp.title = exceedsRow ? `Авлагын үлдэгдлээс (${fmt(sale.recv)}) хэтэрсэн` : '';
+    if(exceedsRow) anyRowExceedsReceivable = true;
+  });
+
+  // §2.A BANK LIMIT — strict >, EPS tolerance, ТЭНЦҮҮ = VALID (§1-ийн гол засвар)
+  const exceedsBank = alloc > credit + BULK_EPS;
+
   const creditEl = document.getElementById('bulk-ar-credit-txt'); if(creditEl) creditEl.textContent = fmt(credit);
-  const allocEl  = document.getElementById('bulk-ar-alloc-txt');  if(allocEl)  allocEl.textContent  = fmt(alloc) + (alloc>credit+0.01 ? ' ⚠️ хэтэрсэн' : '');
+  const allocEl  = document.getElementById('bulk-ar-alloc-txt');
+  if(allocEl) {
+    let statusHtml;
+    if(exceedsBank) statusHtml = ` <span style="color:var(--re)">⚠ Банкны гүйлгээний дүнгээс хэтэрсэн</span>`;
+    else if(anyRowExceedsReceivable) statusHtml = ` <span style="color:var(--re)">⚠ Авлагын үлдэгдлээс хэтэрсэн</span>`;
+    else if(Math.abs(alloc-credit) <= BULK_EPS && alloc > 0) statusHtml = ` <span style="color:var(--gr)">✓ Бүрэн хуваарилагдсан</span>`;
+    else if(alloc > 0) statusHtml = ` <span style="color:var(--tx3)">Хэсэгчлэн хуваарилсан (үлдэгдэл: ${fmt(credit-alloc)})</span>`;
+    else statusHtml = '';
+    allocEl.innerHTML = fmt(alloc) + statusHtml;
+  }
+
+  // §6 SAVE BUTTON — зөвхөн хэтэрсэн үед disable, тэнцүү/дутуу үед enable
+  const saveBtn = document.getElementById('bulk-save-btn') || document.querySelector('#bulk-link-modal .btn.bp');
+  if(saveBtn) saveBtn.disabled = exceedsBank || anyRowExceedsReceivable || alloc<=0;
 };
 
 // ─── ROUTER: Хадгалах товч ───────────────────────────────────────────────
@@ -11424,14 +11461,24 @@ window.saveBulkArClose = async () => {
     .map(inp => {
       const saleId = inp.id.replace('bulk-lk-amt-','');
       const chk = document.getElementById('bulk-lk-chk-'+saleId);
-      const amt = parseFloat(inp.value||0);
+      const amt = parseMoneyInput(inp.value); // §3: comma-той/үгүй хоёуланг адил унших
       return { saleId, saleDocumentNumber: inp.dataset.docnum||'', allocatedAmount: amt, checked: chk?.checked };
     }).filter(a=>a.checked && a.allocatedAmount>0);
   if(!allocs.length) { alert('Авлага сонгож дүн оруулна уу'); return; }
 
+  // §2.B RECEIVABLE LIMIT — Save дарахаас өмнө defensive шалгалт (UI disable-ийг тойрсон ч барина)
+  for(const a of allocs) {
+    const sale = sales.find(s=>s.id===a.saleId);
+    if(sale && a.allocatedAmount > (sale.recv||0) + BULK_EPS) {
+      alert(`"${a.saleDocumentNumber}" баримтын хуваарилсан дүн (${fmt(a.allocatedAmount)}) авлагын үлдэгдлээс (${fmt(sale.recv)}) их байна`);
+      return;
+    }
+  }
+
   const totalAlloc = allocs.reduce((a,x)=>a+x.allocatedAmount,0);
   const creditTotal = getBulkArCreditTotal();
-  if(totalAlloc > creditTotal + 0.01) { alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) сонгосон гүйлгээний нийт үлдэгдлээс (${fmt(creditTotal)}) их байна`); return; }
+  // §1,4: ЗӨВХӨН strict '>' (тэнцүү = VALID), EPS tolerance-той
+  if(totalAlloc > creditTotal + BULK_EPS) { alert(`Хуваарилсан дүн (${fmt(totalAlloc)}) сонгосон гүйлгээний нийт үлдэгдлээс (${fmt(creditTotal)}) их байна`); return; }
 
   const cust = customers.find(c=>c.id===custId) || {};
   const txns = bulkSelectedIds.map(id=>bankTxns.find(t=>t.id===id)).filter(Boolean)
