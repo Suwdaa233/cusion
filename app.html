@@ -3065,6 +3065,85 @@ window.reconcileInventoryMovements = (locationName='Хүргэлт байрши�
     const closingQty = openingQty + pIn - pOut;
     console.log(`[INV RECON SUMMARY] ${p.name}·${p.variant} | opening=${openingQty} in=${pIn} out=${pOut} closing=${closingQty}`);
   });
+
+  // §2: transfers COLLECTION-оос ШУУД (invLogs-оор дамжуулалгүй) — toLocId===locId
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] §2 — transfers COLLECTION-ООС ШУУД, toLocId===locId, ACTIVE');
+  console.log('════════════════════════════════════════════════');
+  const incomingTransfers = transfers.filter(tr =>
+    tr.toLocId === locId && tr.status !== 'deleted' && tr.status !== 'cancelled' &&
+    tr.date >= from && tr.date <= to
+  );
+  const expectedInByProduct = {};
+  incomingTransfers.forEach(tr => {
+    (tr.items||[]).forEach(it => {
+      const p = products.find(x=>x.id===it.pid) || {};
+      expectedInByProduct[it.pid] = (expectedInByProduct[it.pid]||0) + it.qty;
+      console.log('[INV RECON TRANSFER-DOC]', {
+        date: tr.date, trNum: tr.trNum, transferId: tr.id,
+        fromLocId: tr.fromLocId, fromLocationName: tr.fromLocName,
+        toLocId: tr.toLocId, toLocationName: tr.toLocName,
+        status: tr.status, product: `${p.name}·${p.variant}`, pid: it.pid, qty: it.qty
+      });
+    });
+  });
+  console.log('[INV RECON] §2 НИЙТ transfers.collection-оос ирэх ёстой (EXPECTED) IN:', expectedInByProduct);
+
+  // §3-4: Transfer document БҮРТ destination-side invLog байгаа эсэхийг шалга
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] §3-4 — Transfer бүрийн destination invLog match шалгалт');
+  console.log('════════════════════════════════════════════════');
+  incomingTransfers.forEach(tr => {
+    (tr.items||[]).forEach(it => {
+      const p = products.find(x=>x.id===it.pid) || {};
+      const destLog = invLogs.find(l => l.type==='transfer' && l.sourceId===tr.id && l.locationId===locId && l.productId===it.pid && l.qty>0)
+        || invLogs.find(l => l.type==='transfer' && l.status!=='deleted' && l.locationId===locId && l.productId===it.pid && l.date===tr.date && l.qty===it.qty);
+      const srcLog  = invLogs.find(l => l.type==='transfer' && l.sourceId===tr.id && l.locationId===tr.fromLocId && l.productId===it.pid && l.qty<0)
+        || invLogs.find(l => l.type==='transfer' && l.status!=='deleted' && l.locationId===tr.fromLocId && l.productId===it.pid && l.date===tr.date && l.qty===-it.qty);
+      console.log('[INV RECON TRANSFER-MATCH]', {
+        trNum: tr.trNum, product: `${p.name}·${p.variant}`, transferQty: it.qty,
+        destinationInvLogFound: !!destLog, destinationInvLogQty: destLog?.qty ?? 'ОЛДСОНГҮЙ',
+        sourceInvLogFound: !!srcLog, sourceInvLogQty: srcLog?.qty ?? 'ОЛДСОНГҮЙ',
+        match: (destLog && srcLog && destLog.qty === it.qty && srcLog.qty === -it.qty) ? 'YES' : 'NO — ROOT CAUSE ✗'
+      });
+      if(!destLog) console.error('[INV RECON] ⚠ ROOT CAUSE: Transfer', tr.trNum, '(', p.name, p.variant, ') — DESTINATION invLog ОЛДСОНГҮЙ! qty:', it.qty);
+      if(!srcLog) console.error('[INV RECON] ⚠ Transfer', tr.trNum, '(', p.name, p.variant, ') — SOURCE invLog ч олдсонгүй!');
+    });
+  });
+
+  // §8: Борлуулалтын location default bug шалгалт
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] §8 — Борлуулалтын locationId шалгалт (Хүргэлт-д default орсон эсэх)');
+  console.log('════════════════════════════════════════════════');
+  const salesAtLoc = sales.filter(s => s.locationId===locId && s.status!=='deleted' && s.date>=from && s.date<=to);
+  console.log('[INV RECON] locationId=="'+locationName+'" гэж хадгалагдсан идэвхтэй sale-ийн тоо:', salesAtLoc.length);
+  let saleOutTotal = 0;
+  const saleOutByProduct = {};
+  salesAtLoc.forEach(s => {
+    (s.items||[]).forEach(it => {
+      saleOutTotal += it.qty||0;
+      saleOutByProduct[it.pid] = (saleOutByProduct[it.pid]||0) + (it.qty||0);
+    });
+    console.log('[INV RECON SALE-AT-LOC]', { saleNumber: s.docNumber, date: s.date, locationId: s.locationId, locationName: s.locationName, items: (s.items||[]).map(it=>({pid:it.pid,label:it.label,qty:it.qty})) });
+  });
+  console.log('[INV RECON] §8 Энэ байршилд бүртгэгдсэн БҮХ борлуулалтын НИЙТ гарсан тоо:', saleOutTotal, '| бараагаар:', saleOutByProduct);
+  console.log('[INV RECON] Хэрэв энэ тоо OUT movement-ийн 3182-той ойролцоо/тэнцүү бол — SALES-ийн locationId ЭНЭ БАЙРШИЛД ЗӨВ эсвэл БУРУУГААР хадгалагдсаныг та бизнесийн мэдлэгээрээ баталгаажуулна уу (жишээ: тухайн бараа бодитоор Онлайн/Төвөөс борлогдсон уу, эсвэл үнэхээр Хүргэлтээс уу).');
+
+  // §9: 4 үе шатны тоо харьцуулалт (RAW invLogs → getAllMovements → filterMovements → render-д ашиглагдах утга)
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] §9 — 4 ҮЕ ШАТНЫ QTY ХАРЬЦУУЛАЛТ');
+  console.log('════════════════════════════════════════════════');
+  const allMoves = getAllMovements();
+  allProdIds.forEach(pid => {
+    const p = products.find(x=>x.id===pid) || {};
+    const rawInvLogQty = invLogs.filter(l=>l.productId===pid && l.locationId===locId && l.status!=='deleted' && l.date>=from && l.date<=to)
+      .reduce((a,l)=>a+(l.qty||0),0);
+    const gamMoves = allMoves.filter(m=>m.productId===pid && m.locationId===locId && m.status==='active' && m.transactionDate>=from && m.transactionDate<=to);
+    const gamQty = gamMoves.reduce((a,m)=>a+(m.quantityIn||0)-(m.quantityOut||0),0);
+    const filtMoves = periodMoves.filter(m=>m.productId===pid);
+    const filtQty = filtMoves.reduce((a,m)=>a+(m.quantityIn||0)-(m.quantityOut||0),0);
+    console.log(`[INV RECON 4-STAGE] ${p.name}·${p.variant} | RAW invLogs qty=${rawInvLogQty} | getAllMovements net=${gamQty} | filterMovements net=${filtQty} | ${(rawInvLogQty===gamQty && gamQty===filtQty) ? 'МАТСН ✓' : 'ЗӨРҮҮТЭЙ ✗ — ЭНЭ ҮЕ ШАТАНД BUG БАЙЖ БОЛЗОШГҮЙ'}`);
+  });
 };
 
 // ════════════════════════════════════════════════════════════════════════════
