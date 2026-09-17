@@ -2237,6 +2237,7 @@ onAuthStateChanged(auth, async user => {
   await linkUserUidIfNeeded(user);
   subscribeMasterData();
   subscribeCoreFinancial();
+  subscribeInvLogs(); // §STOP7-G: canonical quantity balance-д зориулж эрт, бүх цагийн
 });
 
 window.doLogout = async () => {
@@ -2347,22 +2348,22 @@ function subscribeBankTxns(accountId, from, to) {
 // өөрчлөгдөөгүй), invLogs бол зөвхөн ТҮҮХ/АУДИТ-д зориулагдсан тул
 // огноогоор хязгаарлах нь balance-ийн зөв байдалд НӨЛӨӨЛӨХГҮЙ.
 let lastInvLogsScope = null;
-function subscribeInvLogs(from, to) {
-  const scopeKey = `${from}|${to}`;
-  if(scopeKey === lastInvLogsScope && unsubInvLogs) return; // ижил хамрах хүрээ — дахин subscribe хийхгүй
-  lastInvLogsScope = scopeKey;
-  if(unsubInvLogs) { unsubInvLogs(); unsubInvLogs = null; }
-  const conditions = [];
-  if(from) conditions.push(where('date','>=',from));
-  if(to)   conditions.push(where('date','<=',to));
-  const q = query(collection(db,'invLogs'), ...conditions, orderBy('date','desc'));
-  unsubInvLogs = onSnapshot(q, snap => {
+// §STOP7-G: invLogs одоо БҮХ ЦАГИЙН, ЭРТ (login дээр) ачаалагдана — учир нь
+// canonical getInventoryBalance()/gst() Sale/Purchase/Transfer формд ХЭЗЭЭ Ч
+// Inventory Report руу ороогүй байсан ч зөв ажиллах ёстой. Date-scoped lazy
+// listener quantity алдаа гаргах эрсдэлтэй тул quantity зөв байдал quota-с
+// илүү чухал гэж үзэв (зөвшөөрөгдсөн шийдвэр).
+function subscribeInvLogs() {
+  if(unsubInvLogs) return; // нэг л удаа, бүх цагийн
+  unsubInvLogs = onSnapshot(query(collection(db,'invLogs'), orderBy('date','desc')), snap => {
     invLogs = snap.docs.map(d => ({id:d.id,...d.data()}));
+    rebuildCanonicalStockIndex();
     renderInvLog();
     if(typeof renderInvReport==='function') renderInvReport();
     if(typeof renderInGroupsList==='function') renderInGroupsList();
     if(typeof renderOutGroupsList==='function') renderOutGroupsList();
     if(typeof renderDocRegistry==='function') renderDocRegistry();
+    if(typeof renderDashboard==='function') renderDashboard();
   }, err => {
     console.error('[subscribeInvLogs] алдаа:', err);
   });
@@ -2418,9 +2419,6 @@ function subscribeBankLinks() {
 // авалт/Баримтын жагсаалт/Тайлан) нээгдэх бүрд шаардлагатай lazy
 // collection-уудыг нэг дор идэвхжүүлнэ.
 function ensureInventorySubscriptions() {
-  const from = document.getElementById('doc-from')?.value || document.getElementById('rp-from')?.value || '';
-  const to   = document.getElementById('doc-to')?.value   || document.getElementById('rp-to')?.value   || '';
-  subscribeInvLogs(from, to);
   subscribePurchases();
   subscribeImportPurchases();
   subscribeTransfers();
@@ -2441,7 +2439,72 @@ function ensureReceivableSubscriptions() {
 
 // ─── STOCK HELPERS ────────────────────────────────────────────────────────────
 function sk(pid,lid){ return pid+'_'+lid; }
-function gst(pid,lid){ return stockMap[sk(pid,lid)] || 0; }
+
+// ═══ CANONICAL INVENTORY BALANCE ENGINE (STOP7 §C-G) ═══════════════════════
+// SOURCE OF TRUTH = valid invLogs (§3). stockMap (Firestore stock/current)
+// ОДООГООР УСТГААГҮЙ, гэхдээ user-facing quantity-ийн эх сурвалж БОЛОХОО
+// ЗОГСООВ — gst()/totByProd()/totByLoc() одоо ЭНЭ canonical engine-ээс уншина.
+function getValidInventoryMovements({productId, locationId} = {}) {
+  let list = invLogs.filter(l => l.status !== 'deleted' && l.status !== 'cancelled' && l.status !== 'void');
+  if(productId)  list = list.filter(l => l.productId === productId);
+  if(locationId) list = list.filter(l => l.locationId === locationId);
+  return list;
+}
+// asOfDate байхгүй бол one-time recompute (шаардлагатай үед л, жишээ Inventory
+// Report-ийн Ending cross-check). Өдөр тутмын хурдан харагдацад
+// rebuildCanonicalStockIndex()-ийн CACHE (canonicalStockIndex) ашиглана.
+function getInventoryBalance({productId, locationId, asOfDate} = {}) {
+  let moves = getValidInventoryMovements({productId, locationId});
+  if(asOfDate) moves = moves.filter(l => l.date <= asOfDate);
+  return moves.reduce((a,l) => a + (l.qty||0), 0);
+}
+// Cache: sk(pid,lid) -> current (asOfDate-гүй) canonical balance — gst() зэрэг
+// маш олон удаа дуудагддаг функцийг invLogs-ийг дахин дахин filter хийлгэхээс
+// сэргийлнэ. invLogs шинэчлэгдэх бүрд (subscribeInvLogs) дахин барина.
+let canonicalStockIndex = {};
+function rebuildCanonicalStockIndex() {
+  const idx = {};
+  getValidInventoryMovements().forEach(l => {
+    const key = sk(l.productId, l.locationId);
+    idx[key] = (idx[key]||0) + (l.qty||0);
+  });
+  canonicalStockIndex = idx;
+}
+// gst()/totByProd()/totByLoc() — §H,I: Sale/Purchase/Транс/Орлого/Зарлага
+// формын "Үлдэгдэл" харуулалт + validation ХОЁУЛАА ЭНЭ НЭГ функцийг л уншина.
+function gst(pid,lid){ return canonicalStockIndex[sk(pid,lid)] || 0; }
+
+// ═══ TEMPORARY DIAGNOSTIC — §P-Q: stockMap vs canonical invLogs reconciliation ═══
+// Browser Console дээр дуудна: reconcileStockVsCanonical() эсвэл нэр/байршил заагаад:
+// reconcileStockVsCanonical(['cusion-21','cusion-22','cusion-23'], ['Төв байршил','Хүргэлт байршил'])
+window.reconcileStockVsCanonical = (productNames=null, locationNames=null) => {
+  const prods = productNames
+    ? products.filter(p => productNames.some(n => (p.variant||'').toLowerCase().includes(n.toLowerCase())))
+    : products;
+  const locs = locationNames
+    ? locations.filter(l => locationNames.includes(l.name))
+    : locations;
+  console.log('════════════════════════════════════════════════');
+  console.log('[STOCK RECON] stockMap (ХУУЧИН) vs canonical invLogs (ШИНЭ)');
+  console.log('════════════════════════════════════════════════');
+  const diffs = [];
+  prods.forEach(p => {
+    locs.forEach(l => {
+      const oldVal = stockMap[sk(p.id,l.id)] || 0;
+      const newVal = canonicalStockIndex[sk(p.id,l.id)] || 0;
+      const diff = newVal - oldVal;
+      if(oldVal !== 0 || newVal !== 0) {
+        console.log(`[STOCK RECON] ${p.name}·${p.variant} | ${l.name} | stockMap=${oldVal} | canonical(invLogs)=${newVal} | diff=${diff}${diff!==0?' ⚠':''}`);
+        if(diff !== 0) diffs.push({ product: `${p.name}·${p.variant}`, location: l.name, stockMap: oldVal, canonical: newVal, diff });
+      }
+    });
+  });
+  console.log('════════════════════════════════════════════════');
+  console.log('[STOCK RECON] НИЙТ ЗӨРҮҮТЭЙ мөр:', diffs.length);
+  console.log('════════════════════════════════════════════════');
+  diffs.forEach(d => console.log('[STOCK RECON DIFF]', d));
+  return diffs;
+};
 async function updateStock(changes) {
   const ref = doc(db,'stock','current');
   const upd = {};
@@ -3627,7 +3690,7 @@ window.submitSale = async () => {
     for(const [idx, r] of rows.entries()){
       const p=products.find(x=>x.id===r.pid);
       const matchedItem = items[idx]; // rows-тай ижил дараалалтай, unitCost/costAmount агуулна
-      await addDoc(collection(db,'invLogs'),{date:sDate,type:'sale',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,unitCost:matchedItem?.unitCost||0,amount:matchedItem?.costAmount||0,note:`Борлуулалт — ${cust?.name}`,createdBy:currentUser.email,createdAt:serverTimestamp()});
+      await addDoc(collection(db,'invLogs'),{date:sDate,type:'sale',productId:r.pid,productLabel:p?.variant||'',locationId:lid,locationName:loc?.name||'',qty:-r.qty,unitCost:matchedItem?.unitCost||0,amount:matchedItem?.costAmount||0,note:`Борлуулалт — ${cust?.name}`,sourceType:'sale',sourceId:saleRef.id,sourceNumber:docNum,createdBy:currentUser.email,createdAt:serverTimestamp()});
     }
     console.log('[SALE SAVE] 6 done');
     console.log('[SALE SAVE] 7 payment — sale.paid бол sales doc-д inline хадгалагдсан (тусдаа payment write байхгүй)');
@@ -3712,6 +3775,13 @@ window.deleteSale = async id => {
   const stockChanges=sale.items.map(it=>({pid:it.pid,lid:sale.locationId,delta:it.qty}));
   await deleteDoc(doc(db,'sales',id));
   await updateStock(stockChanges);
+  // §A: sale-ийн invLogs-ийг sourceId-аар deterministic олж deleted болгоно
+  const saleLogs = invLogs.filter(l => l.type==='sale' && l.sourceId===id && l.status!=='deleted');
+  if(saleLogs.length === 0 && (sale.items||[]).length > 0) {
+    console.warn('[deleteSale] ⚠ sourceId-тэй invLogs олдсонгүй (legacy) — invLogs sync хийгдэхгүй. saleId:', id);
+  } else {
+    for(const l of saleLogs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+  }
 };
 
 // ─── PAYMENT ─────────────────────────────────────────────────────────────────
@@ -6334,6 +6404,9 @@ window.renderInvReport = () => {
     const inQty  = inMoves.reduce((a,m)=>a+(m.quantityIn||0),0);
     const outQty = outMoves.reduce((a,m)=>a+(m.quantityOut||0),0);
     const closingQty = openingQty + inQty - outQty;
+    // §J: Ending balance cross-check — canonical getInventoryBalance()-той тулгана
+    const canonicalEnding = getInventoryBalance({ productId: pid, locationId: locId||undefined, asOfDate: to });
+    if(canonicalEnding !== closingQty) console.warn('[INV REPORT] ⚠ Ending zörchil:', pid, 'report=', closingQty, 'canonical=', canonicalEnding);
 
     // Дундаж өртгийн snapshot (cost valuation) — хөдөлгөөн бүрийн unitCost ашиглана
     const openingAmt = valuation==='price' ? valueOf(pid, openingQty, 0)
@@ -6884,9 +6957,22 @@ window.deleteTransfer = async (id) => {
     await updateStock(reverseChanges);
     let logs = invLogs.filter(l=>l.sourceType==='inventoryTransfer' && l.sourceId===id);
     if(logs.length===0) {
-      logs = invLogs.filter(l=> l.type==='transfer' && l.date===t.date &&
-        (t.items||[]).some(it=>it.pid===l.productId && Math.abs(l.qty)===it.qty) &&
-        (l.locationId===t.fromLocId || l.locationId===t.toLocId));
+      // §M: legacy fallback SECOND (sourceId-гүй хуучин transfer). Хэрэв
+      // хэт олон candidate олдвол AMBIGUOUS гэж diagnostic өгнө, дур мэдэн
+      // сонгохгүй — production data-д хэвээр үлдээнэ.
+      const perItemMatches = (t.items||[]).map(it => {
+        const cands = invLogs.filter(l => l.type==='transfer' && l.status!=='deleted' && l.date===t.date &&
+          l.productId===it.pid && Math.abs(l.qty)===it.qty &&
+          (l.locationId===t.fromLocId || l.locationId===t.toLocId));
+        return { pid: it.pid, qty: it.qty, candidates: cands };
+      });
+      const hasAmbiguous = perItemMatches.some(m => m.candidates.length > 2); // 2 = source+destination хэвийн
+      if(hasAmbiguous) {
+        console.warn('[deleteTransfer] ⚠ AMBIGUOUS legacy match — олон candidate олдлоо, аль нэгийг дур мэдэн сонгохгүй:', perItemMatches);
+        alert('⚠ Энэ (sourceId-гүй хуучин) шилжүүлэлтийн invLogs-ийг найдвартай тодорхойлж чадсангүй — олон адил өгөгдөл олдлоо. Аюулгүйн үүднээс автоматаар устгахгүй. Хөгжүүлэгчид мэдэгдэнэ үү.');
+        return;
+      }
+      logs = perItemMatches.flatMap(m => m.candidates);
     }
     for(const l of logs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
     await updateDoc(doc(db,'transfers',id), { status:'deleted', deletedAt: serverTimestamp(), deletedBy: currentUser.email });
@@ -8966,6 +9052,29 @@ window.saveEditSale = async () => {
 
   try {
     await updateStock(stockChanges);
+    // §A-B: OLD sale-ийн invLogs-ийг sourceId===sale.id-аар DETERMINISTIC олж
+    // deleted болгоно (огноо+тоо+бараагаар heuristic ХИЙХГҮЙ). Хуучин
+    // (sourceId-гүй) sale-ийн хувьд олдохгүй байж болзошгүй — энэ тохиолдолд
+    // ЗАСАХГҮЙ (§M — legacy fallback ambiguous бол production data-д хүрэхгүй),
+    // зөвхөн console warning өгнө.
+    const oldSaleLogs = invLogs.filter(l => l.type==='sale' && l.sourceId===id && l.status!=='deleted');
+    if(oldSaleLogs.length === 0 && (sale.items||[]).length > 0) {
+      console.warn('[saveEditSale] ⚠ Энэ sale-ийн sourceId-тэй invLogs олдсонгүй (legacy, sourceId-гүй байж болзошгүй) — invLogs sync хийгдэхгүй, зөвхөн stockMap л шинэчлэгдэнэ. saleId:', id);
+    } else {
+      for(const l of oldSaleLogs) await updateDoc(doc(db,'invLogs',l.id), { status:'deleted' });
+    }
+    for(const it of esItems) {
+      if(!it.pid || !newLocId) continue;
+      const p = products.find(x=>x.id===it.pid);
+      await addDoc(collection(db,'invLogs'), {
+        date: newDate, type:'sale', productId: it.pid, productLabel: p?.variant||it.label||'',
+        locationId: newLocId, locationName: newLoc.name||'',
+        qty: -(it.qty||0), unitCost: it.unitCost||0, amount: it.costAmount||0,
+        note: `Борлуулалт — ${newCust.name||''} (засварласан)`,
+        sourceType: 'sale', sourceId: id, sourceNumber: sale.docNumber||'',
+        createdBy: currentUser.email, createdAt: serverTimestamp()
+      });
+    }
     await updateDoc(doc(db,'sales',id), {
       date:       newDate,
       customerId: newCustId,
