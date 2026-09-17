@@ -2973,6 +2973,100 @@ function filterMovements({productId, locationId, from, to, movementTypes} = {}) 
   return list;
 }
 
+// ═══ TEMPORARY DIAGNOSTIC — STOP 4 Inventory Movement Reconciliation ═══════
+// Browser Console дээр гараар дуудна: reconcileInventoryMovements('Хүргэлт байршил')
+// ЗӨВХӨН READ, filterMovements()/getAllMovements()-ийг л дахин ашиглана —
+// шинэ тооцооллын логик зохиогоогүй, ямар ч Firestore write хийхгүй.
+window.reconcileInventoryMovements = (locationName='Хүргэлт байршил', from='2026-05-01', to='2026-08-31') => {
+  const loc = locations.find(l => l.name === locationName);
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] LOCATION MATCHING');
+  console.log('════════════════════════════════════════════════');
+  const matchingLocs = locations.filter(l => l.name === locationName);
+  console.log('[INV RECON] "'+locationName+'" нэртэй location бичлэгийн тоо =', matchingLocs.length);
+  matchingLocs.forEach(l => console.log('[INV RECON] location candidate:', { id: l.id, name: l.name, active: l.active }));
+  if(matchingLocs.length > 1) console.warn('[INV RECON] ⚠ ИЖИЛ НЭРТЭЙ ХЭД ХЭДЭН LOCATION БИЧЛЭГ ОЛДЛОО — duplicate байж болзошгүй!');
+  if(!loc) { console.error('[INV RECON] Location олдсонгүй:', locationName); return; }
+  const locId = loc.id;
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] PRODUCT ID MATCHING (нэрээр давхацсан эсэх)');
+  console.log('════════════════════════════════════════════════');
+  const nameGroups = {};
+  products.forEach(p => {
+    const key = `${p.name}·${p.variant}`;
+    if(!nameGroups[key]) nameGroups[key] = [];
+    nameGroups[key].push(p.id);
+  });
+  Object.keys(nameGroups).forEach(key => {
+    if(nameGroups[key].length > 1) console.warn('[INV RECON] ⚠ ИЖИЛ НЭРТЭЙ ХЭД ХЭДЭН PRODUCT ID:', key, nameGroups[key]);
+  });
+
+  const openingMoves = filterMovements({ locationId: locId, to: dateAddDays(from, -1) });
+  const periodMoves  = filterMovements({ locationId: locId, from, to });
+  const inMoves  = periodMoves.filter(m => (m.quantityIn||0) > 0);
+  const outMoves = periodMoves.filter(m => (m.quantityOut||0) > 0);
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] OPENING BALANCE (', from, '-ээс өмнөх, location=', locationName, ')');
+  console.log('════════════════════════════════════════════════');
+  const prodIds = new Set(openingMoves.map(m=>m.productId));
+  prodIds.forEach(pid => {
+    const p = products.find(x=>x.id===pid) || {};
+    const opIn  = openingMoves.filter(m=>m.productId===pid).reduce((a,m)=>a+(m.quantityIn||0),0);
+    const opOut = openingMoves.filter(m=>m.productId===pid).reduce((a,m)=>a+(m.quantityOut||0),0);
+    console.log(`[INV RECON OPENING] product=${p.name}·${p.variant} (${pid}) | opIn=${opIn} opOut=${opOut} openingQty=${opIn-opOut}`);
+  });
+  if(prodIds.size===0) console.log('[INV RECON] ', from, '-ээс өмнө ЯМАР Ч хөдөлгөөн олдсонгүй (opening=0 зөв байх магадлалтай)');
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] IN MOVEMENTS (', from, '→', to, ')');
+  console.log('════════════════════════════════════════════════');
+  let totalIn = 0;
+  inMoves.forEach(m => {
+    const p = products.find(x=>x.id===m.productId) || {};
+    totalIn += m.quantityIn||0;
+    console.log('[INV RECON IN]', {
+      date: m.transactionDate, docNo: m.sourceNumber, type: m.movementType,
+      product: `${p.name}·${p.variant}`, productId: m.productId,
+      qtyIn: m.quantityIn, sourceId: m.sourceId
+    });
+  });
+  console.log('[INV RECON] TOTAL IN =', totalIn, '(', inMoves.length, 'мөр)');
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] OUT MOVEMENTS (', from, '→', to, ')');
+  console.log('════════════════════════════════════════════════');
+  let totalOut = 0;
+  const outByType = {};
+  outMoves.forEach(m => {
+    const p = products.find(x=>x.id===m.productId) || {};
+    totalOut += m.quantityOut||0;
+    outByType[m.movementType] = (outByType[m.movementType]||0) + (m.quantityOut||0);
+    console.log('[INV RECON OUT]', {
+      date: m.transactionDate, docNo: m.sourceNumber, type: m.movementType,
+      product: `${p.name}·${p.variant}`, productId: m.productId,
+      qtyOut: m.quantityOut, sourceId: m.sourceId
+    });
+  });
+  console.log('[INV RECON] TOTAL OUT =', totalOut, '(', outMoves.length, 'мөр) | BY TYPE:', outByType);
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[INV RECON] PER-PRODUCT SUMMARY (renderInvReport()-той ЯГ ИЖИЛ томьёогоор)');
+  console.log('════════════════════════════════════════════════');
+  const allProdIds = new Set([...openingMoves.map(m=>m.productId), ...periodMoves.map(m=>m.productId)]);
+  allProdIds.forEach(pid => {
+    const p = products.find(x=>x.id===pid) || {};
+    const opIn  = openingMoves.filter(m=>m.productId===pid).reduce((a,m)=>a+(m.quantityIn||0),0);
+    const opOut = openingMoves.filter(m=>m.productId===pid).reduce((a,m)=>a+(m.quantityOut||0),0);
+    const openingQty = opIn - opOut;
+    const pIn  = periodMoves.filter(m=>m.productId===pid).reduce((a,m)=>a+(m.quantityIn||0),0);
+    const pOut = periodMoves.filter(m=>m.productId===pid).reduce((a,m)=>a+(m.quantityOut||0),0);
+    const closingQty = openingQty + pIn - pOut;
+    console.log(`[INV RECON SUMMARY] ${p.name}·${p.variant} | opening=${openingQty} in=${pIn} out=${pOut} closing=${closingQty}`);
+  });
+};
+
 // ════════════════════════════════════════════════════════════════════════════
 // ═══ GLOBAL DRILLDOWN ROUTER ═══════════════════════════════════════════════
 // ════════════════════════════════════════════════════════════════════════════
