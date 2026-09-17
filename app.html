@@ -2505,6 +2505,98 @@ window.reconcileStockVsCanonical = (productNames=null, locationNames=null) => {
   diffs.forEach(d => console.log('[STOCK RECON DIFF]', d));
   return diffs;
 };
+
+// ═══ TEMPORARY DIAGNOSTIC — сүүлийн Transfer-ийг бүхэлд нь trace хийнэ ═══
+// window.checkLatestTransfer('Төв байршил','Хүргэлт байршил') — эсвэл trNum-аар:
+// window.checkLatestTransfer(null,null,'TR-2609-000012')
+window.checkLatestTransfer = (fromLocName=null, toLocName=null, trNum=null) => {
+  let tr;
+  if(trNum) {
+    tr = transfers.find(t => t.trNum === trNum);
+  } else {
+    const fromLoc = fromLocName ? locations.find(l=>l.name===fromLocName) : null;
+    const toLoc   = toLocName   ? locations.find(l=>l.name===toLocName)   : null;
+    const candidates = transfers.filter(t =>
+      t.status !== 'deleted' && t.status !== 'cancelled' &&
+      (!fromLoc || t.fromLocId===fromLoc.id) && (!toLoc || t.toLocId===toLoc.id)
+    ).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    tr = candidates[0];
+  }
+  if(!tr) { console.error('[TRANSFER TRACE] Transfer document олдсонгүй.'); return; }
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[TRANSFER TRACE] §1 — TRANSFER DOCUMENT');
+  console.log('════════════════════════════════════════════════');
+  console.log({
+    transferId: tr.id, trNum: tr.trNum, date: tr.date, status: tr.status,
+    fromLocId: tr.fromLocId, fromLocationName: tr.fromLocName,
+    toLocId: tr.toLocId, toLocationName: tr.toLocName,
+    items: (tr.items||[]).map(it=>({pid:it.pid, name:it.label, qty:it.qty}))
+  });
+  const actualToLoc = locations.find(l=>l.id===tr.toLocId);
+  console.log('[TRANSFER TRACE] toLocId === бодит location.id баталгаа:', tr.toLocId === actualToLoc?.id, '| location.name=', actualToLoc?.name);
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[TRANSFER TRACE] §2 — SOURCE/DESTINATION invLogs');
+  console.log('════════════════════════════════════════════════');
+  (tr.items||[]).forEach(it => {
+    const srcLog = invLogs.find(l => l.type==='transfer' && l.sourceId===tr.id && l.productId===it.pid && l.locationId===tr.fromLocId && l.qty<0);
+    const destLog = invLogs.find(l => l.type==='transfer' && l.sourceId===tr.id && l.productId===it.pid && l.locationId===tr.toLocId && l.qty>0);
+    console.log(`[TRANSFER TRACE] PRODUCT=${it.label} | TRANSFER QTY=${it.qty} | SOURCE LOG=${srcLog?('qty='+srcLog.qty+', status='+(srcLog.status||'active')):'ОЛДСОНГҮЙ ✗'} | DEST LOG=${destLog?('qty='+destLog.qty+', status='+(destLog.status||'active')):'ОЛДСОНГҮЙ ✗'}`);
+
+    if(destLog) {
+      // §4: destLog байгаа ч report-д ордог эсэхийг pipeline-ээр trace хийнэ
+      const isValid = destLog.status !== 'deleted' && destLog.status !== 'cancelled' && destLog.status !== 'void';
+      const gam = getAllMovements().find(m => m.sourceId===tr.id || (m.productId===it.pid && m.locationId===tr.toLocId && m.movementType==='TRANSFER_IN' && m.transactionDate===tr.date));
+      console.log(`[TRANSFER TRACE]   → VALID (deleted/cancelled/void хассан)? ${isValid} | getAllMovements()-д олдсон уу? ${!!gam} | movementType=${gam?.movementType} | status=${gam?.status}`);
+      if(gam) {
+        const locMatch = gam.locationId === tr.toLocId;
+        console.log(`[TRANSFER TRACE]   → LOCATION ID match (String compare)? ${String(gam.locationId)===String(tr.toLocId)} | gam.locationId="${gam.locationId}" vs toLocId="${tr.toLocId}"`);
+      }
+    }
+  });
+
+  console.log('════════════════════════════════════════════════');
+  console.log('[TRANSFER TRACE] §10-11 — SYMMETRY TEST (Төв OUT vs Хүргэлт IN)');
+  console.log('════════════════════════════════════════════════');
+  const fromReport = filterMovements({locationId: tr.fromLocId, from: tr.date, to: tr.date});
+  const toReport   = filterMovements({locationId: tr.toLocId,   from: tr.date, to: tr.date});
+  (tr.items||[]).forEach(it => {
+    const outQty = fromReport.filter(m=>m.productId===it.pid && m.movementType==='TRANSFER_OUT').reduce((a,m)=>a+(m.quantityOut||0),0);
+    const inQty  = toReport.filter(m=>m.productId===it.pid && m.movementType==='TRANSFER_IN').reduce((a,m)=>a+(m.quantityIn||0),0);
+    console.log(`[TRANSFER TRACE SYMMETRY] ${it.label} | Transfer qty=${it.qty} | Эх байршлын report OUT=${outQty} | Очих байршлын report IN=${inQty} | ${(outQty===it.qty && inQty===it.qty) ? 'ТЭНЦВЭРТЭЙ ✓' : 'ЗӨРЧИЛТЭЙ ✗ — ROOT CAUSE ЭНД'}`);
+  });
+};
+
+// ═══ TEMPORARY DIAGNOSTIC §12 — БҮХ идэвхтэй transfer-ийг bulk шалгана ═══
+window.auditAllTransferLogs = () => {
+  const activeTransfers = transfers.filter(t => t.status !== 'deleted' && t.status !== 'cancelled');
+  const issues = [];
+  console.log('════════════════════════════════════════════════');
+  console.log('[TRANSFER AUDIT] Идэвхтэй transfer-ийн тоо:', activeTransfers.length);
+  console.log('════════════════════════════════════════════════');
+  activeTransfers.forEach(tr => {
+    (tr.items||[]).forEach(it => {
+      const srcLog = invLogs.find(l => l.type==='transfer' && l.sourceId===tr.id && l.productId===it.pid && l.locationId===tr.fromLocId && l.qty<0);
+      const destLog = invLogs.find(l => l.type==='transfer' && l.sourceId===tr.id && l.productId===it.pid && l.locationId===tr.toLocId && l.qty>0);
+      const problems = [];
+      if(!srcLog) problems.push('source log missing');
+      if(!destLog) problems.push('destination log missing');
+      if(srcLog && srcLog.qty !== -it.qty) problems.push('wrong qty (source)');
+      if(destLog && destLog.qty !== it.qty) problems.push('wrong qty (destination)');
+      if(srcLog && srcLog.status==='deleted') problems.push('source log status=deleted while transfer active');
+      if(destLog && destLog.status==='deleted') problems.push('destination log status=deleted while transfer active');
+      if(!tr.id) problems.push('sourceId missing (legacy transfer)');
+      if(problems.length > 0) {
+        issues.push({ trNum: tr.trNum, transferId: tr.id, date: tr.date, product: it.label, qty: it.qty, problems });
+      }
+    });
+  });
+  console.log('[TRANSFER AUDIT] Зөрчилтэй мөрийн тоо:', issues.length);
+  issues.forEach(i => console.log('[TRANSFER AUDIT ISSUE]', i));
+  return issues;
+};
+
 async function updateStock(changes) {
   const ref = doc(db,'stock','current');
   const upd = {};
@@ -6375,6 +6467,59 @@ window.renderInvReport = () => {
   const tbody = document.getElementById('ir-tbody'); if(!tbody) return;
   const tfoot = document.getElementById('ir-tfoot');
   if(!from || !to) { tbody.innerHTML = '<tr><td colspan="10"><div class="empty">Эхлэх болон дуусах огноог сонгоно уу</div></td></tr>'; if(tfoot) tfoot.innerHTML=''; return; }
+
+  // §4: TRANSFER_IN pipeline-ийн 5 үе шатны тоог автоматаар хэвлэнэ (зөвхөн
+  // location сонгосон үед, debugging зориулалттай)
+  if(locId) {
+    const rawDestLogs = invLogs.filter(l => l.type==='transfer' && l.locationId===locId && l.qty>0);
+    const validDestLogs = getValidInventoryMovements({locationId: locId}).filter(l => l.type==='transfer' && l.qty>0);
+    const allMovesForLoc = getAllMovements().filter(m => m.locationId===locId && m.movementType==='TRANSFER_IN');
+    const locFiltered = allMovesForLoc.filter(m => m.status==='active');
+    const dateFiltered = locFiltered.filter(m => (!from||m.transactionDate>=from) && (!to||m.transactionDate<=to));
+    const incomeByProduct = {};
+    dateFiltered.forEach(m => { incomeByProduct[m.productId] = (incomeByProduct[m.productId]||0) + (m.quantityIn||0); });
+    console.log('════════════════════════════════════════════════');
+    console.log('[TRANSFER_IN PIPELINE]', locations.find(l=>l.id===locId)?.name, '| period', from, '→', to);
+    console.log('RAW destination invLogs (type=transfer, qty>0, locationId match) =', rawDestLogs.length, rawDestLogs);
+    console.log('VALID movements (deleted/cancelled/void хассан) =', validDestLogs.length);
+    console.log('getAllMovements() → LOCATION filtered TRANSFER_IN =', allMovesForLoc.length, '| status=active =', locFiltered.length);
+    console.log('DATE filtered (', from, '→', to, ') =', dateFiltered.length, dateFiltered);
+    console.log('PRODUCT aggregated income (pid→qty) =', incomeByProduct);
+    console.log('════════════════════════════════════════════════');
+
+    // §5: LOCATION ID STRING MISMATCH — тэмдэгт бүрээр харьцуулна
+    console.log('[LOCATION ID CHECK] selectedLocationId =', JSON.stringify(locId), '| typeof =', typeof locId);
+    const distinctTransferLocIds = [...new Set(invLogs.filter(l=>l.type==='transfer' && l.qty>0).map(l=>l.locationId))];
+    distinctTransferLocIds.forEach(lid => {
+      console.log('[LOCATION ID CHECK] invLog.locationId candidate =', JSON.stringify(lid), '| typeof =', typeof lid,
+        '| String(a)===String(b)?', String(lid)===String(locId), '| ===?', lid===locId);
+    });
+
+    // §1-2: Сүүлийн ТӨВ→energ selected location transfer document-ыг ШУУД (transfers collection-оос) ол
+    const incomingTransferDocs = transfers.filter(tr => tr.toLocId===locId && tr.status!=='deleted' && tr.status!=='cancelled')
+      .sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    console.log('[TRANSFER DOC] Энэ байршил руу орсон ACTIVE transfer-ийн тоо (transfers collection-оос шууд) =', incomingTransferDocs.length);
+    if(incomingTransferDocs.length > 0) {
+      const latest = incomingTransferDocs[0];
+      console.log('[TRANSFER DOC] Сүүлийн transfer:', { id: latest.id, trNum: latest.trNum, date: latest.date, status: latest.status, fromLocId: latest.fromLocId, fromLocName: latest.fromLocName, toLocId: latest.toLocId, toLocName: latest.toLocName, items: latest.items });
+      (latest.items||[]).forEach(it => {
+        const destLog = invLogs.find(l=>l.type==='transfer' && l.sourceId===latest.id && l.locationId===latest.toLocId && l.productId===it.pid && l.qty>0);
+        const srcLog  = invLogs.find(l=>l.type==='transfer' && l.sourceId===latest.id && l.locationId===latest.fromLocId && l.productId===it.pid && l.qty<0);
+        console.log('[TRANSFER DOC ITEM MATCH]', { product: it.label||it.pid, transferQty: it.qty, sourceLogFound: !!srcLog, sourceLogQty: srcLog?.qty??'ОЛДСОНГҮЙ', destLogFound: !!destLog, destLogQty: destLog?.qty??'ОЛДСОНГҮЙ' });
+      });
+    }
+
+    // §10: SYMMETRY TEST — эх (Төв) байршлын Expense болон энэ (Хүргэлт) байршлын Income тэнцэж байгаа эсэх
+    if(incomingTransferDocs.length > 0) {
+      const fromLocId = incomingTransferDocs[0].fromLocId;
+      const fromExpenseMoves = getAllMovements().filter(m=>m.locationId===fromLocId && m.movementType==='TRANSFER_OUT' && m.status==='active' && (!from||m.transactionDate>=from) && (!to||m.transactionDate<=to));
+      const fromExpenseByProduct = {};
+      fromExpenseMoves.forEach(m=>{ fromExpenseByProduct[m.productId]=(fromExpenseByProduct[m.productId]||0)+(m.quantityOut||0); });
+      console.log('[SYMMETRY TEST] Эх байршил (', locations.find(l=>l.id===fromLocId)?.name, ') TRANSFER_OUT (Expense) pid→qty =', fromExpenseByProduct);
+      console.log('[SYMMETRY TEST] Энэ байршил TRANSFER_IN (Income) pid→qty =', incomeByProduct);
+      console.log('[SYMMETRY TEST] Тэнцэж байгаа эсэх (компанийн нийт нөлөө 0 байх ёстой):', JSON.stringify(fromExpenseByProduct)===JSON.stringify(incomeByProduct) ? 'YES ✓' : 'NO ✗ — ЗӨРЧИЛТЭЙ');
+    }
+  }
 
   const openingMoves = filterMovements({locationId: locId||undefined, to: dateAddDays(from,-1)});
   const periodMoves  = filterMovements({locationId: locId||undefined, from, to});
