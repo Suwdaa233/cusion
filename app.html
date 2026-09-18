@@ -2238,6 +2238,7 @@ onAuthStateChanged(auth, async user => {
   subscribeMasterData();
   subscribeCoreFinancial();
   subscribeInvLogs(); // §STOP7-G: canonical quantity balance-д зориулж эрт, бүх цагийн
+  subscribePurchases(); subscribeImportPurchases(); subscribeTransfers(); // §STOP8: canonical engine-д бүх цагийн шаардлагатай
 });
 
 window.doLogout = async () => {
@@ -2283,6 +2284,8 @@ function subscribeMasterData() {
 function subscribeCoreFinancial() {
   onSnapshot(query(collection(db,'sales'), orderBy('date','desc')), snap => {
     sales = snap.docs.map(d => ({id:d.id,...d.data()}));
+    console.log('[FIRESTORE SUB] collection=sales | count=', sales.length, '| listener=1 (persistent, login дээр л)');
+    if(typeof rebuildCanonicalStockIndex==='function') rebuildCanonicalStockIndex();
     renderDashboard(); renderSalesTable(); renderRecvSummary();
     if(typeof renderSalesList==='function') renderSalesList();
     if(typeof renderSalesReportView==='function') renderSalesReportView();
@@ -2354,9 +2357,16 @@ let lastInvLogsScope = null;
 // listener quantity алдаа гаргах эрсдэлтэй тул quantity зөв байдал quota-с
 // илүү чухал гэж үзэв (зөвшөөрөгдсөн шийдвэр).
 function subscribeInvLogs() {
-  if(unsubInvLogs) return; // нэг л удаа, бүх цагийн
-  unsubInvLogs = onSnapshot(query(collection(db,'invLogs'), orderBy('date','desc')), snap => {
-    invLogs = snap.docs.map(d => ({id:d.id,...d.data()}));
+  if(unsubInvLogs) { console.warn('[DUPLICATE SUBSCRIPTION WARNING] invLogs — listener аль хэдийн идэвхтэй, дахин subscribe хийхгүй'); return; }
+  // §STOP8.1 READ OPTIMIZATION: canonical engine invLogs-аас ЗӨВХӨН
+  // type==='in'/'out' ашигладаг (§7) — sale/purchase/importPurchase/transfer
+  // төрлийн invLogs entries ОДОО ХЭРЭГГҮЙ (тэдгээрийг canonical engine
+  // sales/purchases/importPurchases/transfers collection-оос шууд уншдаг).
+  // Тиймээс QUERY түвшинд л шүүж, хэрэгцээгүй document-ийг огт татахгүй.
+  const q = query(collection(db,'invLogs'), where('type','in',['in','out']));
+  unsubInvLogs = onSnapshot(q, snap => {
+    invLogs = snap.docs.map(d => ({id:d.id,...d.data()})).sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+    console.log('[FIRESTORE SUB] collection=invLogs (type in/out) | count=', invLogs.length, '| listener=1 (persistent)');
     rebuildCanonicalStockIndex();
     renderInvLog();
     if(typeof renderInvReport==='function') renderInvReport();
@@ -2365,7 +2375,7 @@ function subscribeInvLogs() {
     if(typeof renderDocRegistry==='function') renderDocRegistry();
     if(typeof renderDashboard==='function') renderDashboard();
   }, err => {
-    console.error('[subscribeInvLogs] алдаа:', err);
+    console.error('[subscribeInvLogs] алдаа (composite index шаардаж болзошгүй, "type in" filter):', err);
   });
 }
 
@@ -2374,30 +2384,39 @@ function subscribeInvLogs() {
 // нэг л удаа subscribe хийгээд үлдэнэ — дахин орж ирэхэд дахин
 // subscribe хийхгүй, аль хэдийн идэвхтэй listener-ийг ашиглана).
 function subscribePurchases() {
-  if(unsubPurchases) return;
+  if(unsubPurchases) { console.warn('[DUPLICATE SUBSCRIPTION WARNING] purchases — listener аль хэдийн идэвхтэй'); return; }
   unsubPurchases = onSnapshot(query(collection(db,'purchases'), orderBy('purchaseDate','desc')), snap => {
     purchases = snap.docs.map(d => ({id:d.id,...d.data()}));
+    console.log('[FIRESTORE SUB] collection=purchases | count=', purchases.length, '| listener=1 (persistent)');
+    rebuildCanonicalStockIndex();
     if(typeof renderPurchaseList==='function') renderPurchaseList();
     if(typeof renderDocRegistry==='function') renderDocRegistry();
     if(typeof renderInvReport==='function') renderInvReport();
+    if(typeof renderDashboard==='function') renderDashboard();
   });
 }
 function subscribeImportPurchases() {
-  if(unsubImportPurchases) return;
+  if(unsubImportPurchases) { console.warn('[DUPLICATE SUBSCRIPTION WARNING] importPurchases — listener аль хэдийн идэвхтэй'); return; }
   unsubImportPurchases = onSnapshot(query(collection(db,'importPurchases'), orderBy('purchaseDate','desc')), snap => {
     importPurchases = snap.docs.map(d => ({id:d.id,...d.data()}));
+    console.log('[FIRESTORE SUB] collection=importPurchases | count=', importPurchases.length, '| listener=1 (persistent)');
+    rebuildCanonicalStockIndex();
     if(typeof renderImportList==='function') renderImportList();
     if(typeof renderDocRegistry==='function') renderDocRegistry();
     if(typeof renderInvReport==='function') renderInvReport();
+    if(typeof renderDashboard==='function') renderDashboard();
   });
 }
 function subscribeTransfers() {
-  if(unsubTransfers) return;
+  if(unsubTransfers) { console.warn('[DUPLICATE SUBSCRIPTION WARNING] transfers — listener аль хэдийн идэвхтэй'); return; }
   unsubTransfers = onSnapshot(query(collection(db,'transfers'),orderBy('date','desc')), snap=>{
     transfers=snap.docs.map(d=>({id:d.id,...d.data()}));
+    console.log('[FIRESTORE SUB] collection=transfers | count=', transfers.length, '| listener=1 (persistent)');
+    rebuildCanonicalStockIndex();
     renderTransferList();
     if(typeof renderDocRegistry==='function') renderDocRegistry();
     if(typeof renderInvReport==='function') renderInvReport();
+    if(typeof renderDashboard==='function') renderDashboard();
   });
 }
 function subscribeReconcileDocs() {
@@ -2419,9 +2438,8 @@ function subscribeBankLinks() {
 // авалт/Баримтын жагсаалт/Тайлан) нээгдэх бүрд шаардлагатай lazy
 // collection-уудыг нэг дор идэвхжүүлнэ.
 function ensureInventorySubscriptions() {
-  subscribePurchases();
-  subscribeImportPurchases();
-  subscribeTransfers();
+  // §STOP8: purchases/importPurchases/transfers/invLogs бүгд аль хэдийн эрт,
+  // бүх цагийн ачаалагдсан тул энд дахин subscribe хийх шаардлагагүй.
 }
 // Bank section нээгдэх бүрд.
 function ensureBankSubscriptions() {
@@ -2440,38 +2458,108 @@ function ensureReceivableSubscriptions() {
 // ─── STOCK HELPERS ────────────────────────────────────────────────────────────
 function sk(pid,lid){ return pid+'_'+lid; }
 
-// ═══ CANONICAL INVENTORY BALANCE ENGINE (STOP7 §C-G) ═══════════════════════
-// SOURCE OF TRUTH = valid invLogs (§3). stockMap (Firestore stock/current)
-// ОДООГООР УСТГААГҮЙ, гэхдээ user-facing quantity-ийн эх сурвалж БОЛОХОО
-// ЗОГСООВ — gst()/totByProd()/totByLoc() одоо ЭНЭ canonical engine-ээс уншина.
-function getValidInventoryMovements({productId, locationId} = {}) {
-  let list = invLogs.filter(l => l.status !== 'deleted' && l.status !== 'cancelled' && l.status !== 'void');
-  if(productId)  list = list.filter(l => l.productId === productId);
-  if(locationId) list = list.filter(l => l.locationId === locationId);
+// ═══ CANONICAL INVENTORY BALANCE ENGINE (STOP8 §4-16) ══════════════════════
+// SOURCE OF TRUTH = ЭХ БАРИМТ БИЧГҮҮД ШУУД (sales/purchases/importPurchases/
+// transfers), invLogs ДАМЖУУЛАЛГҮЙ — учир нь STOP6-аар invLogs historical
+// stale/incomplete байж болохыг (ялангуяа sale edit, transfer destination
+// missing) баталгаажуулсан. Зөвхөн Орлого/Зарлага (submitIn/submitOut)-д
+// тусдаа collection байхгүй тул invLogs type:'in'/'out' нь ӨӨРӨӨ эх баримт.
+// stockMap (Firestore stock/current) ОДООГООР УСТГААГҮЙ, гэхдээ user-facing
+// quantity-ийн эх сурвалж БОЛОХОО ЗОГСООВ.
+function buildCanonicalInventoryMovements() {
+  const list = [];
+
+  // §9: БОРЛУУЛАЛТ — шууд sales.items[]-ээс (invLogs 'sale' биш — edit-ийн
+  // дараа sales үргэлж CURRENT, invLogs stale байж болзошгүй, §6 баталгаажсан)
+  sales.forEach(s => {
+    if(s.status==='deleted' || s.isDeleted) return;
+    (s.items||[]).forEach(it => {
+      if(!it.pid || !s.locationId) return;
+      list.push({ date:s.date, productId:it.pid, locationId:s.locationId,
+        qtyDelta:-(it.qty||0), movementType:'SALE',
+        sourceType:'sale', sourceId:s.id, documentNo:s.docNumber||'' });
+    });
+  });
+
+  // §7: ХУДАЛДАН АВАЛТ — шууд purchases.items[]-ээс
+  purchases.forEach(p => {
+    if(p.status==='deleted' || p.status==='cancelled') return;
+    (p.items||[]).forEach(it => {
+      if(!it.productId || !p.locationId) return;
+      list.push({ date:p.purchaseDate, productId:it.productId, locationId:p.locationId,
+        qtyDelta: it.quantity||0, movementType:'PURCHASE',
+        sourceType:'purchase', sourceId:p.id, documentNo:p.documentNumber||'' });
+    });
+  });
+
+  // §8: ТАТАН АВАЛТ — шууд importPurchases.items[]-ээс
+  importPurchases.forEach(p => {
+    if(p.status==='deleted' || p.status==='cancelled') return;
+    (p.items||[]).forEach(it => {
+      if(!it.productId || !p.locationId) return;
+      list.push({ date:p.purchaseDate, productId:it.productId, locationId:p.locationId,
+        qtyDelta: it.quantity||0, movementType:'IMPORT_PURCHASE',
+        sourceType:'importPurchase', sourceId:p.id, documentNo:p.documentNumber||'' });
+    });
+  });
+
+  // §11: TRANSFER — ACTIVE transfer бүрээс ХОЁР movement, destination invLog
+  // байгаа эсэхээс огт ХАМААРАХГҮЙ (§ЧУХАЛ: "invLogs байхгүй тул 0" гэдгийг
+  // хүлээж авахгүй)
+  transfers.forEach(tr => {
+    if(tr.status==='deleted' || tr.status==='cancelled') return;
+    (tr.items||[]).forEach(it => {
+      if(!it.pid || !tr.fromLocId || !tr.toLocId) return;
+      list.push({ date:tr.date, productId:it.pid, locationId:tr.fromLocId,
+        qtyDelta:-(it.qty||0), movementType:'TRANSFER_OUT',
+        sourceType:'transfer', sourceId:tr.id, documentNo:tr.trNum||'' });
+      list.push({ date:tr.date, productId:it.pid, locationId:tr.toLocId,
+        qtyDelta: it.qty||0, movementType:'TRANSFER_IN',
+        sourceType:'transfer', sourceId:tr.id, documentNo:tr.trNum||'' });
+    });
+  });
+
+  // §6,§10: ОРЛОГО/ЗАРЛАГА — тусдаа collection байхгүй тул invLogs type:'in'/'out'
+  // ӨӨРӨӨ эх баримт бичиг (§27 — sale-ийн адил stale асуудалгүй, учир нь
+  // submitIn/submitOut edit mode-д invLogs sync аль хэдийн зөв хийгддэг, STOP6)
+  invLogs.filter(l => (l.type==='in' || l.type==='out') && l.status!=='deleted').forEach(l => {
+    if(!l.productId || !l.locationId) return;
+    list.push({ date:l.date, productId:l.productId, locationId:l.locationId,
+      qtyDelta: l.type==='in' ? Math.abs(l.qty||0) : -Math.abs(l.qty||0),
+      movementType: l.type==='in' ? 'INCOME' : 'EXPENSE',
+      sourceType:l.type, sourceId:l.docNumber||l.id, documentNo:l.docNumber||'' });
+  });
+
   return list;
 }
-// asOfDate байхгүй бол one-time recompute (шаардлагатай үед л, жишээ Inventory
-// Report-ийн Ending cross-check). Өдөр тутмын хурдан харагдацад
-// rebuildCanonicalStockIndex()-ийн CACHE (canonicalStockIndex) ашиглана.
+
+// §16: canonical balance — SUM(qtyDelta), optional asOfDate
+function getCanonicalInventoryMovements({productId, locationId} = {}) {
+  let list = buildCanonicalInventoryMovements();
+  if(productId)  list = list.filter(m => m.productId === productId);
+  if(locationId) list = list.filter(m => m.locationId === locationId);
+  return list;
+}
 function getInventoryBalance({productId, locationId, asOfDate} = {}) {
-  let moves = getValidInventoryMovements({productId, locationId});
-  if(asOfDate) moves = moves.filter(l => l.date <= asOfDate);
-  return moves.reduce((a,l) => a + (l.qty||0), 0);
+  let moves = getCanonicalInventoryMovements({productId, locationId});
+  if(asOfDate) moves = moves.filter(m => m.date <= asOfDate);
+  return moves.reduce((a,m) => a + m.qtyDelta, 0);
 }
 // Cache: sk(pid,lid) -> current (asOfDate-гүй) canonical balance — gst() зэрэг
-// маш олон удаа дуудагддаг функцийг invLogs-ийг дахин дахин filter хийлгэхээс
-// сэргийлнэ. invLogs шинэчлэгдэх бүрд (subscribeInvLogs) дахин барина.
+// маш олон удаа дуудагддаг функцийг эх баримтуудыг дахин дахин filter
+// хийлгэхээс сэргийлнэ. sales/purchases/importPurchases/transfers/invLogs
+// АЛЬ НЭГ нь шинэчлэгдэх бүрд дахин барина.
 let canonicalStockIndex = {};
 function rebuildCanonicalStockIndex() {
   const idx = {};
-  getValidInventoryMovements().forEach(l => {
-    const key = sk(l.productId, l.locationId);
-    idx[key] = (idx[key]||0) + (l.qty||0);
+  buildCanonicalInventoryMovements().forEach(m => {
+    const key = sk(m.productId, m.locationId);
+    idx[key] = (idx[key]||0) + m.qtyDelta;
   });
   canonicalStockIndex = idx;
 }
-// gst()/totByProd()/totByLoc() — §H,I: Sale/Purchase/Транс/Орлого/Зарлага
-// формын "Үлдэгдэл" харуулалт + validation ХОЁУЛАА ЭНЭ НЭГ функцийг л уншина.
+// gst()/totByProd()/totByLoc() — §18-20: Байршил screen, Sale/Purchase/
+// Транс/Орлого/Зарлага формын "Үлдэгдэл" + validation ХОЁУЛАА ЭНЭ helper-ийг л уншина.
 function gst(pid,lid){ return canonicalStockIndex[sk(pid,lid)] || 0; }
 
 // ═══ TEMPORARY DIAGNOSTIC — §P-Q: stockMap vs canonical invLogs reconciliation ═══
@@ -3067,13 +3155,33 @@ function getAllMovements() {
     });
   });
 
-  // ─── TRANSFER (invLogs type='transfer' — Шилжүүлэлт болон Зарлага-с шилжсэн) ─
-  invLogs.filter(l => l.type === 'transfer').forEach(l => {
-    // Формал 'transfers' коллекц дахь баримттай (огноо+бараа+байршил+тоогоор) тааруулж, олдвол sourceNumber-ийг өгнө
-    const matchTr = transfers.find(tr =>
-      tr.date === l.date && (tr.items||[]).some(x => x.pid === l.productId && x.qty === Math.abs(l.qty)) &&
-      (tr.fromLocId === l.locationId || tr.toLocId === l.locationId)
-    );
+  // ─── TRANSFER — §STOP8 §11: ШУУД transfers collection-оос (ЭХ баримт бичиг),
+  // destination invLog байгаа эсэхээс ОГТ ХАМААРАХГҮЙ. ACTIVE transfer бүр
+  // хоёр movement үүсгэнэ. ─────────────────────────────────────────────────
+  const coveredTransferIds = new Set();
+  transfers.filter(tr => tr.status!=='deleted' && tr.status!=='cancelled').forEach(tr => {
+    coveredTransferIds.add(tr.id);
+    (tr.items||[]).forEach(it => {
+      if(!it.pid || !tr.fromLocId || !tr.toLocId) return;
+      list.push({
+        transactionDate: tr.date, productId: it.pid, productCode: '', locationId: tr.fromLocId,
+        movementType: 'TRANSFER_OUT', quantityIn: 0, quantityOut: it.qty||0,
+        unitCost: 0, amount: 0, sourceType: 'inventoryTransfer', sourceId: tr.id,
+        sourceNumber: tr.trNum||'', status: 'active', createdAt: tr.createdAt
+      });
+      list.push({
+        transactionDate: tr.date, productId: it.pid, productCode: '', locationId: tr.toLocId,
+        movementType: 'TRANSFER_IN', quantityIn: it.qty||0, quantityOut: 0,
+        unitCost: 0, amount: 0, sourceType: 'inventoryTransfer', sourceId: tr.id,
+        sourceNumber: tr.trNum||'', status: 'active', createdAt: tr.createdAt
+      });
+    });
+  });
+  // Зарлага-с "Байршил шилжүүлэлт" шалтгаанаар шилжүүлсэн (transfers
+  // collection-д баримт ҮҮСГЭДЭГГҮЙ тул invLogs өөрөө цорын ганц эх сурвалж)
+  invLogs.filter(l => l.type === 'transfer' && l.status !== 'deleted' &&
+    !(l.sourceId && coveredTransferIds.has(l.sourceId))
+  ).forEach(l => {
     list.push({
       transactionDate: l.date,
       productId:  l.productId,
@@ -3084,9 +3192,9 @@ function getAllMovements() {
       quantityOut: l.qty < 0 ? -l.qty : 0,
       unitCost: 0, amount: 0,
       sourceType: 'inventoryTransfer',
-      sourceId:   matchTr ? matchTr.id : l.id,
-      sourceNumber: matchTr ? matchTr.trNum : (l.note||''),
-      status: (l.status==='deleted'||(matchTr&&(matchTr.status==='cancelled'||matchTr.status==='deleted'))) ? 'cancelled' : 'active',
+      sourceId:   l.sourceId || l.id,
+      sourceNumber: l.sourceNumber || l.note || '',
+      status: 'active',
       createdAt: l.createdAt
     });
   });
@@ -6472,7 +6580,7 @@ window.renderInvReport = () => {
   // location сонгосон үед, debugging зориулалттай)
   if(locId) {
     const rawDestLogs = invLogs.filter(l => l.type==='transfer' && l.locationId===locId && l.qty>0);
-    const validDestLogs = getValidInventoryMovements({locationId: locId}).filter(l => l.type==='transfer' && l.qty>0);
+    const validDestLogs = invLogs.filter(l => l.status!=='deleted' && l.status!=='cancelled' && l.locationId===locId && l.type==='transfer' && l.qty>0);
     const allMovesForLoc = getAllMovements().filter(m => m.locationId===locId && m.movementType==='TRANSFER_IN');
     const locFiltered = allMovesForLoc.filter(m => m.status==='active');
     const dateFiltered = locFiltered.filter(m => (!from||m.transactionDate>=from) && (!to||m.transactionDate<=to));
