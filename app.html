@@ -216,69 +216,101 @@ tbody tr:hover td{background:var(--sur2)}
 
 <!-- DASHBOARD -->
 <div id="sec-dashboard" class="sec on">
+  <!-- Хугацааны сонголт -->
   <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap">
-    <button class="btn bp bxs" id="dp-today" onclick="setDashPeriod('today')">Өнөөдөр</button>
+    <button class="btn bp bxs" id="dp-year" onclick="setDashPeriod('year')">Жил</button>
+    <button class="btn bg bxs" id="dp-month" onclick="setDashPeriod('month')">Сар</button>
+    <button class="btn bg bxs" id="dp-quarter" onclick="setDashPeriod('quarter')">Улирал</button>
     <button class="btn bg bxs" id="dp-week" onclick="setDashPeriod('week')">7 хоног</button>
-    <button class="btn bg bxs" id="dp-month" onclick="setDashPeriod('month')">Энэ сар</button>
-    <button class="btn bg bxs" id="dp-year" onclick="setDashPeriod('year')">Энэ жил</button>
-    <input type="date" id="d-from" onchange="setDashPeriod('custom')" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
-    <span style="color:var(--tx3)">—</span>
-    <input type="date" id="d-to" onchange="setDashPeriod('custom')" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r)">
+    <span id="d-period-label" style="font-size:12px;color:var(--tx3);margin-left:6px"></span>
   </div>
-  <!-- KPI блокууд -->
-  <div class="mg" id="d-metrics" style="margin-bottom:14px"></div>
-  <!-- Chart -->
+
+  <!-- ═══ 1. САНХҮҮ ═══ -->
+  <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:4px 0 8px;text-transform:uppercase;letter-spacing:.5px">Санхүү</div>
+  <div class="mg" id="d-fin-kpi" style="margin-bottom:14px"></div>
+
+  <div style="display:grid;grid-template-columns:1fr 1.4fr;gap:12px;margin-bottom:14px">
+    <!-- Мөнгөн гүйлгээ -->
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-cash"></i>Мөнгөн гүйлгээ</span></div>
+      <div class="cb" style="display:flex;flex-direction:column;gap:10px">
+        <div style="background:var(--grl);border-radius:var(--r);padding:12px"><div style="font-size:11px;color:var(--gr)">Мөнгөн орлого</div><div style="font-size:20px;font-weight:800;color:var(--gr)" id="d-cash-in">—</div></div>
+        <div style="background:var(--sur2);border-radius:var(--r);padding:12px"><div style="font-size:11px;color:var(--re)">Мөнгөн зарлага</div><div style="font-size:20px;font-weight:800;color:var(--re)" id="d-cash-out">—</div></div>
+        <div style="background:var(--pul);border-radius:var(--r);padding:12px"><div style="font-size:11px;color:var(--pu)">Мөнгөний үлдэгдэл</div><div style="font-size:20px;font-weight:800;color:var(--pu)" id="d-cash-bal">—</div></div>
+      </div>
+    </div>
+    <!-- Зардлын бүтэц -->
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-chart-donut"></i>Зардлын бүтэц</span></div>
+      <div class="cb" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <svg id="d-expense-donut" width="150" height="150" viewBox="0 0 150 150" style="flex-shrink:0"></svg>
+        <div style="flex:1;min-width:200px"><div class="tw">
+          <table style="font-size:12px">
+            <thead><tr><th>Ангилал</th><th style="text-align:right">Дүн</th><th style="text-align:right">%</th></tr></thead>
+            <tbody id="d-expense-tbody"></tbody>
+            <tfoot><tr style="font-weight:700;border-top:1px solid var(--bd)"><td>НИЙТ ЗАРДАЛ</td><td style="text-align:right" colspan="2" id="d-expense-total">—</td></tr></tfoot>
+          </table>
+        </div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ 2. АВЛАГА ═══ -->
+  <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px">Авлага</div>
   <div class="card" style="margin-bottom:14px">
-    <div class="ch"><span class="ct"><i class="ti ti-chart-line"></i><span id="d-chart-title">Борлуулалтын дүнгийн чиг хандлага</span></span>
+    <div class="cb" style="display:flex;align-items:baseline;gap:10px">
+      <span style="font-size:12px;color:var(--tx3)">Нийт авлага:</span>
+      <span style="font-size:24px;font-weight:800;color:var(--am)" id="d-recv-total">—</span>
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:12px;margin-bottom:14px">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-users"></i>Хамгийн өндөр авлагатай харилцагчид</span></div>
+      <div class="cb np"><div class="tw">
+        <table style="font-size:12px">
+          <thead><tr><th>Харилцагч</th><th style="text-align:right">Нийт авлага</th><th style="text-align:right">Хугацаа хэтэрсэн</th><th>Сүүлийн төлөлт</th></tr></thead>
+          <tbody id="d-recv-top-tbody"></tbody>
+        </table>
+      </div></div>
+      <div style="padding:8px 14px" id="d-recv-showall-wrap"><button class="btn bg bxs" onclick="toggleDashRecvShowAll()" id="d-recv-showall-btn">Бүгдийг харах</button></div>
+    </div>
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-clock"></i>Авлагын насжилт</span></div>
+      <div class="cb np"><div class="tw">
+        <table style="font-size:12px">
+          <thead><tr><th>Хугацаа</th><th style="text-align:right">Дүн</th><th style="text-align:right">%</th></tr></thead>
+          <tbody id="d-aging-tbody"></tbody>
+        </table>
+      </div></div>
+    </div>
+  </div>
+
+  <!-- ═══ 3. БОРЛУУЛАЛТ ═══ -->
+  <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px">Борлуулалт</div>
+  <div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct"><i class="ti ti-chart-bar"></i>Сарын борлуулалт</span>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-        <select id="d-chart-metric" onchange="setDashChartMetric(this.value)" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
-          <option value="sales">Борлуулалтын дүн</option>
-          <option value="product">Бараа</option>
-          <option value="receivable">Авлага</option>
-        </select>
-        <div id="d-chart-legend" style="font-size:11px;color:var(--tx3)"></div>
+        <label style="font-size:11px;color:var(--tx3)">Бүтээгдэхүүн:</label>
+        <select id="d-sales-product" onchange="renderDashboard()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)"><option value="">Бүгд</option></select>
         <div style="display:flex;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden">
-          <button class="btn bxs" id="dch-bar" onclick="setDashChartType('bar')" style="border:none;border-radius:0;background:var(--pu);color:#fff"><i class="ti ti-chart-bar"></i></button>
-          <button class="btn bxs" id="dch-line" onclick="setDashChartType('line')" style="border:none;border-radius:0"><i class="ti ti-chart-line"></i></button>
+          <button class="btn bxs" id="d-sales-amt" onclick="setDashSalesMode('amount')" style="border:none;border-radius:0;background:var(--pu);color:#fff">Үнийн дүн</button>
+          <button class="btn bxs" id="d-sales-qty" onclick="setDashSalesMode('qty')" style="border:none;border-radius:0">Тоо ширхэг</button>
         </div>
       </div>
     </div>
-    <div class="cb" style="padding:8px">
-      <svg id="d-sparkline" width="100%" height="240" style="display:block"></svg>
-    </div>
+    <div class="cb" style="padding:8px"><svg id="d-sales-chart" width="100%" height="240" style="display:block"></svg></div>
   </div>
-  <!-- 2 багана -->
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">
-    <!-- Авлагын товчоо -->
-    <div class="card">
-      <div class="ch"><span class="ct"><i class="ti ti-alert-circle"></i>Авлагын товчоо</span></div>
-      <div class="cb np"><div class="tw">
-        <table style="font-size:12px">
-          <thead><tr><th>Харилцагч</th><th style="text-align:right">Авлага</th></tr></thead>
-          <tbody id="d-recv-tbody"></tbody>
-        </table>
-      </div></div>
-    </div>
-    <!-- Top бараа -->
-    <div class="card">
-      <div class="ch"><span class="ct"><i class="ti ti-trending-up"></i>Борлуулалт ихтэй бараа</span></div>
-      <div class="cb np"><div class="tw">
-        <table style="font-size:12px">
-          <thead><tr><th>Бараа</th><th style="text-align:right">Тоо</th><th style="text-align:right">Дүн</th></tr></thead>
-          <tbody id="d-top-prod-tbody"></tbody>
-        </table>
-      </div></div>
-    </div>
-  </div>
-  <!-- Банкны данс -->
+
+  <!-- ═══ 4. БАРААНЫ ОДООГИЙН ҮЛДЭГДЭЛ ═══ -->
+  <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px">Барааны одоогийн үлдэгдэл</div>
   <div class="card">
-    <div class="ch"><span class="ct"><i class="ti ti-building-bank"></i>Банкны данс (өнөөдрийн байдлаар)</span></div>
-    <div class="cb np"><div class="tw">
-      <table style="font-size:12px">
-        <thead><tr><th>Банк</th><th>Данс</th><th style="text-align:right">Нийт орлого</th><th style="text-align:right">Нийт зарлага</th><th style="text-align:right">Үлдэгдэл</th></tr></thead>
-        <tbody id="d-bank-tbody"></tbody>
-      </table>
-    </div></div>
+    <div class="ch"><span class="ct"><i class="ti ti-package"></i>Үлдэгдэл (өнөөдрийн байдлаар)</span>
+      <div style="display:flex;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden">
+        <button class="btn bxs" id="d-inv-qty" onclick="setDashInvMode('qty')" style="border:none;border-radius:0;background:var(--pu);color:#fff">Тоо ширхэг</button>
+        <button class="btn bxs" id="d-inv-amt" onclick="setDashInvMode('amount')" style="border:none;border-radius:0">Үнийн дүн</button>
+      </div>
+    </div>
+    <div class="cb" style="padding:8px"><svg id="d-inv-chart" width="100%" height="240" style="display:block"></svg></div>
   </div>
 </div>
 
@@ -5138,21 +5170,83 @@ let dashboardDateRange = { startDate: '', endDate: '', periodType: 'today' };
 // огт хамааралгүй. "Банкны данс" хүснэгт нь ӨӨРӨӨ "period-той хамааралгүй" (бүх
 // цагийн) байх ёстой тул ЭНД date filter query-д ХИЙХГҮЙ — бүгдийг НЭГ УДАА
 // subscribe хийж, "Мөнгөн орлого" KPI-д л client-side огноогоор шүүнэ.
-let dashboardBankTxns = [];
-let dashboardBankTxnsSubscribed = false;
-function subscribeDashboardBankTxns() {
-  if(dashboardBankTxnsSubscribed) return; // нэг л удаа, дахин subscribe хийхгүй
-  dashboardBankTxnsSubscribed = true;
-  onSnapshot(query(collection(db,'bankTxns'), orderBy('date','desc')), snap => {
-    dashboardBankTxns = snap.docs.map(d=>({id:d.id,...d.data()}));
-    console.log('[DASHBOARD BANK] loaded (бүх цагийн) =', dashboardBankTxns.length);
+// §STOP9 §11: ALL-TIME onSnapshot listener bankTxns дээр = 0. Оронд нь ХОЁР
+// тусдаа зорилготой, ONE-TIME getDocs + cache архитектур:
+//   A. "Мөнгөн орлого" KPI — dashboardDateRange-ээр SCOPED, cache key = from|to
+//   B. "Банкны данс" хүснэгт — period-той ХАМААРАЛГҮЙ (§8, bankAccounts-д
+//      currentBalance гэсэн stored field байхгүй тул шинэ schema зохиогоогүй,
+//      харин бүх цагийн aggregate-ыг ганц удаа getDocs-оор татаж cache хийнэ)
+let dashboardBankAccountTotals = null; // {accountId: {inc,exp}} — бүх цагийн cache
+let dashboardBankAccountTotalsLoading = false;
+let dashboardPeriodBankCache = {};     // "from|to" -> income (тоо)
+let dashboardPeriodBankLoading = {};
+
+async function loadDashboardBankAccountTotals(force=false) {
+  if(dashboardBankAccountTotals !== null && !force) {
+    console.log('[DASH BANK LOAD] account-totals | source=cache');
+    return dashboardBankAccountTotals;
+  }
+  if(dashboardBankAccountTotalsLoading) return null;
+  dashboardBankAccountTotalsLoading = true;
+  try {
+    const snap = await getDocs(collection(db,'bankTxns'));
+    const totals = {};
+    snap.docs.forEach(d => {
+      const t = d.data();
+      if(t.isDeleted===true || t.status==='deleted') return;
+      if(!totals[t.accountId]) totals[t.accountId] = {inc:0, exp:0};
+      totals[t.accountId].inc += t.income||0;
+      totals[t.accountId].exp += t.expense||0;
+    });
+    dashboardBankAccountTotals = totals;
+    console.log('[DASH BANK LOAD] account-totals | docs=', snap.docs.length, '| source=firestore');
     renderDashboard();
-  }, err => {
-    console.error('[subscribeDashboardBankTxns ERROR]', { code: err.code, message: err.message });
-  });
+    return totals;
+  } catch(e) {
+    console.error('[loadDashboardBankAccountTotals ERROR]', e);
+    return null;
+  } finally {
+    dashboardBankAccountTotalsLoading = false;
+  }
 }
-let dashboardChartType = 'bar';
-let dashboardChartMetric = 'sales';
+async function loadDashboardPeriodBankIncome(from, to) {
+  const key = `${from}|${to}`;
+  if(dashboardPeriodBankCache[key] !== undefined) {
+    console.log('[DASH BANK LOAD] range=', from, '..', to, '| source=cache');
+    return dashboardPeriodBankCache[key];
+  }
+  if(dashboardPeriodBankLoading[key]) return null;
+  dashboardPeriodBankLoading[key] = true;
+  try {
+    const conditions = [];
+    if(from) conditions.push(where('date','>=',from));
+    if(to)   conditions.push(where('date','<=',to));
+    const snap = await getDocs(query(collection(db,'bankTxns'), ...conditions));
+    let income = 0;
+    snap.docs.forEach(d => {
+      const t = d.data();
+      if(t.isDeleted===true || t.status==='deleted') return;
+      income += t.income||0;
+    });
+    dashboardPeriodBankCache[key] = income;
+    console.log('[DASH BANK LOAD] range=', from, '..', to, '| docs=', snap.docs.length, '| source=firestore');
+    renderDashboard();
+    return income;
+  } catch(e) {
+    console.error('[loadDashboardPeriodBankIncome ERROR]', e);
+    return null;
+  } finally {
+    dashboardPeriodBankLoading[key] = false;
+  }
+}
+// §12-13: Cache invalidation — Dashboard-ийн "Шинэчлэх" товч, эсвэл шинэ bank
+// import амжилттай дууссаны дараа дуудна.
+window.invalidateDashboardBankCache = () => {
+  dashboardBankAccountTotals = null;
+  dashboardPeriodBankCache = {};
+  console.log('[DASH BANK LOAD] cache invalidated');
+  loadDashboardBankAccountTotals(true);
+};
 
 // Timezone-аюулгүй огнооны helper-үүд — .toISOString() ашиглахгүй, учир нь
 // UTC+ хугацааны бүсэд (жишээ Улаанбаатар UTC+8) огноог 1 өдрөөр буруу
@@ -5168,45 +5262,42 @@ function addDaysStr(dateStr, days) {
 function todayStr() { return localDateStr(new Date()); }
 
 window.initDashboardPeriod = () => {
-  setDashPeriod('today', true);
+  setDashPeriod('year', true);
 };
 
+// ─── ХУГАЦААНЫ СОНГОЛТ: Жил | Сар | Улирал | 7 хоног ───────────────────────
 window.setDashPeriod = (period, silent) => {
   const today = todayStr();
-  let from = today, to = today;
-  if(period==='today') { from = today; to = today; }
-  else if(period==='week') { from=addDaysStr(today,-6); to=today; }
-  else if(period==='month') { from = today.slice(0,7)+'-01'; to = today; }
-  else if(period==='year')  { from = today.slice(0,4)+'-01-01'; to = today; }
-  else if(period==='custom') {
-    from = document.getElementById('d-from')?.value || today;
-    to   = document.getElementById('d-to')?.value   || today;
+  const now = new Date();
+  let from = today, to = today, label = '';
+  if(period==='week') {
+    from = addDaysStr(today,-6); to = today;
+    label = `${from} — ${to}`;
+  } else if(period==='month') {
+    from = today.slice(0,7)+'-01'; to = today;
+    label = MONTH_NAMES_MN[now.getMonth()] + ' ' + now.getFullYear();
+  } else if(period==='quarter') {
+    const q = Math.floor(now.getMonth()/3);
+    from = localDateStr(new Date(now.getFullYear(), q*3, 1)); to = today;
+    label = `${now.getFullYear()} оны ${q+1}-р улирал`;
+  } else { // year (default)
+    from = today.slice(0,4)+'-01-01'; to = today;
+    label = `${now.getFullYear()} он`;
   }
   dashboardDateRange = { startDate: from, endDate: to, periodType: period };
 
-  const fEl=document.getElementById('d-from'), tEl=document.getElementById('d-to');
-  if(fEl) fEl.value = from;
-  if(tEl) tEl.value = to;
-
-  // Preset товчны идэвхжилтийг зөв тохируулах (input ба товч ХЭЗЭЭ Ч тусдаа state биш)
-  ['dp-today','dp-week','dp-month','dp-year'].forEach(id=>{
+  ['dp-year','dp-month','dp-quarter','dp-week'].forEach(id=>{
     const b = document.getElementById(id); if(!b) return;
     b.classList.remove('bp'); b.classList.add('bg');
   });
-  if(period!=='custom') {
-    const activeBtn = document.getElementById('dp-'+period);
-    if(activeBtn) { activeBtn.classList.remove('bg'); activeBtn.classList.add('bp'); }
-  }
+  const activeBtn = document.getElementById('dp-'+period);
+  if(activeBtn) { activeBtn.classList.remove('bg'); activeBtn.classList.add('bp'); }
+  const lblEl = document.getElementById('d-period-label');
+  if(lblEl) lblEl.textContent = label;
+
   if(!silent) renderDashboard();
 };
-
-window.setDashChartType = (type) => {
-  dashboardChartType = type;
-  const barBtn = document.getElementById('dch-bar'), lineBtn = document.getElementById('dch-line');
-  if(barBtn)  { barBtn.style.background  = type==='bar'  ? 'var(--pu)' : ''; barBtn.style.color  = type==='bar'  ? '#fff' : ''; }
-  if(lineBtn) { lineBtn.style.background = type==='line' ? 'var(--pu)' : ''; lineBtn.style.color = type==='line' ? '#fff' : ''; }
-  renderDashboard();
-};
+const MONTH_NAMES_MN = ['1-р сар','2-р сар','3-р сар','4-р сар','5-р сар','6-р сар','7-р сар','8-р сар','9-р сар','10-р сар','11-р сар','12-р сар'];
 
 // Тухайн endDate-ийн байдлаарх нийт авлагын үлдэгдэл (бүх харилцагчаар)
 // — renderRecvSummary-тай ЯГ ИЖИЛ тооцооллын логик ашиглана (давхардуулахгүй)
@@ -5230,95 +5321,106 @@ function getTotalReceivableAsOf(endDate) {
   return { total, byCust };
 }
 
-window.renderDashboard = () => {
-  const from = dashboardDateRange.startDate || document.getElementById('d-from')?.value || todayStr();
-  const to   = dashboardDateRange.endDate   || document.getElementById('d-to')?.value   || todayStr();
+// §3: Авлагын насжилт + харилцагч бүрийн "Хугацаа хэтэрсэн"/"Сүүлийн төлөлт".
+// Aging нь sale-ийн ОГНООГООС (invoice-date aging) тооцогдоно — компанийн
+// одоо байгаа AR тооцооллын аргачлалыг өөрчлөхгүй, зөвхөн харуулах зорилгоор
+// нэмэлт задаргаа хийнэ.
+function getReceivableAgingDetail(asOfDate) {
+  const buckets = { '0-30':0, '31-60':0, '61-90':0, '90+':0 };
+  const overdueByCust = {}; // custId -> overdue sum (30+ хоног)
+  sales.forEach(s => {
+    if(s.status==='deleted'||s.status==='void'||s.status==='cancelled') return;
+    if(!(s.recv>0)) return;
+    if(s.date > asOfDate) return;
+    const ageDays = Math.round((new Date(asOfDate) - new Date(s.date)) / 86400000);
+    let bucket = '0-30';
+    if(ageDays>90) bucket='90+'; else if(ageDays>60) bucket='61-90'; else if(ageDays>30) bucket='31-60';
+    buckets[bucket] += s.recv;
+    if(ageDays>30) overdueByCust[s.customerId] = (overdueByCust[s.customerId]||0) + s.recv;
+  });
+  const lastPaymentByCust = {};
+  payments.forEach(pm => {
+    if(pm.isCancelled || pm.status==='cancelled') return;
+    if(pm.paymentDate > asOfDate) return;
+    const cid = pm.customerId;
+    if(!cid) return;
+    if(!lastPaymentByCust[cid] || pm.paymentDate > lastPaymentByCust[cid]) lastPaymentByCust[cid] = pm.paymentDate;
+  });
+  return { buckets, overdueByCust, lastPaymentByCust };
+}
 
-  // §1,4: Dashboard-ийн ӨӨРИЙН bank data source — Bank Statement дэлгэцийн
-  // сонгосон данс/огнооноос ХАМААРАЛГҮЙ. Нэг л удаа бүх цагийн өгөгдлийг ачаална.
-  subscribeDashboardBankTxns();
-
-  const filtered = sales.filter(s =>
-    s.status !== 'deleted' && s.status !== 'void' && s.status !== 'cancelled' &&
-    (!from || s.date >= from) && (!to || s.date <= to)
-  );
-
-  // ─── 5 KPI (нэгдсэн dashboardDateRange ашиглана) ───
-  const totalIncome = filtered.reduce((a,s)=>a+(s.total||0),0);
-  // §5: nullish coalescing — totalCost=0 бол ЗӨВХӨН тэр 0-г ашиглана, дахин тооцохгүй
-  const totalCost   = filtered.reduce((a,s)=>a+(s.totalCost ?? (s.items||[]).reduce((b,it)=>b+(it.costAmount??((it.unitCost||0)*(it.qty||0))),0)),0);
-  const totalProfit = totalIncome - totalCost;
-  // Мөнгөн орлого — Dashboard-ийн ӨӨРИЙН bank data source-оос (bankTxns биш)
-  const cashIncome = dashboardBankTxns
-    .filter(t => (t.isDeleted!==true && t.status!=='deleted') && (!from||t.date>=from) && (!to||t.date<=to))
-    .reduce((a,t)=>a+(t.income||0),0);
-  // Авлага — сонгосон endDate-ийн байдлаарх үлдэгдэл (Эхний+Борлуулалт−Төлөлт, тухайн хугацаанд шинээр үүссэн авлагын нийлбэр БИШ)
-  const recvAsOf = getTotalReceivableAsOf(to);
-
-  const metricsEl = document.getElementById('d-metrics');
-  if(metricsEl) metricsEl.innerHTML = `
-    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('income')"><div class="ml">Нийт орлого</div><div class="mv pu">${fmt(totalIncome)}</div><div class="ms">${filtered.length} гүйлгээ</div></div>
-    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('cost')"><div class="ml">Нийт өртөг</div><div class="mv">${fmt(totalCost)}</div></div>
-    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div></div>
-    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('cash')"><div class="ml">Мөнгөн орлого</div><div class="mv gr">${fmt(cashIncome)}</div></div>
-    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('recv')"><div class="ml">Авлага</div><div class="mv am">${fmt(recvAsOf.total)}</div><div class="ms">${to}-ний байдлаар</div></div>`;
-
-  // ─── ГРАФИК: grouping — period төрлөөс хамаарна ───
-  const groupBy = (dashboardDateRange.periodType==='year') ? 'month' : (dashboardDateRange.periodType==='today' ? 'hour' : 'day');
-  renderDashChart(filtered, from, to, groupBy);
-  updateDashChartTitle();
-
-  // ─── АВЛАГЫН ТОВЧОО (сонгосон endDate-ийн байдлаарх үлдэгдэл) ───
-  const recvTbody = document.getElementById('d-recv-tbody');
-  const today0 = todayStr();
-  const recvList = recvAsOf.byCust.slice(0,8);
-  if(recvTbody) recvTbody.innerHTML = recvList.length ? recvList.map(r => {
-    return `<tr style="cursor:pointer" onclick="drillDashRecv('${r.custId}')"><td style="font-weight:500;color:var(--pu)">${r.name}</td>
-      <td style="text-align:right;color:var(--am);font-weight:700">${fmt(r.recv)}</td></tr>`;
-  }).join('') : '<tr><td colspan="2"><div class="empty">Авлага байхгүй</div></td></tr>';
-
-  // ─── TOP БАРАА (сонгосон хугацааны борлуулалтаар) ───
-  const prodSales = {};
-  filtered.forEach(s => (s.items||[]).forEach(it => {
-    if(!prodSales[it.pid]) prodSales[it.pid] = { pid:it.pid, label:it.label||'—', qty:0, total:0 };
-    prodSales[it.pid].qty += it.qty||1;
-    prodSales[it.pid].total += it.lineTotal||it.sub||0;
-  }));
-  const topProds = Object.values(prodSales).sort((a,b)=>b.total-a.total).slice(0,8);
-  const prodTbody = document.getElementById('d-top-prod-tbody');
-  if(prodTbody) prodTbody.innerHTML = topProds.length ? topProds.map(p =>
-    `<tr style="cursor:pointer" onclick="drillDashProduct('${p.pid}')"><td style="font-size:11px;color:var(--pu)">${p.label.replace('·',' ')}</td>
-      <td style="text-align:right">${p.qty}ш</td>
-      <td style="text-align:right;color:var(--pu)">${fmt(p.total)}</td></tr>`
-  ).join('') : '<tr><td colspan="3"><div class="empty">Борлуулалт байхгүй</div></td></tr>';
-
-  // ─── БАНКНЫ ДАНС (өнөөдрийн нийт үлдэгдэл — period-той хамааралгүй, тусдаа зорилготой) ───
-  const bankTbody = document.getElementById('d-bank-tbody');
-  if(bankTbody) {
-    const accRows = bankAccounts.filter(a=>a.active!==false).map(a => {
-      const accTxns = dashboardBankTxns.filter(t=>t.accountId===a.id&&!t.isDeleted&&t.status!=='deleted');
-      const inc = accTxns.reduce((s,t)=>s+(t.income||0),0);
-      const exp = accTxns.reduce((s,t)=>s+(t.expense||0),0);
-      return { bank:a.bankName, num:a.accountNumber, inc, exp, bal:inc-exp };
-    });
-    bankTbody.innerHTML = accRows.length ? accRows.map(r =>
-      `<tr><td style="font-size:12px">${r.bank}</td>
-        <td style="font-family:monospace;font-size:11px">${r.num}</td>
-        <td style="text-align:right;color:var(--gr)">${fmt(r.inc)}</td>
-        <td style="text-align:right;color:var(--re)">${fmt(r.exp)}</td>
-        <td style="text-align:right;font-weight:700;color:${r.bal>=0?'var(--gr)':'var(--re)'}">${fmt(r.bal)}</td></tr>`
-    ).join('') : '<tr><td colspan="5"><div class="empty">Данс байхгүй</div></td></tr>';
+// §2.2/2.3: Мөнгөн гүйлгээ + Зардлын бүтэц зориулсан bankTxns scoped ачаалалт.
+// Dashboard-ийн ӨӨРИЙН cache (§STOP9 архитектуртай ижил зарчим — period-ээр
+// key-лэгдсэн, ONE-TIME getDocs, listener БИШ).
+let dashboardExpenseCache = {}; // "from|to" -> { total, byCategory:{cat:amt}, cashExpense }
+let dashboardExpenseLoading = {};
+async function loadDashboardPeriodExpense(from, to) {
+  const key = `${from}|${to}`;
+  if(dashboardExpenseCache[key] !== undefined) {
+    console.log('[DASH BANK LOAD] expense range=', from, '..', to, '| source=cache');
+    return dashboardExpenseCache[key];
   }
+  if(dashboardExpenseLoading[key]) return null;
+  dashboardExpenseLoading[key] = true;
+  try {
+    const conditions = [];
+    if(from) conditions.push(where('date','>=',from));
+    if(to)   conditions.push(where('date','<=',to));
+    const snap = await getDocs(query(collection(db,'bankTxns'), ...conditions));
+    let cashExpense = 0;
+    const byCategory = {};
+    snap.docs.forEach(d => {
+      const t = d.data();
+      if(t.isDeleted===true || t.status==='deleted') return;
+      if((t.expense||0) > 0) {
+        cashExpense += t.expense;
+        const cat = t.expenseCategory || 'Ангилагдаагүй';
+        byCategory[cat] = (byCategory[cat]||0) + t.expense;
+      }
+    });
+    const result = { cashExpense, byCategory };
+    dashboardExpenseCache[key] = result;
+    console.log('[DASH BANK LOAD] expense range=', from, '..', to, '| docs=', snap.docs.length, '| source=firestore');
+    renderDashboard();
+    return result;
+  } catch(e) {
+    console.error('[loadDashboardPeriodExpense ERROR]', e);
+    return null;
+  } finally {
+    dashboardExpenseLoading[key] = false;
+  }
+}
+
+let dashSalesMode = 'amount'; // 'amount' | 'qty'
+let dashInvMode = 'qty';      // 'qty' | 'amount'
+let dashRecvShowAll = false;
+
+window.setDashSalesMode = (mode) => {
+  dashSalesMode = mode;
+  document.getElementById('d-sales-amt').style.background = mode==='amount' ? 'var(--pu)' : '';
+  document.getElementById('d-sales-amt').style.color = mode==='amount' ? '#fff' : '';
+  document.getElementById('d-sales-qty').style.background = mode==='qty' ? 'var(--pu)' : '';
+  document.getElementById('d-sales-qty').style.color = mode==='qty' ? '#fff' : '';
+  renderDashboard();
+};
+window.setDashInvMode = (mode) => {
+  dashInvMode = mode;
+  document.getElementById('d-inv-qty').style.background = mode==='qty' ? 'var(--pu)' : '';
+  document.getElementById('d-inv-qty').style.color = mode==='qty' ? '#fff' : '';
+  document.getElementById('d-inv-amt').style.background = mode==='amount' ? 'var(--pu)' : '';
+  document.getElementById('d-inv-amt').style.color = mode==='amount' ? '#fff' : '';
+  renderDashboard();
+};
+window.toggleDashRecvShowAll = () => {
+  dashRecvShowAll = !dashRecvShowAll;
+  renderDashboard();
 };
 
-// ─── ГРАФИК ЗУРАХ (Bar/Line сонголттой, мянгатаар товчилсон тэнхлэг, бүтэн dэн tooltip) ───
-// ─── МӨНГӨН ДҮНГИЙН AUTO-SCALE (₮ / сая ₮ / тэрбум ₮) ───────────────────────
 function getMoneyScale(maxValue) {
   if(maxValue >= 1000000000) return { divisor: 1000000000, unit: 'тэрбум', axisTitle: 'Дүн /тэрбум ₮/' };
   if(maxValue >= 1000000)    return { divisor: 1000000,    unit: 'сая',    axisTitle: 'Дүн /сая ₮/' };
   return { divisor: 1, unit: '₮', axisTitle: 'Дүн /₮/' };
 }
-// dataset max-аас "гоё" (readable rounded) axis max сонгоно — 1/1.5/2/2.5/3/4/5/7.5/10 × 10^n
 function niceAxisMax(rawMax) {
   if(rawMax <= 0) return 1;
   const magnitude = Math.pow(10, Math.floor(Math.log10(rawMax)));
@@ -5346,99 +5448,31 @@ function formatTooltip(value, mode) {
   return fmt(value);
 }
 
-// Сонгосон үзүүлэлтээр (нэг л удаад НЭГ series) хугацааны цувааг бэлдэнэ
-function buildDashSeries(filteredSales, from, to, groupBy) {
-  const metric = dashboardChartMetric;
-
-  if(metric === 'receivable') {
-    const buckets = [];
-    if(groupBy === 'month') {
-      const startM = from.slice(0,7), endM = to.slice(0,7);
-      let [y,m] = startM.split('-').map(Number);
-      const [ey,em] = endM.split('-').map(Number);
-      while(y<ey || (y===ey && m<=em)) {
-        const key = `${y}-${String(m).padStart(2,'0')}`;
-        const isLast = (y===ey && m===em);
-        const lastDay = new Date(y, m, 0).getDate();
-        const endOfBucket = isLast ? to : `${key}-${String(lastDay).padStart(2,'0')}`;
-        buckets.push({ key, val: getTotalReceivableAsOf(endOfBucket).total });
-        m++; if(m>12){m=1;y++;}
-      }
-    } else {
-      let key = from;
-      while(key <= to) {
-        buckets.push({ key, val: getTotalReceivableAsOf(key).total });
-        key = addDaysStr(key, 1);
-      }
-    }
-    return { keys: buckets.map(b=>b.key), vals: buckets.map(b=>b.val), unit:'money', label:'Авлагын үлдэгдэл' };
-  }
-
-  // sales / product — эхлээд бодит борлуулалтаар нэгтгэнэ
-  const groups = {};
-  filteredSales.forEach(s => {
-    let key;
-    if(groupBy==='month') key = s.date.slice(0,7);
-    else if(groupBy==='hour') { const dt = s.createdAt?.toDate ? s.createdAt.toDate() : (s.createdAt ? new Date(s.createdAt) : null); key = dt ? String(dt.getHours()).padStart(2,'0')+':00' : s.date; }
-    else key = s.date;
-    if(!groups[key]) groups[key] = 0;
-    if(metric === 'product') groups[key] += (s.items||[]).reduce((a,it)=>a+(it.qty||0),0);
-    else groups[key] += s.total||0;
-  });
-
-  // ─── БҮРЭН КАЛЕНДАРЬ (борлуулалтгүй өдөр/сар = 0, орхигдохгүй) ───
-  let keys = [];
-  if(groupBy === 'month') {
-    const startM = from.slice(0,7), endM = to.slice(0,7);
-    let [y,m] = startM.split('-').map(Number);
-    const [ey,em] = endM.split('-').map(Number);
-    while(y<ey || (y===ey && m<=em)) { keys.push(`${y}-${String(m).padStart(2,'0')}`); m++; if(m>12){m=1;y++;} }
-  } else if(groupBy === 'hour') {
-    keys = Object.keys(groups).sort(); // цагийн задаргаа зөвхөн бодит гүйлгээтэй цагаар
-  } else {
-    let key = from;
-    while(key <= to) { keys.push(key); key = addDaysStr(key, 1); }
-  }
-
-  return { keys, vals: keys.map(k=>groups[k]||0), unit: metric==='product' ? 'qty' : 'money', label: metric==='product' ? 'Борлуулсан тоо' : 'Борлуулалтын дүн' };
-}
-
-function renderDashChart(filteredSales, from, to, groupBy) {
-  const svg = document.getElementById('d-sparkline'); if(!svg) return;
-  const series = buildDashSeries(filteredSales, from, to, groupBy);
-  const { keys, vals, unit } = series;
-
-  const legend = document.getElementById('d-chart-legend');
-  if(legend) legend.textContent = keys.length ? `${from} – ${to}` : '';
-
+// ─── ЕРӨНХИЙ ЦЭВЭР BAR CHART ЗУРАГЧ (Борлуулалт/Үлдэгдэл хоёуланд ашиглана) ───
+function drawDashBarChart(svgId, keys, vals, unit, colorVar, onBarClick) {
+  const svg = document.getElementById(svgId); if(!svg) return;
   if(keys.length === 0) {
     svg.setAttribute('height', 100);
-    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="var(--tx3)" font-size="13">Өгөгдөл хангалтгүй</text>';
+    svg.innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="var(--tx3)" font-size="13">Мэдээлэл байхгүй</text>';
     return;
   }
-
   const rawMaxV = Math.max(...vals, 1);
-  const axisMax = unit==='qty' ? niceAxisMax(rawMaxV) : niceAxisMax(rawMaxV);
-  const maxV = axisMax; // Y тэнхлэг болон баганын өндөр ХОЁУЛАА readable rounded max ашиглана
+  const axisMax = niceAxisMax(rawMaxV);
+  const maxV = axisMax;
   const moneyScale = unit==='qty' ? null : getMoneyScale(axisMax);
-  // ─── COMPACT: нам өндөр (220-280px), нарийхан багана ───
   const H = 240, PADL = 54, PADB = 30, PADT = 22, PADR = 10;
   const plotH = H-PADT-PADB;
   svg.setAttribute('height', H);
-  svg.setAttribute('viewBox', `0 0 ${svg.clientWidth||900} ${H}`);
   const W = svg.clientWidth || 900;
   const plotW = W-PADL-PADR;
-
-  // ─── ЗҮҮНЭЭС ЭХЭЛСЭН compact spacing (голд ТАРААХГҮЙ) ───
-  const idealSpacing = 34; // нарийхан категори зай
+  const idealSpacing = 44;
   const neededW = idealSpacing*keys.length;
   const spacing = neededW > plotW ? plotW/keys.length : idealSpacing;
-  const startX = PADL; // зүүн талаас эхэлнэ, голлуулахгүй
+  const startX = PADL;
   const x = i => startX + spacing*i + spacing/2;
   const y = v => PADT + plotH - (v/maxV)*plotH;
-  const barW = Math.max(4, Math.min(18, spacing*0.62)); // нарийхан багана: barThickness~18 max
+  const barW = Math.max(4, Math.min(28, spacing*0.62));
 
-  // Y тэнхлэг (readable rounded max, ~5 tick)
   const ySteps = 5;
   let axisLines = '';
   for(let i=0;i<=ySteps;i++){
@@ -5450,108 +5484,181 @@ function renderDashChart(filteredSales, from, to, groupBy) {
   }
   axisLines += `<text x="${PADL}" y="12" font-size="9" fill="var(--tx3)">${unit==='qty'?'Тоо /ш/':moneyScale.axisTitle}</text>`;
 
-  const COLOR = dashboardChartMetric==='product' ? 'var(--te)' : dashboardChartMetric==='receivable' ? 'var(--am)' : 'var(--pu)';
   let seriesHtml = '';
-  // v>0 БҮХ bar/point дээр ЗААВАЛ label render хийнэ — dataset утга, hover,
-  // сонгосон цэг, индекс (сүүлийн/тэгш/сондгой г.м.) ямар ч нөхцлөөр алгасахгүй.
-  const LABEL_MIN_Y = PADT + 9; // chart дээд ирмэгт таслагдахаас хамгаална
+  const LABEL_MIN_Y = PADT + 9;
+  keys.forEach((k,i) => {
+    const v = vals[i];
+    const bh = plotH * (v/maxV||0);
+    const by = PADT+plotH-bh;
+    const clickAttr = onBarClick ? ` style="cursor:pointer" onclick="${onBarClick}('${k}')"` : '';
+    seriesHtml += `<rect data-key="${k}" x="${x(i)-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${colorVar}" rx="3"${clickAttr}><title>${k}\n${formatTooltip(v, unit)}</title></rect>`;
+    if(v > 0) {
+      const ly = Math.max(by-4, LABEL_MIN_Y);
+      seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="9" fill="var(--tx2)" font-weight="600">${formatDataLabel(v, unit, moneyScale)}</text>`;
+    }
+  });
 
-  if(dashboardChartType === 'bar') {
-    keys.forEach((k,i) => {
-      const v = vals[i];
-      const bh = plotH * (v/maxV||0);
-      const by = PADT+plotH-bh;
-      seriesHtml += `<rect data-key="${k}" x="${x(i)-barW/2}" y="${by}" width="${barW}" height="${Math.max(bh,0)}" fill="${COLOR}" rx="2" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${formatTooltip(v, unit)}</title></rect>`;
-      if(v > 0) {
-        const ly = Math.max(by-4, LABEL_MIN_Y);
-        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${formatDataLabel(v, unit, moneyScale)}</text>`;
-      }
-    });
-  } else {
-    const pts = keys.map((k,i)=>`${x(i)},${y(vals[i])}`).join(' ');
-    seriesHtml += `<polyline points="${pts}" fill="none" stroke="${COLOR}" stroke-width="2" stroke-linejoin="round"/>`;
-    keys.forEach((k,i)=>{
-      seriesHtml += `<circle cx="${x(i)}" cy="${y(vals[i])}" r="3.5" fill="${COLOR}" style="cursor:pointer" onclick="drillDashChart('${k}')"><title>${k}\n${formatTooltip(vals[i], unit)}</title></circle>`;
-      if(vals[i] > 0) {
-        const ly = Math.max(y(vals[i])-8, LABEL_MIN_Y);
-        seriesHtml += `<text x="${x(i)}" y="${ly}" text-anchor="middle" font-size="8" fill="var(--tx2)" font-weight="600">${formatDataLabel(vals[i], unit, moneyScale)}</text>`;
-      }
-    });
-  }
-
-  // X тэнхлэгийн label — давхцахаас сэргийлж шаардлагатай бол алгасна
   const labelStep = keys.length<=16 ? 1 : keys.length<=31 ? 2 : Math.ceil(keys.length/20);
   const xLabels = keys.map((k,i)=>{
     if(i % labelStep !== 0) return '';
-    const short = groupBy==='month' ? k.slice(5) : groupBy==='hour' ? k : k.slice(8);
-    return `<text x="${x(i)}" y="${H-14}" text-anchor="middle" font-size="8" fill="var(--tx3)">${short}</text>`;
+    return `<text x="${x(i)}" y="${H-14}" text-anchor="middle" font-size="9" fill="var(--tx3)">${k}</text>`;
   }).join('');
 
-  // Хэрэв бодит хэрэгцээт өргөн svg-ийн харагдах өргөнөөс их бол хэвтээ scroll идэвхжинэ (§10)
   const contentW = Math.max(W, PADL+spacing*keys.length+PADR);
   svg.setAttribute('viewBox', `0 0 ${contentW} ${H}`);
   svg.style.minWidth = contentW>W ? contentW+'px' : '';
-  svg.parentElement.style.overflowX = contentW>W ? 'auto' : 'hidden';
+  if(svg.parentElement) svg.parentElement.style.overflowX = contentW>W ? 'auto' : 'hidden';
 
   svg.innerHTML = `${axisLines}${seriesHtml}${xLabels}`;
 }
 
-window.setDashChartMetric = (metric) => {
-  dashboardChartMetric = metric;
-  updateDashChartTitle();
-  renderDashboard();
-};
-function updateDashChartTitle() {
-  const titleEl = document.getElementById('d-chart-title');
-  if(!titleEl) return;
-  const TITLES = { sales:'Борлуулалтын дүнгийн чиг хандлага', product:'Барааны борлуулалтын тоо', receivable:'Авлагын үлдэгдлийн өөрчлөлт' };
-  titleEl.textContent = TITLES[dashboardChartMetric] || TITLES.sales;
+// ─── ЕРӨНХИЙ DONUT CHART (Зардлын бүтэц) ───────────────────────────────────
+function drawDashDonut(svgId, segments) {
+  const svg = document.getElementById(svgId); if(!svg) return;
+  const total = segments.reduce((a,s)=>a+s.value,0);
+  if(total<=0) { svg.innerHTML = '<circle cx="75" cy="75" r="60" fill="none" stroke="var(--bd)" stroke-width="18"/>'; return; }
+  const COLORS = ['#534AB7','#F59E0B','#10B981','#EF4444','#3B82F6','#EC4899','#8B5CF6','#F97316'];
+  const cx=75, cy=75, r=55, sw=22;
+  let angle = -90;
+  let html = '';
+  segments.forEach((s,i) => {
+    const frac = s.value/total;
+    const sweep = frac*360;
+    const large = sweep>180 ? 1 : 0;
+    const a1 = angle*Math.PI/180, a2 = (angle+sweep)*Math.PI/180;
+    const x1 = cx+r*Math.cos(a1), y1 = cy+r*Math.sin(a1);
+    const x2 = cx+r*Math.cos(a2), y2 = cy+r*Math.sin(a2);
+    html += `<path d="M${x1},${y1} A${r},${r} 0 ${large} 1 ${x2},${y2}" fill="none" stroke="${COLORS[i%COLORS.length]}" stroke-width="${sw}"><title>${s.label}: ${fmt(s.value)}</title></path>`;
+    angle += sweep;
+  });
+  html += `<text x="${cx}" y="${cy-2}" text-anchor="middle" font-size="11" fill="var(--tx3)">НИЙТ</text><text x="${cx}" y="${cy+14}" text-anchor="middle" font-size="12" font-weight="700" fill="var(--tx)">${fmt(total).replace('₮','')}</text>`;
+  svg.innerHTML = html;
 }
-// key: 'YYYY-MM-DD' (өдөр), 'YYYY-MM' (сар) эсвэл 'HH:00' (цаг) — тухайн НЭГ цэгийн drilldown
-window.drillDashChart = (key) => {
-  const metric = dashboardChartMetric;
-  let dayFrom, dayTo;
-  if(/^\d{4}-\d{2}-\d{2}$/.test(key)) { dayFrom = dayTo = key; }
-  else if(/^\d{4}-\d{2}$/.test(key)) {
-    dayFrom = key+'-01';
-    const [y,m] = key.split('-').map(Number);
-    const lastDay = new Date(y,m,0).getDate();
-    dayTo = key+'-'+String(lastDay).padStart(2,'0');
-    if(dayTo > dashboardDateRange.endDate) dayTo = dashboardDateRange.endDate;
-  } else { dayFrom = dashboardDateRange.startDate; dayTo = dashboardDateRange.endDate; }
 
-  if(metric === 'sales') {
-    const btn = document.querySelector('.ni[onclick*="sales"]');
-    goSec('sales', btn||document.querySelector('.ni'));
-    setTimeout(()=>{
-      const tb = document.querySelector('#sec-sales .tab-bar .tb[onclick*="\'list\'"]');
-      if(tb) showSalesTab('list', tb);
-      const fEl=document.getElementById('sl-from'), tEl=document.getElementById('sl-to');
-      if(fEl) fEl.value=dayFrom; if(tEl) tEl.value=dayTo;
-      renderSalesList();
-    }, 150);
-  } else if(metric === 'receivable') {
-    const btn = document.querySelector('.ni[onclick*="receivable"]');
-    goSec('receivable', btn||document.querySelector('.ni'));
-    setTimeout(()=>{
-      const fEl=document.getElementById('rv-date-from'), tEl=document.getElementById('rv-date-to');
-      if(fEl) fEl.value=''; if(tEl) tEl.value=dayTo;
-      renderRecvSummary();
-    }, 150);
-  } else if(metric === 'product') {
-    const btn = document.querySelector('.ni[onclick*="sales"]');
-    goSec('sales', btn||document.querySelector('.ni'));
-    setTimeout(()=>{
-      const tb = document.querySelector('#sec-sales .tab-bar .tb[onclick*="\'report\'"]');
-      if(tb) showSalesTab('report', tb);
-      const fEl=document.getElementById('sr-from'), tEl=document.getElementById('sr-to');
-      if(fEl) fEl.value=dayFrom; if(tEl) tEl.value=dayTo;
-      renderSalesReportView();
-      setTimeout(()=>{ const vbtn=document.querySelector('#st-report .tab-bar .tb[onclick*="product"]'); if(vbtn) showSalesReportView('product', vbtn); }, 100);
-    }, 150);
+window.renderDashboard = () => {
+  const from = dashboardDateRange.startDate || todayStr().slice(0,4)+'-01-01';
+  const to   = dashboardDateRange.endDate   || todayStr();
+
+  // §STOP9 зарчим хэвээр: 0 Firestore read render/navigation дээр — cache
+  // байхгүй үед л (эхний удаа/period солиход) load хийнэ.
+  loadDashboardPeriodBankIncome(from, to);
+  loadDashboardPeriodExpense(from, to);
+  loadDashboardBankAccountTotals();
+
+  const filtered = sales.filter(s =>
+    s.status !== 'deleted' && s.status !== 'void' && s.status !== 'cancelled' &&
+    (!from || s.date >= from) && (!to || s.date <= to)
+  );
+
+  // ═══ 1. САНХҮҮ ═══
+  const totalIncome = filtered.reduce((a,s)=>a+(s.total||0),0);
+  const totalCost   = filtered.reduce((a,s)=>a+(s.totalCost ?? (s.items||[]).reduce((b,it)=>b+(it.costAmount??((it.unitCost||0)*(it.qty||0))),0)),0);
+  const expData = dashboardExpenseCache[`${from}|${to}`] || { cashExpense:0, byCategory:{} };
+  const totalExpense = expData.cashExpense;
+  const totalProfit = totalIncome - totalCost - totalExpense;
+
+  const kpiEl = document.getElementById('d-fin-kpi');
+  if(kpiEl) kpiEl.innerHTML = `
+    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('income')"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalIncome)}</div><div class="ms">${filtered.length} гүйлгээ</div></div>
+    <div class="mc" style="cursor:pointer" onclick="drillDashKpi('cost')"><div class="ml">Нийт өртөг</div><div class="mv">${fmt(totalCost)}</div></div>
+    <div class="mc"><div class="ml">Нийт зардал</div><div class="mv re">${fmt(totalExpense)}</div></div>
+    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div></div>`;
+
+  // ─── 2.2 Мөнгөн гүйлгээ ───
+  const cashIncome = dashboardPeriodBankCache[`${from}|${to}`] || 0;
+  const cashExpense = totalExpense;
+  const allTimeBal = dashboardBankAccountTotals
+    ? Object.values(dashboardBankAccountTotals).reduce((a,t)=>a+(t.inc-t.exp),0)
+    : 0;
+  const setEl = (id,val) => { const el=document.getElementById(id); if(el) el.textContent = val; };
+  setEl('d-cash-in', fmt(cashIncome));
+  setEl('d-cash-out', fmt(cashExpense));
+  setEl('d-cash-bal', fmt(allTimeBal));
+
+  // ─── 2.3 Зардлын бүтэц ───
+  const expCats = Object.keys(expData.byCategory).sort((a,b)=>expData.byCategory[b]-expData.byCategory[a]);
+  const expTbody = document.getElementById('d-expense-tbody');
+  if(expTbody) {
+    expTbody.innerHTML = expCats.length ? expCats.map(cat => {
+      const v = expData.byCategory[cat];
+      const pct = totalExpense>0 ? (v/totalExpense*100).toFixed(1) : '0.0';
+      return `<tr><td style="font-size:11px">${cat}</td><td style="text-align:right;color:var(--re)">${fmt(v)}</td><td style="text-align:right;color:var(--tx3)">${pct}%</td></tr>`;
+    }).join('') : '<tr><td colspan="3"><div class="empty">Зардал байхгүй</div></td></tr>';
   }
-};
+  setEl('d-expense-total', fmt(totalExpense));
+  drawDashDonut('d-expense-donut', expCats.map(cat=>({label:cat, value:expData.byCategory[cat]})));
 
+  // ═══ 2. АВЛАГА (period-той хамааралгүй, ӨНӨӨДРИЙН байдлаар) ═══
+  const today0 = todayStr();
+  const recvAsOf = getTotalReceivableAsOf(today0);
+  const aging = getReceivableAgingDetail(today0);
+  setEl('d-recv-total', fmt(recvAsOf.total));
+
+  const recvList = dashRecvShowAll ? recvAsOf.byCust : recvAsOf.byCust.slice(0,10);
+  const recvTopTbody = document.getElementById('d-recv-top-tbody');
+  if(recvTopTbody) recvTopTbody.innerHTML = recvList.length ? recvList.map(r => {
+    const overdue = aging.overdueByCust[r.custId] || 0;
+    const lastPay = aging.lastPaymentByCust[r.custId] || '—';
+    return `<tr style="cursor:pointer" onclick="drillDashRecv('${r.custId}')">
+      <td style="font-weight:500;color:var(--pu)">${r.name}</td>
+      <td style="text-align:right;color:var(--am);font-weight:700">${fmt(r.recv)}</td>
+      <td style="text-align:right;color:${overdue>0?'var(--re)':'var(--tx3)'}">${overdue>0?fmt(overdue):'—'}</td>
+      <td style="font-size:11px;color:var(--tx3)">${lastPay}</td></tr>`;
+  }).join('') : '<tr><td colspan="4"><div class="empty">Авлага байхгүй</div></td></tr>';
+  const showAllBtn = document.getElementById('d-recv-showall-btn');
+  if(showAllBtn) showAllBtn.textContent = dashRecvShowAll ? 'Багасгах' : 'Бүгдийг харах';
+  const showAllWrap = document.getElementById('d-recv-showall-wrap');
+  if(showAllWrap) showAllWrap.style.display = recvAsOf.byCust.length>10 ? 'block' : 'none';
+
+  const agingTbody = document.getElementById('d-aging-tbody');
+  if(agingTbody) {
+    const agingTotal = Object.values(aging.buckets).reduce((a,v)=>a+v,0);
+    const AGE_LABELS = { '0-30':'0–30 хоног', '31-60':'31–60 хоног', '61-90':'61–90 хоног', '90+':'90+ хоног' };
+    agingTbody.innerHTML = Object.keys(AGE_LABELS).map(k => {
+      const v = aging.buckets[k];
+      const pct = agingTotal>0 ? (v/agingTotal*100).toFixed(1) : '0.0';
+      return `<tr><td>${AGE_LABELS[k]}</td><td style="text-align:right;color:var(--am)">${fmt(v)}</td><td style="text-align:right;color:var(--tx3)">${pct}%</td></tr>`;
+    }).join('');
+  }
+
+  // ═══ 3. БОРЛУУЛАЛТ (жилийн 1-12 сар, бүтээгдэхүүн filter) ═══
+  const prodSel = document.getElementById('d-sales-product');
+  if(prodSel && prodSel.dataset.populated!=='1') {
+    prodSel.innerHTML = '<option value="">Бүгд</option>' + products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+    prodSel.dataset.populated = '1';
+  }
+  const selProd = document.getElementById('d-sales-product')?.value || '';
+  const salesByMonth = {};
+  filtered.forEach(s => {
+    (s.items||[]).forEach(it => {
+      if(selProd && it.pid!==selProd) return;
+      const mKey = s.date.slice(0,7);
+      if(!salesByMonth[mKey]) salesByMonth[mKey] = {amount:0, qty:0};
+      salesByMonth[mKey].amount += it.lineTotal ?? it.sub ?? 0;
+      salesByMonth[mKey].qty += it.qty||0;
+    });
+  });
+  // Хугацааны бүх сарыг (хоосон ч) харуулна — from/to хоорондын сар бүр
+  const salesKeys = []; const salesVals = [];
+  { let [y,m] = from.slice(0,7).split('-').map(Number); const [ey,em] = to.slice(0,7).split('-').map(Number);
+    while(y<ey || (y===ey && m<=em)) {
+      const key = `${y}-${String(m).padStart(2,'0')}`;
+      salesKeys.push(MONTH_NAMES_MN[m-1].replace('-р сар','сар'));
+      const data = salesByMonth[key] || {amount:0,qty:0};
+      salesVals.push(dashSalesMode==='qty' ? data.qty : data.amount);
+      m++; if(m>12){m=1;y++;}
+    }
+  }
+  drawDashBarChart('d-sales-chart', salesKeys, salesVals, dashSalesMode, 'var(--pu)', null);
+
+  // ═══ 4. БАРААНЫ ОДООГИЙН ҮЛДЭГДЭЛ (period-той хамааралгүй, canonical engine) ═══
+  const invKeys = products.map(p=>`${p.name}·${p.variant}`.length>14 ? p.variant : `${p.name}·${p.variant}`);
+  const invVals = products.map(p=>{
+    const qty = totByProd(p.id);
+    return dashInvMode==='qty' ? qty : qty*(p.cost||0);
+  });
+  drawDashBarChart('d-inv-chart', invKeys, invVals, dashInvMode, 'var(--te)', null);
+};
 
 // ─── DASHBOARD DRILLDOWN ─────────────────────────────────────────────────────
 window.drillDashKpi = (kpi) => {
@@ -5575,30 +5682,12 @@ window.drillDashKpi = (kpi) => {
       if(fEl) fEl.value=from; if(tEl) tEl.value=to;
       renderSalesReportView();
     }, 150);
-  } else if(kpi === 'cash') {
-    const bbtn = document.querySelector('.ni[onclick*="bank"]');
-    goSec('bank', bbtn||document.querySelector('.ni'));
-    setTimeout(()=>{
-      const tb = document.querySelector('#sec-bank .tb[onclick*="transactions"]');
-      if(tb) showBankTab('transactions', tb);
-      const fEl=document.getElementById('txn-from'), tEl=document.getElementById('txn-to'), typ=document.getElementById('txn-type-filter');
-      if(fEl) fEl.value=from; if(tEl) tEl.value=to; if(typ) typ.value='income';
-      renderTransactions();
-    }, 150);
-  } else if(kpi === 'recv') {
-    const rbtn = document.querySelector('.ni[onclick*="receivable"]');
-    goSec('receivable', rbtn||document.querySelector('.ni'));
-    setTimeout(()=>{
-      const fEl=document.getElementById('rv-date-from'), tEl=document.getElementById('rv-date-to');
-      if(fEl) fEl.value=''; if(tEl) tEl.value=to;
-      renderRecvSummary();
-    }, 150);
   }
 };
 window.drillDashRecv = (custId) => {
   const btn = document.querySelector('.ni[onclick*="receivable"]');
   goSec('receivable', btn||document.querySelector('.ni'));
-  setTimeout(()=>{ openReceivableDetail(custId, '', dashboardDateRange.endDate); }, 150);
+  setTimeout(()=>{ openReceivableDetail(custId, '', todayStr()); }, 150);
 };
 window.drillDashProduct = (pid) => {
   const btn = document.querySelector('.ni[onclick*="sales"]');
@@ -5612,6 +5701,7 @@ window.drillDashProduct = (pid) => {
     setTimeout(()=>{ if(pEl){pEl.value=pid;} const vbtn=document.querySelector('#st-report .tab-bar .tb[onclick*="product"]'); if(vbtn) showSalesReportView('product', vbtn); }, 100);
   }, 150);
 };
+
 
 window.renderSalesTable = () => {
   const from=document.getElementById('s-from')?.value;
@@ -7774,6 +7864,7 @@ window.submitImport = async () => {
     document.getElementById('imp-preview').style.display = 'none';
     document.getElementById('imp-column-map').style.display = 'none';
     alert(`✅ ${newRows.length} мөр амжилттай импортлогдлоо!`);
+    if(typeof invalidateDashboardBankCache==='function') invalidateDashboardBankCache(); // §13
     // Switch to transactions tab
     const txnBtn = document.querySelector('#sec-bank .tb[onclick*="transactions"]');
     if(txnBtn) txnBtn.click();
@@ -7852,6 +7943,7 @@ window.submitPaste=async()=>{
     document.getElementById('paste-preview').style.display='none';
     document.getElementById('paste-data').value='';pasteMapped=[];
     alert(`${newRows.length} мөр амжилттай хадгалагдлаа!`);
+    if(typeof invalidateDashboardBankCache==='function') invalidateDashboardBankCache(); // §13
   }catch(e){alert('Алдаа: '+e.message);}
 };
 
@@ -10733,9 +10825,10 @@ function getReportingPeriodRange(yearMonth) {
 }
 
 // Бүх date input-уудыг нэгдсэн саруудаар бөглөх
-// АНХААР: 'd-from'/'d-to' (Dashboard) ЭНД ОРОХГҮЙ — Dashboard өөрийн
-// тусдаа нэгдсэн period state-тэй (dashboardDateRange), глобал "Тайлант сар"
-// picker-ээс бүрэн тусгаарлагдсан байх ёстой.
+// АНХААР: Dashboard-т ЭНЭ ЖАГСААЛТ ХАМААРАХГҮЙ — Dashboard (шинэ дизайны
+// дагуу) date input огт ашигладаггүй, зөвхөн Жил/Сар/Улирал/7 хоног товч,
+// өөрийн тусдаа нэгдсэн period state-тэй (dashboardDateRange), глобал
+// "Тайлант сар" picker-ээс бүрэн тусгаарлагдсан байх ёстой.
 const DATE_PAIRS = [
   ['s-from', 's-to'],
   ['rv-date-from', 'rv-date-to'],
