@@ -310,6 +310,7 @@ tbody tr:hover td{background:var(--sur2)}
         <tbody id="d-risky-tbody"></tbody>
       </table>
     </div></div>
+    <div style="padding:8px 14px;text-align:right" id="d-risky-showall-wrap"><button class="btn bg bxs" onclick="openDashRiskyModal()">Бүгдийг харах <i class="ti ti-arrow-right"></i></button></div>
   </div>
 
   <!-- ═══ 3. БОРЛУУЛАЛТ ═══ -->
@@ -1558,6 +1559,26 @@ tbody tr:hover td{background:var(--sur2)}
 <!-- ХӨНГӨЛӨЛТ БҮРТГЭХ MODAL -->
 <!-- ӨРТГИЙН ЭХНИЙ ТОХИРУУЛГА MODAL -->
 <!-- ӨРТӨГ ДАХИН БОДОХ (Historical Recalculation) MODAL -->
+<!-- ЭРСДЭЛТЭЙ ХАРИЛЦАГЧИД — ДЭЛГЭРЭНГҮЙ MODAL -->
+<div class="modal-ov" id="dash-risky-modal">
+  <div class="modal modal-lg" style="max-width:900px">
+    <div class="mh">
+      <span><i class="ti ti-alert-triangle"></i> Эрсдэлтэй харилцагчид — бүгд</span>
+      <button class="btn bg bxs" onclick="closeModal('dash-risky-modal')"><i class="ti ti-x"></i></button>
+    </div>
+    <div class="cb" style="padding:14px;max-height:78vh;overflow-y:auto">
+      <div class="tw"><table style="font-size:12px">
+        <thead><tr>
+          <th>Харилцагч</th><th style="text-align:right">Нийт авлага</th><th style="text-align:right">Хугацаа хэтэрсэн авлага</th>
+          <th>Сүүлийн төлөлтийн огноо</th><th style="text-align:right">Төлбөр хийгээгүй хоног</th>
+          <th>Хамгийн эртний төлөгдөөгүй огноо</th><th>Насжилт</th>
+        </tr></thead>
+        <tbody id="dash-risky-modal-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-ov" id="recalc-modal">
   <div class="modal modal-lg" style="max-width:900px">
     <div class="mh">
@@ -5503,6 +5524,8 @@ async function loadDashboardPeriodExpense(from, to) {
 let dashSalesMode = 'amount'; // 'amount' | 'qty'
 let dashInvMode = 'qty';      // 'qty' | 'amount'
 let dashRecvShowAll = false;
+let dashRiskyListCache = []; // §RISKY MODAL: Top5 болон "Бүгдийг харах" modal ХОЁУЛАА энэ НЭГ cache-ийг ашиглана
+const AGE_LABELS2 = { '0-30':'0–30 хоног', '31-60':'31–60 хоног', '61-90':'61–90 хоног', '90+':'90+ хоног' };
 
 window.setDashSalesMode = (mode) => {
   dashSalesMode = mode;
@@ -5529,6 +5552,23 @@ window.toggleDashTopCustSalesShowAll = () => {
   dashTopCustSalesShowAll = !dashTopCustSalesShowAll;
   renderDashboard();
 };
+// §MODAL: dashRiskyListCache (renderDashboard()-д аль хэдийн тооцоологдсон)-ийг
+// ЗӨВХӨН дахин render хийнэ — Firestore query ОГТ хийхгүй.
+window.openDashRiskyModal = () => {
+  const tbody = document.getElementById('dash-risky-modal-tbody');
+  if(tbody) tbody.innerHTML = dashRiskyListCache.length ? dashRiskyListCache.map(c =>
+    `<tr style="cursor:pointer" onclick="closeModal('dash-risky-modal');drillDashRecv('${c.custId}')">
+      <td style="font-weight:500;color:var(--pu)">${c.name}</td>
+      <td style="text-align:right;color:var(--am);font-weight:700">${fmt(c.recv)}</td>
+      <td style="text-align:right;color:${c.overdue>0?'var(--re)':'var(--tx3)'}">${c.overdue>0?fmt(c.overdue):'—'}</td>
+      <td style="font-size:11px;color:var(--tx3)">${c.lastPay || '—'}</td>
+      <td style="text-align:right;color:var(--re);font-weight:600">${c.daysSince}</td>
+      <td style="font-size:11px;color:var(--tx3)">${c.oldestUnpaidDate}</td>
+      <td style="font-size:11px">${AGE_LABELS2[c.bucket]}</td></tr>`
+  ).join('') : '<tr><td colspan="7"><div class="empty">Эрсдэлтэй харилцагч байхгүй</div></td></tr>';
+  openModal('dash-risky-modal');
+};
+
 
 function getMoneyScale(maxValue) {
   if(maxValue >= 1000000000) return { divisor: 1000000000, unit: 'тэрбум', axisTitle: 'Дүн /тэрбум ₮/' };
@@ -5759,18 +5799,22 @@ window.renderDashboard = () => {
   // ─── Эрсдэлтэй харилцагчид (§4: recv>0 AND сүүлийн бодит төлөлт/анхны
   // төлөгдөөгүй авлагаас хойш 60+ хоног) — aging-ийн ХЭДИЙН тооцоологдсон
   // byCustomerDetail/lastPaymentByCust-г ДАХИН АШИГЛАНА, шинэ тооцоолол хийхгүй ───
-  const AGE_LABELS2 = { '0-30':'0–30 хоног', '31-60':'31–60 хоног', '61-90':'61–90 хоног', '90+':'90+ хоног' };
-  const riskyList = aging.byCustomerDetail
+  // §CACHE: Dashboard main card (Top 5) БОЛОН "Бүгдийг харах" modal ХОЁУЛАА
+  // ЯГ ИЖИЛ canonical dataset (dashRiskyListCache)-ийг ашиглана — modal нээхэд
+  // Firestore query ДАХИН хийхгүй.
+  dashRiskyListCache = aging.byCustomerDetail
     .map(c => {
       const lastPay = aging.lastPaymentByCust[c.custId] || null;
       const daysSince = lastPay ? Math.round((new Date(today0)-new Date(lastPay))/86400000) : c.ageDaysOldestUnpaid;
+      const overdue = aging.overdueByCust[c.custId] || 0;
       const cust = customers.find(x=>x.id===c.custId) || {};
-      return { ...c, name: cust.name || sales.find(s=>s.customerId===c.custId)?.customerName || '—', lastPay, daysSince };
+      return { ...c, name: cust.name || sales.find(s=>s.customerId===c.custId)?.customerName || '—', lastPay, daysSince, overdue };
     })
     .filter(c => c.recv > 0 && c.daysSince >= 60)
     .sort((a,b)=>b.daysSince-a.daysSince);
+  const riskyTop5 = dashRiskyListCache.slice(0,5);
   const riskyTbody = document.getElementById('d-risky-tbody');
-  if(riskyTbody) riskyTbody.innerHTML = riskyList.length ? riskyList.map(c =>
+  if(riskyTbody) riskyTbody.innerHTML = riskyTop5.length ? riskyTop5.map(c =>
     `<tr style="cursor:pointer" onclick="drillDashRecv('${c.custId}')">
       <td style="font-weight:500;color:var(--pu)">${c.name}</td>
       <td style="text-align:right;color:var(--am);font-weight:700">${fmt(c.recv)}</td>
@@ -5778,6 +5822,8 @@ window.renderDashboard = () => {
       <td style="text-align:right;color:var(--re);font-weight:600">${c.daysSince}</td>
       <td style="font-size:11px">${AGE_LABELS2[c.bucket]}</td></tr>`
   ).join('') : '<tr><td colspan="5"><div class="empty">Эрсдэлтэй харилцагч байхгүй</div></td></tr>';
+  const riskyShowAllWrap = document.getElementById('d-risky-showall-wrap');
+  if(riskyShowAllWrap) riskyShowAllWrap.style.display = dashRiskyListCache.length>5 ? 'block' : 'none';
 
   // ═══ 3. БОРЛУУЛАЛТ (жилийн 1-12 сар, бүтээгдэхүүн filter) ═══
   const prodSel = document.getElementById('d-sales-product');
