@@ -237,11 +237,26 @@ tbody tr:hover td{background:var(--sur2)}
         <div style="background:var(--grl);border-radius:var(--r);padding:12px"><div style="font-size:11px;color:var(--gr)">Мөнгөн орлого</div><div style="font-size:20px;font-weight:800;color:var(--gr)" id="d-cash-in">—</div></div>
         <div style="background:var(--sur2);border-radius:var(--r);padding:12px"><div style="font-size:11px;color:var(--re)">Мөнгөн зарлага</div><div style="font-size:20px;font-weight:800;color:var(--re)" id="d-cash-out">—</div></div>
         <div style="background:var(--pul);border-radius:var(--r);padding:12px"><div style="font-size:11px;color:var(--pu)">Мөнгөний үлдэгдэл</div><div style="font-size:20px;font-weight:800;color:var(--pu)" id="d-cash-bal">—</div></div>
+        <div style="border-top:1px solid var(--bd);padding-top:8px;margin-top:2px">
+          <div style="font-size:11px;color:var(--tx3);margin-bottom:6px">Дансны үлдэгдэл</div>
+          <div class="tw"><table style="font-size:12px">
+            <tbody id="d-acc-bal-tbody"></tbody>
+            <tfoot><tr style="font-weight:700;border-top:1px solid var(--bd)"><td>НИЙТ</td><td style="text-align:right" id="d-acc-bal-total">—</td></tr></tfoot>
+          </table></div>
+        </div>
       </div>
     </div>
     <!-- Зардлын бүтэц -->
     <div class="card">
-      <div class="ch"><span class="ct"><i class="ti ti-chart-donut"></i>Зардлын бүтэц</span></div>
+      <div class="ch"><span class="ct"><i class="ti ti-chart-donut"></i>Зардлын бүтэц</span>
+        <select id="d-expense-period" onchange="renderDashboard()" style="font-size:12px;padding:5px 8px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx)">
+          <option value="">Нийт</option>
+          <option value="1">1 сар</option><option value="2">2 сар</option><option value="3">3 сар</option>
+          <option value="4">4 сар</option><option value="5">5 сар</option><option value="6">6 сар</option>
+          <option value="7">7 сар</option><option value="8">8 сар</option><option value="9">9 сар</option>
+          <option value="10">10 сар</option><option value="11">11 сар</option><option value="12">12 сар</option>
+        </select>
+      </div>
       <div class="cb" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
         <svg id="d-expense-donut" width="150" height="150" viewBox="0 0 150 150" style="flex-shrink:0"></svg>
         <div style="flex:1;min-width:200px"><div class="tw">
@@ -254,6 +269,7 @@ tbody tr:hover td{background:var(--sur2)}
       </div>
     </div>
   </div>
+
 
   <!-- ═══ 2. АВЛАГА ═══ -->
   <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px">Авлага</div>
@@ -285,6 +301,17 @@ tbody tr:hover td{background:var(--sur2)}
     </div>
   </div>
 
+  <!-- ═══ ЭРСДЭЛТЭЙ ХАРИЛЦАГЧИД ═══ -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct"><i class="ti ti-alert-triangle"></i>Эрсдэлтэй харилцагчид</span></div>
+    <div class="cb np"><div class="tw">
+      <table style="font-size:12px">
+        <thead><tr><th>Харилцагч</th><th style="text-align:right">Нийт авлага</th><th>Сүүлийн төлөлт</th><th style="text-align:right">Төлбөр хийгээгүй хоног</th><th>Авлагын насжилт</th></tr></thead>
+        <tbody id="d-risky-tbody"></tbody>
+      </table>
+    </div></div>
+  </div>
+
   <!-- ═══ 3. БОРЛУУЛАЛТ ═══ -->
   <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px">Борлуулалт</div>
   <div class="card" style="margin-bottom:14px">
@@ -313,16 +340,27 @@ tbody tr:hover td{background:var(--sur2)}
     <div style="padding:8px 14px" id="d-top-cust-sales-showall-wrap"><button class="btn bg bxs" onclick="toggleDashTopCustSalesShowAll()" id="d-top-cust-sales-showall-btn">Бүгдийг харах</button></div>
   </div>
 
-  <!-- ═══ 4. БАРААНЫ ОДООГИЙН ҮЛДЭГДЭЛ ═══ -->
-  <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px">Барааны одоогийн үлдэгдэл</div>
-  <div class="card">
-    <div class="ch"><span class="ct"><i class="ti ti-package"></i>Үлдэгдэл (өнөөдрийн байдлаар)</span>
-      <div style="display:flex;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden">
-        <button class="btn bxs" id="d-inv-qty" onclick="setDashInvMode('qty')" style="border:none;border-radius:0;background:var(--pu);color:#fff">Тоо ширхэг</button>
-        <button class="btn bxs" id="d-inv-amt" onclick="setDashInvMode('amount')" style="border:none;border-radius:0">Үнийн дүн</button>
-      </div>
+  <!-- ═══ 4. БҮТЭЭГДЭХҮҮНИЙ БОРЛУУЛАЛТ + ОДООГИЙН БАРААНЫ ҮЛДЭГДЭЛ ═══ -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-box"></i>Бүтээгдэхүүний борлуулалт</span></div>
+      <div class="cb np"><div class="tw">
+        <table style="font-size:12px">
+          <thead><tr><th>Бүтээгдэхүүн</th><th style="text-align:right">Тоо ширхэг</th><th style="text-align:right">Борлуулалтын дүн</th></tr></thead>
+          <tbody id="d-prod-sales-tbody"></tbody>
+          <tfoot><tr style="font-weight:700;border-top:1px solid var(--bd)"><td>НИЙТ</td><td style="text-align:right" id="d-prod-sales-qty-total"></td><td style="text-align:right" id="d-prod-sales-amt-total"></td></tr></tfoot>
+        </table>
+      </div></div>
     </div>
-    <div class="cb" style="padding:8px"><svg id="d-inv-chart" width="100%" height="240" style="display:block"></svg></div>
+    <div class="card">
+      <div class="ch"><span class="ct"><i class="ti ti-package"></i>Одоогийн барааны үлдэгдэл</span>
+        <div style="display:flex;border:1px solid var(--bd);border-radius:var(--r);overflow:hidden">
+          <button class="btn bxs" id="d-inv-qty" onclick="setDashInvMode('qty')" style="border:none;border-radius:0;background:var(--pu);color:#fff">Тоо ширхэг</button>
+          <button class="btn bxs" id="d-inv-amt" onclick="setDashInvMode('amount')" style="border:none;border-radius:0">Үнийн дүн</button>
+        </div>
+      </div>
+      <div class="cb" style="padding:8px"><svg id="d-inv-chart" width="100%" height="240" style="display:block"></svg></div>
+    </div>
   </div>
 </div>
 
@@ -5348,6 +5386,7 @@ function getReceivableAgingDetail(asOfDate) {
   const buckets = { '0-30':0, '31-60':0, '61-90':0, '90+':0 };
   const overdueByCust = {}; // custId -> хугацаа хэтэрсэн (30+ хоног) үлдэгдэл
   const lastPaymentByCust = {};
+  const byCustomerDetail = []; // §RISKY: card-д зориулсан дэлгэрэнгүй (шинэ тооцоолол биш)
 
   // §FIX2: getTotalReceivableAsOf-тай ЯГ ИЖИЛ харилцагч шүүлт (canonical, sales.recv
   // raw field-ээс ОГТ ХАМААРАХГҮЙ)
@@ -5403,6 +5442,10 @@ function getReceivableAgingDetail(asOfDate) {
       if(d2 > 30) custOverdue += inv.remaining;
     });
     if(custOverdue > 0) overdueByCust[cid] = custOverdue;
+
+    if(stmt.closingBalance > 0 && oldestUnpaid) {
+      byCustomerDetail.push({ custId: cid, recv: stmt.closingBalance, oldestUnpaidDate: oldestUnpaid.date, ageDaysOldestUnpaid: ageDays, bucket });
+    }
   });
 
   payments.forEach(pm => {
@@ -5412,7 +5455,7 @@ function getReceivableAgingDetail(asOfDate) {
     if(!cid) return;
     if(!lastPaymentByCust[cid] || pm.paymentDate > lastPaymentByCust[cid]) lastPaymentByCust[cid] = pm.paymentDate;
   });
-  return { buckets, overdueByCust, lastPaymentByCust };
+  return { buckets, overdueByCust, lastPaymentByCust, byCustomerDetail };
 }
 
 // §2.2/2.3: Мөнгөн гүйлгээ + Зардлын бүтэц зориулсан bankTxns scoped ачаалалт.
@@ -5634,31 +5677,51 @@ window.renderDashboard = () => {
     <div class="mc" style="cursor:pointer" onclick="drillDashKpi('income')"><div class="ml">Нийт борлуулалт</div><div class="mv pu">${fmt(totalIncome)}</div><div class="ms">${filtered.length} гүйлгээ</div></div>
     <div class="mc" style="cursor:pointer" onclick="drillDashKpi('cost')"><div class="ml">Нийт өртөг</div><div class="mv">${fmt(totalCost)}</div></div>
     <div class="mc"><div class="ml">Нийт зардал</div><div class="mv re">${fmt(totalExpense)}</div></div>
-    <div class="mc"><div class="ml">Нийт ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div></div>`;
+    <div class="mc"><div class="ml">Цэвэр ашиг</div><div class="mv ${totalProfit>=0?'gr':'re'}">${fmt(totalProfit)}</div></div>`;
 
-  // ─── 2.2 Мөнгөн гүйлгээ ───
+  // ─── 2.2 Мөнгөн гүйлгээ + Дансны үлдэгдэл (§2: initialBalance + Σinc-Σexp) ───
   const cashIncome = dashboardPeriodBankCache[`${from}|${to}`] || 0;
   const cashExpense = totalExpense;
-  const allTimeBal = dashboardBankAccountTotals
-    ? Object.values(dashboardBankAccountTotals).reduce((a,t)=>a+(t.inc-t.exp),0)
-    : 0;
   const setEl = (id,val) => { const el=document.getElementById(id); if(el) el.textContent = val; };
+  const accBalRows = bankAccounts.filter(a=>a.active!==false).map(a => {
+    const t = (dashboardBankAccountTotals && dashboardBankAccountTotals[a.id]) || {inc:0, exp:0};
+    const bal = (a.initialBalance||0) + t.inc - t.exp;
+    return { name: a.accountName || a.bankName || '—', currency: a.currency||'MNT', bal };
+  });
+  const allTimeBal = accBalRows.reduce((a,r)=>a+r.bal, 0);
   setEl('d-cash-in', fmt(cashIncome));
   setEl('d-cash-out', fmt(cashExpense));
   setEl('d-cash-bal', fmt(allTimeBal));
+  const accBalTbody = document.getElementById('d-acc-bal-tbody');
+  if(accBalTbody) accBalTbody.innerHTML = accBalRows.length ? accBalRows.map(r =>
+    `<tr><td style="font-size:11px">${r.name}${r.currency!=='MNT'?` <span style="color:var(--tx3)">(${r.currency})</span>`:''}</td><td style="text-align:right;font-weight:600">${fmt(r.bal)}</td></tr>`
+  ).join('') : '<tr><td colspan="2"><div class="empty">Данс байхгүй</div></td></tr>';
+  setEl('d-acc-bal-total', fmt(allTimeBal));
 
-  // ─── 2.3 Зардлын бүтэц ───
-  const expCats = Object.keys(expData.byCategory).sort((a,b)=>expData.byCategory[b]-expData.byCategory[a]);
+  // ─── 2.3 Зардлын бүтэц (§3: Нийт/сар selector, existing loadDashboardPeriodExpense reuse) ───
+  const expPeriodSel = document.getElementById('d-expense-period')?.value || '';
+  let expFrom = from, expTo = to, expDataForCard = expData;
+  if(expPeriodSel) {
+    const yr = to.slice(0,4);
+    const mm = expPeriodSel.padStart(2,'0');
+    expFrom = `${yr}-${mm}-01`;
+    const lastDay = new Date(Number(yr), Number(mm), 0).getDate();
+    expTo = `${yr}-${mm}-${String(lastDay).padStart(2,'0')}`;
+    loadDashboardPeriodExpense(expFrom, expTo);
+    expDataForCard = dashboardExpenseCache[`${expFrom}|${expTo}`] || { cashExpense:0, byCategory:{} };
+  }
+  const cardExpTotal = expDataForCard.cashExpense;
+  const expCats = Object.keys(expDataForCard.byCategory).sort((a,b)=>expDataForCard.byCategory[b]-expDataForCard.byCategory[a]);
   const expTbody = document.getElementById('d-expense-tbody');
   if(expTbody) {
     expTbody.innerHTML = expCats.length ? expCats.map(cat => {
-      const v = expData.byCategory[cat];
-      const pct = totalExpense>0 ? (v/totalExpense*100).toFixed(1) : '0.0';
+      const v = expDataForCard.byCategory[cat];
+      const pct = cardExpTotal>0 ? (v/cardExpTotal*100).toFixed(1) : '0.0';
       return `<tr><td style="font-size:11px">${cat}</td><td style="text-align:right;color:var(--re)">${fmt(v)}</td><td style="text-align:right;color:var(--tx3)">${pct}%</td></tr>`;
     }).join('') : '<tr><td colspan="3"><div class="empty">Зардал байхгүй</div></td></tr>';
   }
-  setEl('d-expense-total', fmt(totalExpense));
-  drawDashDonut('d-expense-donut', expCats.map(cat=>({label:cat, value:expData.byCategory[cat]})));
+  setEl('d-expense-total', fmt(cardExpTotal));
+  drawDashDonut('d-expense-donut', expCats.map(cat=>({label:cat, value:expDataForCard.byCategory[cat]})));
 
   // ═══ 2. АВЛАГА (period-той хамааралгүй, ӨНӨӨДРИЙН байдлаар) ═══
   const today0 = todayStr();
@@ -5692,6 +5755,29 @@ window.renderDashboard = () => {
       return `<tr><td>${AGE_LABELS[k]}</td><td style="text-align:right;color:var(--am)">${fmt(v)}</td><td style="text-align:right;color:var(--tx3)">${pct}%</td></tr>`;
     }).join('');
   }
+
+  // ─── Эрсдэлтэй харилцагчид (§4: recv>0 AND сүүлийн бодит төлөлт/анхны
+  // төлөгдөөгүй авлагаас хойш 60+ хоног) — aging-ийн ХЭДИЙН тооцоологдсон
+  // byCustomerDetail/lastPaymentByCust-г ДАХИН АШИГЛАНА, шинэ тооцоолол хийхгүй ───
+  const AGE_LABELS2 = { '0-30':'0–30 хоног', '31-60':'31–60 хоног', '61-90':'61–90 хоног', '90+':'90+ хоног' };
+  const riskyList = aging.byCustomerDetail
+    .map(c => {
+      const lastPay = aging.lastPaymentByCust[c.custId] || null;
+      const daysSince = lastPay ? Math.round((new Date(today0)-new Date(lastPay))/86400000) : c.ageDaysOldestUnpaid;
+      const cust = customers.find(x=>x.id===c.custId) || {};
+      return { ...c, name: cust.name || sales.find(s=>s.customerId===c.custId)?.customerName || '—', lastPay, daysSince };
+    })
+    .filter(c => c.recv > 0 && c.daysSince >= 60)
+    .sort((a,b)=>b.daysSince-a.daysSince);
+  const riskyTbody = document.getElementById('d-risky-tbody');
+  if(riskyTbody) riskyTbody.innerHTML = riskyList.length ? riskyList.map(c =>
+    `<tr style="cursor:pointer" onclick="drillDashRecv('${c.custId}')">
+      <td style="font-weight:500;color:var(--pu)">${c.name}</td>
+      <td style="text-align:right;color:var(--am);font-weight:700">${fmt(c.recv)}</td>
+      <td style="font-size:11px;color:var(--tx3)">${c.lastPay || '—'}</td>
+      <td style="text-align:right;color:var(--re);font-weight:600">${c.daysSince}</td>
+      <td style="font-size:11px">${AGE_LABELS2[c.bucket]}</td></tr>`
+  ).join('') : '<tr><td colspan="5"><div class="empty">Эрсдэлтэй харилцагч байхгүй</div></td></tr>';
 
   // ═══ 3. БОРЛУУЛАЛТ (жилийн 1-12 сар, бүтээгдэхүүн filter) ═══
   const prodSel = document.getElementById('d-sales-product');
@@ -5746,6 +5832,31 @@ window.renderDashboard = () => {
   if(topCustShowAllWrap) topCustShowAllWrap.style.display = topCustBySales.length>10 ? 'block' : 'none';
   const topCustShowAllBtn = document.getElementById('d-top-cust-sales-showall-btn');
   if(topCustShowAllBtn) topCustShowAllBtn.textContent = dashTopCustSalesShowAll ? 'Багасгах' : 'Бүгдийг харах';
+
+  // ─── §6: Бүтээгдэхүүний борлуулалт (filtered.items[]-ийг pid-аар group,
+  // ЯГ ТЭР ИЖИЛ dataset — Σ = Нийт борлуулалт байх ёстой) ───
+  const prodSalesMap = {};
+  filtered.forEach(s => {
+    (s.items||[]).forEach(it => {
+      if(!it.pid) return;
+      if(!prodSalesMap[it.pid]) prodSalesMap[it.pid] = { pid: it.pid, label: it.label||'—', qty:0, amount:0 };
+      prodSalesMap[it.pid].qty += it.qty||0;
+      prodSalesMap[it.pid].amount += it.lineTotal ?? it.sub ?? 0;
+    });
+  });
+  const prodSalesList = Object.values(prodSalesMap).sort((a,b)=>b.amount-a.amount);
+  const prodSalesTotalQty = prodSalesList.reduce((a,p)=>a+p.qty,0);
+  const prodSalesTotalAmt = prodSalesList.reduce((a,p)=>a+p.amount,0);
+  const prodSalesTbody = document.getElementById('d-prod-sales-tbody');
+  if(prodSalesTbody) prodSalesTbody.innerHTML = prodSalesList.length ? prodSalesList.map(p =>
+    `<tr onclick="drillDashProduct('${p.pid}')" style="cursor:pointer"><td>${p.label}</td><td style="text-align:right">${p.qty.toLocaleString()}ш</td><td style="text-align:right;font-weight:600">${fmt(p.amount)}</td></tr>`
+  ).join('') : '<tr><td colspan="3"><div class="empty">Борлуулалт байхгүй</div></td></tr>';
+  setEl('d-prod-sales-qty-total', prodSalesTotalQty.toLocaleString()+'ш');
+  setEl('d-prod-sales-amt-total', fmt(prodSalesTotalAmt));
+  // §Reconciliation: Σ product sales amount vs Нийт борлуулалт — зөрвөл нуухгүй
+  if(Math.abs(prodSalesTotalAmt - totalIncome) > 1) {
+    console.warn('[DASH RECONCILIATION] ⚠ Σ Бүтээгдэхүүний борлуулалт (', prodSalesTotalAmt, ') != Нийт борлуулалт (', totalIncome, ') — зөрүү:', prodSalesTotalAmt-totalIncome, '. Магадгүй шалтгаан: customerId/pid алга sale item, эсвэл items[] дэх lineTotal талбар байхгүй хуучин sale.');
+  }
 
   // ═══ 4. БАРААНЫ ОДООГИЙН ҮЛДЭГДЭЛ (period-той хамааралгүй, canonical engine) ═══
   const invKeys = products.map(p=>`${p.name}·${p.variant}`.length>14 ? p.variant : `${p.name}·${p.variant}`);
