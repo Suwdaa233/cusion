@@ -5314,9 +5314,11 @@ const MONTH_NAMES_MN = ['1-р сар','2-р сар','3-р сар','4-р сар',
 // Тухайн endDate-ийн байдлаарх нийт авлагын үлдэгдэл (бүх харилцагчаар)
 // — renderRecvSummary-тай ЯГ ИЖИЛ тооцооллын логик ашиглана (давхардуулахгүй)
 function getTotalReceivableAsOf(endDate) {
+  // §FIX1: "Авлагын товчоо" (renderRecvSummary)-той ЯГ ИЖИЛ custIds шүүлт
+  // ('cancelled'-г ХАСАХГҮЙ, зөвхөн 'deleted'/'void' — canonical-тай бит-нарийвчлалтай тааруулах)
   const custIds = new Set();
   sales.forEach(s => {
-    if(s.status === 'deleted' || s.status === 'void' || s.status === 'cancelled') return;
+    if(s.status === 'deleted' || s.status === 'void') return;
     const pt = s.paymentType || s.payType || s.method || '';
     if(pt === 'credit' || s.recv > 0 || s.paid > 0) custIds.add(s.customerId);
   });
@@ -5324,8 +5326,13 @@ function getTotalReceivableAsOf(endDate) {
   const byCust = [];
   custIds.forEach(cid => {
     const stmt = calculateReceivableStatement({ customerId: cid, startDate: '', endDate });
-    if(stmt.closingBalance <= 0) return;
+    // §FIX1: renderRecvSummary-тай ЯГ ИЖИЛ exclude нөхцөл — зөвхөн БҮРЭН идэвхгүй
+    // харилцагчийг алгасна. Сөрөг (илүү төлсөн) үлдэгдлийг ч НИЙТ дүнд НЭГТГЭНЭ.
+    if(stmt.closingBalance === 0 && stmt.openingBalance === 0 && stmt.periodDebits === 0) return;
     total += stmt.closingBalance;
+    // Топ-харилцагчийн ХАРУУЛАЛТ (UI) — зөвхөн эерэг (бодит өртэй) харилцагчийг
+    // жагсаана, гэхдээ энэ нь ДЭЭРХ "total"-д НӨЛӨӨЛӨХГҮЙ (тусдаа зорилготой).
+    if(stmt.closingBalance <= 0) return;
     const cust = customers.find(c=>c.id===cid) || {};
     byCust.push({ custId: cid, name: cust.name || sales.find(s=>s.customerId===cid)?.customerName || '—', recv: stmt.closingBalance });
   });
@@ -5339,18 +5346,65 @@ function getTotalReceivableAsOf(endDate) {
 // нэмэлт задаргаа хийнэ.
 function getReceivableAgingDetail(asOfDate) {
   const buckets = { '0-30':0, '31-60':0, '61-90':0, '90+':0 };
-  const overdueByCust = {}; // custId -> overdue sum (30+ хоног)
+  const overdueByCust = {}; // custId -> хугацаа хэтэрсэн (30+ хоног) үлдэгдэл
+  const lastPaymentByCust = {};
+
+  // §FIX2: getTotalReceivableAsOf-тай ЯГ ИЖИЛ харилцагч шүүлт (canonical, sales.recv
+  // raw field-ээс ОГТ ХАМААРАХГҮЙ)
+  const custIds = new Set();
   sales.forEach(s => {
-    if(s.status==='deleted'||s.status==='void'||s.status==='cancelled') return;
-    if(!(s.recv>0)) return;
-    if(s.date > asOfDate) return;
-    const ageDays = Math.round((new Date(asOfDate) - new Date(s.date)) / 86400000);
+    if(s.status === 'deleted' || s.status === 'void') return;
+    const pt = s.paymentType || s.payType || s.method || '';
+    if(pt === 'credit' || s.recv > 0 || s.paid > 0) custIds.add(s.customerId);
+  });
+
+  custIds.forEach(cid => {
+    const stmt = calculateReceivableStatement({ customerId: cid, startDate: '', endDate: asOfDate });
+    if(stmt.closingBalance === 0 && stmt.openingBalance === 0 && stmt.periodDebits === 0) return;
+
+    // FIFO invoice-level allocation — canonical ledger (stmt.rows: debit=Зээлийн
+    // борлуулалт, credit=Төлөлт/Хөнгөлөлт)-ийг он-сар-өдрөөр дараалуулж, credit
+    // бүрийг ХАМГИЙН ЭРТНИЙ (эхэлж орсон) төлөгдөөгүй sale-ээс эхлэн зарцуулна.
+    // "Хэсэгчлэн төлөгдсөн бол зөвхөн үлдэгдэл авлагыг насжилтад оруул" — яг
+    // ЭНЭ FIFO логикоор хангагдана (inv.remaining = үлдэгдэл дүн).
+    const invoiceQueue = [];
+    (stmt.rows||[]).forEach(r => {
+      if(r.debit > 0) invoiceQueue.push({ date: r.date, remaining: r.debit });
+      else if(r.credit > 0) {
+        let toApply = r.credit;
+        for(const inv of invoiceQueue) {
+          if(toApply <= 0) break;
+          if(inv.remaining <= 0) continue;
+          const take = Math.min(inv.remaining, toApply);
+          inv.remaining -= take; toApply -= take;
+        }
+      }
+    });
+
+    // Насжилтын bucket — харилцагчийн ХАМГИЙН ЭРТНИЙ төлөгдөөгүй invoice-ийн
+    // огноогоор тодорхойлно (төлөгдөөгүй invoice байхгүй бол asOfDate, age=0).
+    const oldestUnpaid = invoiceQueue.find(inv => inv.remaining > 0);
+    const ageBaseDate = oldestUnpaid ? oldestUnpaid.date : asOfDate;
+    const ageDays = Math.round((new Date(asOfDate) - new Date(ageBaseDate)) / 86400000);
     let bucket = '0-30';
     if(ageDays>90) bucket='90+'; else if(ageDays>60) bucket='61-90'; else if(ageDays>30) bucket='31-60';
-    buckets[bucket] += s.recv;
-    if(ageDays>30) overdueByCust[s.customerId] = (overdueByCust[s.customerId]||0) + s.recv;
+
+    // §ТЭНЦЭТГЭЛИЙН БАТАЛГАА: харилцагчийн БҮХ closingBalance (сөрөг ч гэсэн,
+    // getTotalReceivableAsOf-той ЯГ ИЖИЛ тоо) ЯГ НЭГ bucket-д орно — иймд
+    // buckets-ийн нийлбэр = Нийт авлага 1₮-ийн зөрүүгүй тэнцэнэ (математикийн
+    // хувьд гарантитай, дахин тооцоолол хийгээгүй, зөвхөн дахин ангилсан).
+    buckets[bucket] += stmt.closingBalance;
+
+    // Хугацаа хэтэрсэн — зөвхөн бодит эерэг (30+ хоногийн) үлдэгдэл invoice-уудын нийлбэр
+    let custOverdue = 0;
+    invoiceQueue.forEach(inv => {
+      if(inv.remaining <= 0) return;
+      const d2 = Math.round((new Date(asOfDate) - new Date(inv.date)) / 86400000);
+      if(d2 > 30) custOverdue += inv.remaining;
+    });
+    if(custOverdue > 0) overdueByCust[cid] = custOverdue;
   });
-  const lastPaymentByCust = {};
+
   payments.forEach(pm => {
     if(pm.isCancelled || pm.status==='cancelled') return;
     if(pm.paymentDate > asOfDate) return;
@@ -5562,8 +5616,9 @@ window.renderDashboard = () => {
   loadDashboardPeriodExpense(from, to);
   loadDashboardBankAccountTotals();
 
+  // §FIX4: getSalesReportLines()-тэй ЯГ ИЖИЛ exclusion (!s.isDeleted нэмэгдсэн)
   const filtered = sales.filter(s =>
-    s.status !== 'deleted' && s.status !== 'void' && s.status !== 'cancelled' &&
+    s.status !== 'deleted' && !s.isDeleted && s.status !== 'void' && s.status !== 'cancelled' &&
     (!from || s.date >= from) && (!to || s.date <= to)
   );
 
