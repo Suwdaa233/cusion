@@ -301,6 +301,18 @@ tbody tr:hover td{background:var(--sur2)}
     <div class="cb" style="padding:8px"><svg id="d-sales-chart" width="100%" height="240" style="display:block"></svg></div>
   </div>
 
+  <!-- Хамгийн өндөр борлуулалттай харилцагчид -->
+  <div class="card" style="margin-bottom:14px">
+    <div class="ch"><span class="ct"><i class="ti ti-crown"></i>Хамгийн өндөр борлуулалттай харилцагчид</span></div>
+    <div class="cb np"><div class="tw">
+      <table style="font-size:12px">
+        <thead><tr><th>Харилцагч</th><th style="text-align:right">Нийт борлуулалт</th><th style="text-align:right">Төлөлт</th><th style="text-align:right">Авлага үлдэгдэл</th></tr></thead>
+        <tbody id="d-top-cust-sales-tbody"></tbody>
+      </table>
+    </div></div>
+    <div style="padding:8px 14px" id="d-top-cust-sales-showall-wrap"><button class="btn bg bxs" onclick="toggleDashTopCustSalesShowAll()" id="d-top-cust-sales-showall-btn">Бүгдийг харах</button></div>
+  </div>
+
   <!-- ═══ 4. БАРААНЫ ОДООГИЙН ҮЛДЭГДЭЛ ═══ -->
   <div style="font-size:13px;font-weight:700;color:var(--tx2);margin:16px 0 8px;text-transform:uppercase;letter-spacing:.5px">Барааны одоогийн үлдэгдэл</div>
   <div class="card">
@@ -5415,6 +5427,11 @@ window.toggleDashRecvShowAll = () => {
   dashRecvShowAll = !dashRecvShowAll;
   renderDashboard();
 };
+let dashTopCustSalesShowAll = false;
+window.toggleDashTopCustSalesShowAll = () => {
+  dashTopCustSalesShowAll = !dashTopCustSalesShowAll;
+  renderDashboard();
+};
 
 function getMoneyScale(maxValue) {
   if(maxValue >= 1000000000) return { divisor: 1000000000, unit: 'тэрбум', axisTitle: 'Дүн /тэрбум ₮/' };
@@ -5650,6 +5667,30 @@ window.renderDashboard = () => {
     }
   }
   drawDashBarChart('d-sales-chart', salesKeys, salesVals, dashSalesMode, 'var(--pu)', null);
+
+  // ─── Хамгийн өндөр борлуулалттай харилцагчид (сонгосон хугацаагаар) ───
+  const custSalesMap = {};
+  filtered.forEach(s => {
+    if(!s.customerId) return;
+    if(!custSalesMap[s.customerId]) custSalesMap[s.customerId] = { custId:s.customerId, name:s.customerName||'—', sales:0, paid:0, recv:0 };
+    custSalesMap[s.customerId].sales += s.total||0;
+    custSalesMap[s.customerId].paid  += s.paid||0;
+    custSalesMap[s.customerId].recv  += s.recv||0;
+  });
+  const topCustBySales = Object.values(custSalesMap).sort((a,b)=>b.sales-a.sales);
+  const topCustList = dashTopCustSalesShowAll ? topCustBySales : topCustBySales.slice(0,10);
+  const topCustTbody = document.getElementById('d-top-cust-sales-tbody');
+  if(topCustTbody) topCustTbody.innerHTML = topCustList.length ? topCustList.map(c =>
+    `<tr style="cursor:pointer" onclick="drillDashRecv('${c.custId}')">
+      <td style="font-weight:500;color:var(--pu)">${c.name}</td>
+      <td style="text-align:right;font-weight:700">${fmt(c.sales)}</td>
+      <td style="text-align:right;color:var(--gr)">${fmt(c.paid)}</td>
+      <td style="text-align:right;color:${c.recv>0?'var(--am)':'var(--tx3)'}">${c.recv>0?fmt(c.recv):'—'}</td></tr>`
+  ).join('') : '<tr><td colspan="4"><div class="empty">Борлуулалт байхгүй</div></td></tr>';
+  const topCustShowAllWrap = document.getElementById('d-top-cust-sales-showall-wrap');
+  if(topCustShowAllWrap) topCustShowAllWrap.style.display = topCustBySales.length>10 ? 'block' : 'none';
+  const topCustShowAllBtn = document.getElementById('d-top-cust-sales-showall-btn');
+  if(topCustShowAllBtn) topCustShowAllBtn.textContent = dashTopCustSalesShowAll ? 'Багасгах' : 'Бүгдийг харах';
 
   // ═══ 4. БАРААНЫ ОДООГИЙН ҮЛДЭГДЭЛ (period-той хамааралгүй, canonical engine) ═══
   const invKeys = products.map(p=>`${p.name}·${p.variant}`.length>14 ? p.variant : `${p.name}·${p.variant}`);
