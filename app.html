@@ -10130,10 +10130,13 @@ function calculateReceivableStatement({ customerId, startDate, endDate }) {
     return (a.docNum||'').localeCompare(b.docNum||'');
   });
 
-  // Эхний үлдэгдэл (strict <)
+  // Эхний үлдэгдэл (strict <) — §ROOT CAUSE FIX: startDate хоосон үед opening=0
+  // байх ёстой (мөнх эхнээс эхэлсэн тайлан — "өмнөх" гэж юу ч байхгүй), БҮХ
+  // гүйлгээг opening-д нэмэх БУРУУ байсан бөгөөд энэ нь period-тэй давхацаж
+  // closing balance-ийг ХОЁР ДАХИН тоолоход хүргэдэг байсан.
   let openingBalance = 0;
   txns.forEach(t => {
-    if(!startDate || t.date < startDate) {
+    if(startDate && t.date < startDate) {
       openingBalance += t.debit - t.credit;
     }
   });
