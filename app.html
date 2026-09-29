@@ -1508,6 +1508,10 @@ const MBADGE={cash:'bgr2',card:'bbl',transfer:'bpu',online:'bte',credit:'bre',mi
 const LTYPES={store:'Дэлгүүр',warehouse:'Агуулах',online:'Онлайн',consign:'Консигнаци',other:'Бусад'};
 const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivable:'Авлага',inventory:'Бараа материал',customers:'Харилцагч',products:'Бараа',locations:'Байршил',bank:'Банкны хуулга',report:'Тайлан',users:'Хэрэглэгчид'};
 
+
+// ─── UTILITY HELPERS ─────────────────────────────────────────────────────────
+function today() { return new Date().toISOString().slice(0,10); }
+
 // ─── STATE ────────────────────────────────────────────────────────────────────
 
 // ─── БОРЛУУЛАЛТ ЗАСАХ (БҮРЭН) ───────────────────────────────────────────────
