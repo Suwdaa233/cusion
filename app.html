@@ -1513,6 +1513,70 @@ const MTITLES={dashboard:'Дашборд',sales:'Борлуулалт',receivabl
 function today() { return new Date().toISOString().slice(0,10); }
 
 // ─── STATE ────────────────────────────────────────────────────────────────────
+let currentUser = null;
+let userRole = 'viewer';
+let customers = [], products = [], locations = [], sales = [], invLogs = [], stockMap = {};
+let bankAccounts=[],bankTxns=[],bankLinks=[],transfers=[];
+let trCounter={};
+let trIdx=0;
+let importData=[],importMapped=[],pasteData=[],pasteMapped=[];
+let currentLinkTxn=null;
+
+// ─── SALE ROWS ────────────────────────────────────────────────────────────────
+let saleRowIdx = 0;
+function saleRowHtml(idx){
+  const po = products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row sale-row" id="sr-${idx}">
+    <div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="onSaleProdChange(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="fl"><label>Нэгж үнэ (₮)</label><input type="number" class="row-price" placeholder="0" oninput="calcSaleTotal()"></div>
+    <div class="fl"><label>Тоо (ш)</label><input type="number" class="row-qty" value="1" min="1" oninput="calcSaleTotal()"></div>
+    <div class="fl"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
+    <div class="row-total" id="rt-${idx}">0₮</div>
+    <button class="btn bd2 bxs" onclick="removeSaleRow(${idx})" style="align-self:flex-end;margin-bottom:1px"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+window.addSaleRow = () => { document.getElementById('s-rows').insertAdjacentHTML('beforeend',saleRowHtml(saleRowIdx++)); populateSels(); refreshSaleRows(); };
+window.removeSaleRow = idx => { document.getElementById('sr-'+idx)?.remove(); calcSaleTotal(); };
+window.onSaleProdChange = idx => {
+  const row = document.getElementById('sr-'+idx); if(!row) return;
+  const pid = row.querySelector('.row-prod-sel').value;
+  const p = products.find(x=>x.id===pid);
+  if(p) row.querySelector('.row-price').value = p.price;
+  refreshSaleRows(); calcSaleTotal();
+};
+window.refreshSaleRows = () => {
+  const lid = document.getElementById('s-loc').value;
+  document.querySelectorAll('#s-rows .item-row').forEach(row=>{
+    const pid = row.querySelector('.row-prod-sel').value;
+    const avail = row.querySelector('.row-avail');
+    avail.value = (pid&&lid) ? gst(pid,lid)+'ш' : '—';
+  });
+  calcSaleTotal();
+};
+
+// ─── INVENTORY ROW HELPERS ────────────────────────────────────────────────────
+function inRowHtml(){
+  const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row inv-row"><div class="fl"><label>Бараa</label><select class="row-prod-sel"><option value="">-- Сонгох --</option>${po}</select></div><div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1"></div><div class="fl"><label>Нэгж өртөг (₮)</label><input type="number" class="ir-cost" placeholder="0"></div><button class="btn bd2 bxs" onclick="this.closest('.item-row').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button></div>`;
+}
+window.addInRow = () => { document.getElementById('in-rows').insertAdjacentHTML('beforeend',inRowHtml()); populateSels(); };
+
+function outRowHtml(){
+  const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row inv-row"><div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="refreshOutRows()"><option value="">-- Сонгох --</option>${po}</select></div><div class="fl"><label>Тоо (ш)</label><input type="number" class="ir-qty" value="1" min="1"></div><div class="fl"><label>Үлдэгдэл</label><input type="text" class="row-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div><button class="btn bd2 bxs" onclick="this.closest('.item-row').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button></div>`;
+}
+window.addOutRow = () => { document.getElementById('out-rows').insertAdjacentHTML('beforeend',outRowHtml()); populateSels(); };
+
+function transferRowHtml(idx){
+  const po=products.map(p=>`<option value="${p.id}">${p.name}·${p.variant}</option>`).join('');
+  return `<div class="item-row inv-row" id="trr-${idx}">
+    <div class="fl"><label>Бараa</label><select class="row-prod-sel" onchange="refreshTransferStock(${idx})"><option value="">-- Сонгох --</option>${po}</select></div>
+    <div class="fl"><label>Тоо (ш)</label><input type="number" class="tr-qty" value="1" min="1"></div>
+    <div class="fl"><label>Үлдэгдэл</label><input type="text" class="tr-avail" readonly style="background:var(--sur3);color:var(--tx3);font-size:11px" value="—"></div>
+    <button class="btn bd2 bxs" onclick="document.getElementById('trr-${idx}').remove()" style="align-self:flex-end"><i class="ti ti-trash"></i></button>
+  </div>`;
+}
+window.addTransferRow=()=>{document.getElementById('tr-rows').insertAdjacentHTML('beforeend',transferRowHtml(trIdx++));populateSels();};
 
 // ─── БОРЛУУЛАЛТ ЗАСАХ (БҮРЭН) ───────────────────────────────────────────────
 let esItems = [];
@@ -3169,7 +3233,7 @@ window.copySale = (id) => {
 
     // Эхний мөр аль хэдийн байна (addSaleRow-оор үүссэн)
     copyData.items.forEach((it, i) => {
-      if(i > 0) addSaleRow();
+      if(i > 0) window.addSaleRow();
       setTimeout(() => {
         const rows = document.querySelectorAll('.sale-row');
         const row = rows[i];
@@ -4043,10 +4107,10 @@ onAuthStateChanged(auth, async user => {
 });
 
 
-addSaleRow();
-addInRow();
-addOutRow();
-addTransferRow();
+window.addSaleRow();
+window.addInRow();
+window.addOutRow();
+window.addTransferRow();
 if(document.getElementById('tr-date')) document.getElementById('tr-date').value=today();
 // Байршлын буруу нэр засах
 setTimeout(()=>{ if(typeof fixLocationNames==='function') fixLocationNames(); }, 3000);
