@@ -788,6 +788,7 @@ tbody tr:hover td{background:var(--sur2)}
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script type="module">
+console.log('[BOOT-0] module script started');
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
 import {
@@ -808,6 +809,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+console.log('[BOOT-1] firebase initialized');
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MLABELS={cash:'Бэлнээр',card:'Картаар',transfer:'Дансаар',online:'Онлайн',credit:'Зээлээр',mixed:'Хосолсон'};
@@ -821,8 +823,11 @@ let userRole = 'viewer';
 let customers = [], products = [], locations = [], sales = [], invLogs = [], stockMap = {};
 
 // ─── AUTH ────────────────────────────────────────────────────────────────────
+console.log('[BOOT-2] registering auth listener');
 onAuthStateChanged(auth, async user => {
+  console.log('[BOOT-3] auth callback fired', user?.uid || 'NO USER');
   if (!user) { window.location.href = 'index.html'; return; }
+  console.log('[BOOT-4] authenticated branch entered');
   currentUser = user;
   document.getElementById('user-email').textContent = user.email;
 
@@ -835,11 +840,15 @@ onAuthStateChanged(auth, async user => {
   const roleLabels = { admin:'<span class="ba bpu">Admin</span>', manager:'<span class="ba bgr">Менежер</span>', viewer:'<span class="ba bgr2">Харагч</span>' };
   document.getElementById('user-role-badge').innerHTML = roleLabels[userRole] || '';
 
+  console.log('[BOOT-11] hiding loading overlay');
   document.getElementById('loading-ov').style.display = 'none';
   document.getElementById('main-app').style.display = 'flex';
+  console.log('[BOOT-12] app visible');
 
   initDates();
+  console.log('[BOOT-5] before subscriptions');
   subscribeAll();
+  console.log('[BOOT-6] after subscribeAll call');
 });
 
 window.doLogout = async () => {
@@ -3156,3 +3165,7 @@ window.openTransferReceipt = id => {
   win.document.close();
 };
 
+
+</script>
+</body>
+</html>
