@@ -1952,6 +1952,7 @@ tbody tr:hover td{background:var(--sur2)}
       </div>
       <div style="margin-top:10px;display:flex;gap:8px">
         <button class="btn bp" onclick="saveLinkage()"><i class="ti ti-check"></i>Холболт хадгалах</button>
+        <button class="btn" id="link-unlink-btn" style="background:var(--re,#e53e3e);color:#fff;border:none;display:none" onclick="unlinkFromModal()"><i class="ti ti-unlink"></i>Холболт цуцлах</button>
         <button class="btn bg" onclick="closeModal('link-modal')">Цуцлах</button>
       </div>
     </div>
@@ -10696,78 +10697,258 @@ window.executeCancelPayment = async () => {
 
 // ─── БАНКНЫ ХОЛБОЛТ САЛГАХ ────────────────────────────────────────────────────
 // Дахин ашиглах боломжтой дотоод reversal функц (prompt-гүй) — нэг мөрийн
-// "Холболт салгах" болон batch устгалт хоёулаа ЯГ ЭНЭ логикийг ашиглана.
-async function unlinkBankTxnInternal(txnId, reason) {
+// ═══════════════════════════════════════════════════════════════════════════════
+// БАНКНЫ ХОЛБОЛТ ЦУЦЛАХ — дотоод функц (Concurrency-safe v2)
+//
+// CONCURRENCY ХАМГААЛАЛТ:
+//   Type B — runTransaction: payments.isCancelled-г atomic read-check-write
+//             хийдэг тул хоёр хэрэглэгч зэрэг цуцлах үед нэг нь ABORTED алдаа
+//             авч retry хийнэ; sales.paid хоёр удаа хасагдахгүй.
+//   Type C — runTransaction: bankLinks[0].reversed-г gate болгон ашигладаг
+//             тул хоёр хэрэглэгч зэрэг цуцлах үед нэг нь ABORTED алдаа авна.
+//   Type A — updateDoc нь idempotent: status=unlinked → status=unlinked
+//
+// Дуудагч нь НЭГХЭН audit log бичнэ (skipAudit:true → unlinkFromModal бичнэ)
+// Буцаалт: { type, paymentId, affectedSaleIds }
+// ═══════════════════════════════════════════════════════════════════════════════
+async function unlinkBankTxnInternal(txnId, reason, { skipAudit = false } = {}) {
   const txn = bankTxns.find(t => t.id === txnId);
-  if(!txn) throw new Error('Гүйлгээ олдсонгүй');
+  if(!txn) throw new Error('Гүйлгээ олдсонгүй: ' + txnId);
 
-  const pmSnap = await getDocs(query(collection(db,'payments'), where('bankTransactionId','==',txnId)));
+  let resultType = 'none';
+  let resultPaymentId = null;
+  let affectedSaleIds = [];
 
-  if(!pmSnap.empty) {
-    const pmDoc = pmSnap.docs[0];
-    const pm = pmDoc.data();
-
-    const batch = writeBatch(db);
-
-    for(const al of (pm.allocations || [])) {
-      if(!al.saleId) continue;
-      const saleSnap = await getDoc(doc(db,'sales',al.saleId));
-      if(!saleSnap.exists()) continue;
-      const s = saleSnap.data();
-      const rPaid = Math.max(0,(s.paid||0)-(al.allocatedAmount||0));
-      const rRecv = (s.total||0)-rPaid;
-      batch.update(doc(db,'sales',al.saleId),{
-        paid:rPaid, recv:rRecv,
-        status: rRecv===0?'paid':rPaid>0?'partial':'unpaid'
-      });
-    }
-
-    batch.update(doc(db,'payments',pmDoc.id),{
-      status:'cancelled', isCancelled:true,
-      cancelledAt:serverTimestamp(), cancelledBy:currentUser.email,
-      cancellationReason:`Банкны холболт салгагдсан: ${reason}`,
-      updatedAt:serverTimestamp(), updatedBy:currentUser.email
-    });
-
-    batch.update(doc(db,'bankTxns',txnId),{
-      linkedAmount:   0,
-      unlinkedAmount: txn.income || txn.credit || 0,
-      linkStatus:     'unlinked',
-      status:         'unlinked',
-      paymentId:      null,
-      linkedCustomerId:null,
-      updatedAt:      serverTimestamp(),
-      updatedBy:      currentUser.email
-    });
-
-    await batch.commit();
-  } else {
-    await updateDoc(doc(db,'bankTxns',txnId),{
-      linkedAmount:   0,
-      unlinkedAmount: txn.income || txn.credit || 0,
-      linkStatus:     'unlinked',
-      status:         'unlinked',
-      paymentId:      null,
-      linkedCustomerId:null,
-      updatedAt:      serverTimestamp(),
-      updatedBy:      currentUser.email
-    });
+  // ── Төрөл B: payments collection — runTransaction (atomic isCancelled gate) ──
+  // txn.paymentId байвал ID-гаар шууд; эсвэл where-query fallback
+  let pmRef = txn.paymentId ? doc(db,'payments', txn.paymentId) : null;
+  if(!pmRef) {
+    const pmSnap = await getDocs(
+      query(collection(db,'payments'), where('bankTransactionId','==',txnId))
+    );
+    const active = pmSnap.docs.find(d => !d.data().isCancelled);
+    if(active) pmRef = active.ref;
   }
 
-  await addDoc(collection(db,'auditLogs'),{
-    action:'bank_unlinked', bankTransactionId:txnId,
-    reason, userId:currentUser.email, timestamp:serverTimestamp()
-  });
+  if(pmRef) {
+    // runTransaction: Firestore серверт atomic read-check-write
+    // Хэрэв хоёр хэрэглэгч зэрэг orвол нэг нь ABORTED → retry → isCancelled=true харна → throw
+    // ── Audit log-ийг мөн transaction ДОТОР бичнэ (t.set) → бүрэн атомик ──
+    await runTransaction(db, async (t) => {
+      const pmSnap = await t.get(pmRef);
+      if(!pmSnap.exists()) throw new Error('Төлөлтийн бичиг олдсонгүй');
+      const pm = pmSnap.data();
+
+      // ── ATOMIC GATE: аль хэдийн цуцалсан бол бусад хэрэглэгч ABORTED авна ──
+      if(pm.isCancelled) throw new Error('Холболт аль хэдийн цуцалсан байна');
+
+      const allocs = pm.allocations || [];
+      affectedSaleIds = [];
+
+      // Борлуулалт бүрийн paid/recv/status буцаах (transaction дотор read)
+      for(const al of allocs) {
+        if(!al.saleId || !al.allocatedAmount) continue;
+        const saleSnap = await t.get(doc(db,'sales', al.saleId));
+        if(!saleSnap.exists()) continue;
+        const s = saleSnap.data();
+        const rPaid = Math.max(0, (s.paid||0) - al.allocatedAmount);
+        const rRecv = (s.total||0) - rPaid;
+        t.update(doc(db,'sales', al.saleId), {
+          paid: rPaid, recv: rRecv,
+          status: rRecv===0 ? 'paid' : rPaid>0 ? 'partial' : 'unpaid'
+        });
+        affectedSaleIds.push(al.saleId);
+      }
+
+      // Payment cancelled (atomic)
+      t.update(pmRef, {
+        status: 'cancelled', isCancelled: true,
+        cancelledAt: serverTimestamp(), cancelledBy: currentUser.email,
+        cancellationReason: `Банкны холболт салгагдсан: ${reason}`,
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+
+      // bankTxns reset
+      t.update(doc(db,'bankTxns', txnId), {
+        linkedAmount: 0,
+        unlinkedAmount: txn.income || txn.credit || 0,
+        linkStatus: 'unlinked', status: 'unlinked',
+        paymentId: null, linkedCustomerId: null,
+        updatedAt: serverTimestamp(), updatedBy: currentUser.email
+      });
+
+      // Холбогдох bankLinks-ийг нэг transaction-д reversed болгох
+      const relatedLinks = bankLinks.filter(l => l.txnId === txnId && !l.reversed);
+      for(const lnk of relatedLinks) {
+        t.update(doc(db,'bankLinks', lnk.id), {
+          reversed: true, reversedAt: serverTimestamp(), reversedBy: currentUser.email
+        });
+      }
+
+      // ── Audit log: transaction ДОТОР t.set → unlink + log бүрэн атомик ──
+      if(!skipAudit) {
+        const auditRef = doc(collection(db,'auditLogs'));
+        t.set(auditRef, {
+          action: 'bank_unlinked', type: 'AR_payment',
+          bankTransactionId: txnId, paymentId: pmRef.id,
+          affectedSales: affectedSaleIds,
+          reason, userId: currentUser.email, timestamp: serverTimestamp()
+        });
+      }
+    });
+
+    resultType = 'payment';
+    resultPaymentId = pmRef.id;
+
+  } else {
+    // payments-д идэвхтэй холболт байхгүй → bankTxn статус reset (Type A)
+    // updateDoc нь idempotent (status=unlinked → status=unlinked)
+    await updateDoc(doc(db,'bankTxns', txnId), {
+      linkedAmount: 0,
+      unlinkedAmount: txn.income || txn.credit || 0,
+      linkStatus: 'unlinked', status: 'unlinked',
+      paymentId: null, linkedCustomerId: null,
+      updatedAt: serverTimestamp(), updatedBy: currentUser.email
+    });
+    // Type A audit log — transaction-гүй тул гадна бичнэ (idempotent op)
+    if(!skipAudit) {
+      await addDoc(collection(db,'auditLogs'), {
+        action: 'bank_unlinked', type: 'cashflow_classification',
+        bankTransactionId: txnId,
+        reason, userId: currentUser.email, timestamp: serverTimestamp()
+      });
+    }
+  }
+
+  return { type: resultType, paymentId: resultPaymentId, affectedSaleIds };
 }
+
+// Хуучин API — бусад цэс (жагсаалт дахь Холболт салгах товч) дуудна
 window.unlinkBankTxn = async (txnId) => {
   const txn = bankTxns.find(t => t.id === txnId);
   if(!txn) { alert('Гүйлгээ олдсонгүй'); return; }
   const reason = prompt(`Холболт салгах шалтгаан:\n(${txn.description}):`);
   if(!reason) return;
   try {
-    await unlinkBankTxnInternal(txnId, reason);
+    await unlinkBankTxnInternal(txnId, reason); // skipAudit:false → нэг лог
     alert('✅ Холболт салгагдлаа. Авлага буцаан тооцогдлоо.');
-  } catch(e) { alert('Алдаа: '+e.message); console.error(e); }
+  } catch(e) { alert('Алдаа: ' + e.message); console.error(e); }
+};
+
+// ── Modal-аас дуудагдах унлинк товч ─────────────────────────────────────────
+// link-modal "Холболт цуцлах" товч → window.unlinkFromModal()
+// Button disable → re-enable (C3 double-click хамгаалалт)
+// Нэг audit log (skipAudit:true → дуудагч энд бичнэ)
+window.unlinkFromModal = async () => {
+  const txn = currentLinkTxn;
+  if(!txn) return;
+  if(!confirm(
+    `"${txn.description||txn.date}" гүйлгээний холболтыг цуцлах уу?\n\nАвлагад тооцсон дүн буцаан авлага болно.`
+  )) return;
+
+  // ── C3 хамгаалалт: товч disable (double-click / async race) ─────────────
+  const unlinkBtn = document.getElementById('link-unlink-btn');
+  if(unlinkBtn) { unlinkBtn.disabled = true; unlinkBtn.textContent = 'Цуцалж байна...'; }
+
+  const reason = 'Modal-аас цуцалсан';
+  const before = {
+    status: txn.status, linkedAmount: txn.linkedAmount,
+    paymentId: txn.paymentId, linkedCustomerId: txn.linkedCustomerId
+  };
+
+  try {
+    // ── Төрөл B: payments холболт (runTransaction-тай, C1 хамгаалагдсан) ────
+    // skipAudit:false → audit log transaction ДОТОР t.set-ээр бичигдэнэ (атомик)
+    if(txn.paymentId || payments.some(p => p.bankTransactionId === txn.id && !p.isCancelled)) {
+      await unlinkBankTxnInternal(txn.id, reason, { skipAudit: false });
+      closeModal('link-modal');
+      alert('✅ Авлагын холболт цуцлагдлаа. Авлага буцаан тооцогдлоо.');
+      return;
+    }
+
+    // ── Төрөл C: bankLinks холболт — runTransaction (C4 хамгаалагдсан) ─────
+    const activeLinks = bankLinks.filter(l => l.txnId === txn.id && !l.reversed);
+    if(activeLinks.length > 0) {
+      const firstLinkRef = doc(db,'bankLinks', activeLinks[0].id);
+
+      // runTransaction: firstLink.reversed-г gate болгоно
+      // Хоёр дахь хэрэглэгч "аль хэдийн цуцалсан" throw авна
+      // ── Audit log мөн transaction ДОТОР t.set → бүрэн атомик ──
+      await runTransaction(db, async (t) => {
+        const gateSnap = await t.get(firstLinkRef);
+        if(!gateSnap.exists() || gateSnap.data().reversed) {
+          throw new Error('Холболт аль хэдийн цуцалсан байна');
+        }
+        for(const lnk of activeLinks) {
+          const sale = sales.find(s => s.id === lnk.saleId);
+          if(sale) {
+            const newPaid = Math.max(0, (sale.paid||0) - (lnk.amount||0));
+            const newRecv = (sale.total||0) - newPaid;
+            const newPms = (sale.payments||[]).filter(
+              p => !(p.bankTxnId === lnk.txnId && p.amount === lnk.amount)
+            );
+            t.update(doc(db,'sales', lnk.saleId), {
+              paid: newPaid, recv: newRecv,
+              status: newRecv===0 ? 'paid' : newPaid>0 ? 'partial' : 'unpaid',
+              payments: newPms
+            });
+          }
+          t.update(doc(db,'bankLinks', lnk.id), {
+            reversed: true, reversedAt: serverTimestamp(), reversedBy: currentUser.email
+          });
+        }
+        const totalLinked = activeLinks.reduce((s,l) => s + (l.amount||0), 0);
+        t.update(doc(db,'bankTxns', txn.id), {
+          linkedAmount: Math.max(0, (txn.linkedAmount||0) - totalLinked),
+          unlinkedAmount: (txn.unlinkedAmount||0) + totalLinked,
+          status: 'unlinked', linkedCustomerId: null,
+          updatedAt: serverTimestamp(), updatedBy: currentUser.email
+        });
+        // Audit log — transaction дотор (atomic)
+        const auditRef = doc(collection(db,'auditLogs'));
+        t.set(auditRef, {
+          action: 'bank_unlink_modal', type: 'bankLinks',
+          bankTransactionId: txn.id, linkIds: activeLinks.map(l => l.id),
+          userId: currentUser.email, timestamp: serverTimestamp(), before
+        });
+      });
+      closeModal('link-modal');
+      alert('✅ Холболт цуцлагдлаа.');
+      return;
+    }
+
+    // ── Төрөл A: мөнгөн урсгалын ангилал — writeBatch (2 doc атомик) ────────
+    const batchA = writeBatch(db);
+    batchA.update(doc(db,'bankTxns', txn.id), {
+      linkedAmount: 0, unlinkedAmount: txn.income||txn.credit||0,
+      linkStatus: 'unlinked', status: 'unlinked',
+      linkedCustomerId: null, paymentId: null,
+      updatedAt: serverTimestamp(), updatedBy: currentUser.email
+    });
+    const auditRefA = doc(collection(db,'auditLogs'));
+    batchA.set(auditRefA, {
+      action: 'bank_unlink_modal', type: 'cashflow_classification',
+      bankTransactionId: txn.id,
+      userId: currentUser.email, timestamp: serverTimestamp(), before
+    });
+    await batchA.commit();
+    closeModal('link-modal');
+    alert('✅ Ангилал цуцлагдлаа.');
+
+  } catch(e) {
+    console.error('unlinkFromModal error:', e);
+    // Аль хэдийн цуцалсан бол тодорхой мессеж
+    const msg = e.message.includes('аль хэдийн') || e.message.includes('already')
+      ? '⚠️ ' + e.message
+      : 'Алдаа гарлаа: ' + e.message;
+    alert(msg);
+  } finally {
+    // ── Товч re-enable (алдаа болсон ч) ─────────────────────────────────────
+    if(unlinkBtn && unlinkBtn.isConnected) {
+      unlinkBtn.disabled = false;
+      unlinkBtn.innerHTML = '<i class="ti ti-unlink"></i>Холболт цуцлах';
+    }
+  }
 };
 
 // Банкны гүйлгээний тайлбар засах
@@ -11209,6 +11390,13 @@ window.openLinkModal = (txnId) => {
   // Total display reset
   const totalEl = document.getElementById('link-total-display');
   if(totalEl) totalEl.innerHTML = '';
+  // Холболт цуцлах товч: холбогдсон гүйлгээнд л харагдана
+  const unlinkBtn = document.getElementById('link-unlink-btn');
+  if(unlinkBtn) {
+    const isLinked = txn.paymentId || txn.linkedCustomerId ||
+      bankLinks.some(l => l.txnId === txn.id && !l.reversed);
+    unlinkBtn.style.display = isLinked ? '' : 'none';
+  }
   openModal('link-modal');
 };
 
