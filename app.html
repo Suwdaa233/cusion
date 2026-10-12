@@ -8339,12 +8339,17 @@ window.renderTransactions=()=>{
     const alreadyClassified = connStatus.isConnected;
     const hasAmount = (t.income||0) > 0 || (t.expense||0) > 0;
     const selectable = hasAmount && !alreadyClassified;
-    // ХОЛБОЛТ багана — нэг canonical helper-ээс: Бүрэн холбогдсон / Хэсэгчлэн холбогдсон / Холбогдоогүй
+    // ХОЛБОЛТ багана — нэг canonical helper-ээс
+    // AR холболт ≠ мөнгөн гүйлгээ/зардал ангилал: тусад нь харуулна
     let connBadge;
-    if(rStatus === 'partial') {
+    if(rStatus === 'linked') {
+      connBadge = '<span class="ba bgr">Авлага холбогдсон</span>';
+    } else if(rStatus === 'partial') {
       connBadge = '<span class="ba bam2">Хэсэгчлэн холбогдсон</span>';
-    } else if(connStatus.isConnected) {
-      connBadge = '<span class="ba bgr">Бүрэн холбогдсон</span>';
+    } else if(connStatus.connectionType === 'expense') {
+      connBadge = '<span class="ba" style="background:#e2e8f0;color:#4a5568">Зардал ангилсан</span>';
+    } else if(connStatus.connectionType === 'cashflow') {
+      connBadge = '<span class="ba" style="background:#ebf4ff;color:#2b6cb0">Мөнгөн гүйлгээ ангилсан</span>';
     } else {
       connBadge = '<span class="ba bre">Холбогдоогүй</span>';
     }
@@ -8505,13 +8510,14 @@ window.saveLinkage = async () => {
     // === БҮГД READ ЭХЛЭЭД ===
     const txnRef  = doc(db, 'bankTxns', txnId);
 
-    // Давхар payment шалгах
+    // Давхар payment шалгах — зөвхөн идэвхтэй (cancelled биш) payment шалгана
     const existingPaySnap = await getDocs(
       query(collection(db, 'payments'), where('bankTransactionId', '==', txnId))
     );
-    const isUpdate   = !existingPaySnap.empty;
+    const activePayDoc = existingPaySnap.docs.find(d => !d.data().isCancelled && d.data().status !== 'cancelled');
+    const isUpdate   = !!activePayDoc;
     const paymentRef = isUpdate
-      ? doc(db, 'payments', existingPaySnap.docs[0].id)
+      ? doc(db, 'payments', activePayDoc.id)
       : doc(collection(db, 'payments'));
 
     // Бүх sale-уудыг эхлээд read хийх
@@ -8524,7 +8530,7 @@ window.saveLinkage = async () => {
 
     // DocNum
     const tpDocNum = isUpdate
-      ? existingPaySnap.docs[0].data().documentNumber
+      ? activePayDoc.data().documentNumber
       : await getNextDocNum('payment');
 
     // === ДАРАА НЬ WRITE BATCH ===
@@ -8559,7 +8565,7 @@ window.saveLinkage = async () => {
     }
 
     // Sale-уудыг шинэчлэх
-    const oldAllocs = isUpdate ? (existingPaySnap.docs[0].data().allocations || []) : [];
+    const oldAllocs = isUpdate ? (activePayDoc.data().allocations || []) : [];
     saleSnaps.forEach((snap, i) => {
       if(!snap.exists()) return;
       const s       = snap.data();
@@ -10842,9 +10848,16 @@ window.unlinkBankTxn = async (txnId) => {
 window.unlinkFromModal = async () => {
   const txn = currentLinkTxn;
   if(!txn) return;
-  if(!confirm(
-    `"${txn.description||txn.date}" гүйлгээний холболтыг цуцлах уу?\n\nАвлагад тооцсон дүн буцаан авлага болно.`
-  )) return;
+  // Confirm мессежийг холболтын төрлөөр тодруулна
+  const hasAR = txn.paymentId || payments.some(p => p.bankTransactionId === txn.id && !p.isCancelled && p.status !== 'cancelled');
+  const hasBankLinks = bankLinks.some(l => l.txnId === txn.id && !l.reversed);
+  const hasCF = txn.cashFlowCategory;
+  const hasExp = txn.expenseCategory;
+  let confirmMsg = `"${txn.description||txn.date}" гүйлгээний холболтыг цуцлах уу?`;
+  if(hasAR || hasBankLinks) confirmMsg += '\n\n⚠️ Авлагад тооцсон дүн буцаан авлага болно.';
+  else if(hasCF) confirmMsg += `\n\nМөнгөн гүйлгээний ангилал "${txn.cashFlowCategory}" цуцлагдана.`;
+  else if(hasExp) confirmMsg += `\n\nЗардлын ангилал "${txn.expenseCategory}" цуцлагдана.`;
+  if(!confirm(confirmMsg)) return;
 
   // ── C3 хамгаалалт: товч disable (double-click / async race) ─────────────
   const unlinkBtn = document.getElementById('link-unlink-btn');
@@ -10917,18 +10930,23 @@ window.unlinkFromModal = async () => {
       return;
     }
 
-    // ── Төрөл A: мөнгөн урсгалын ангилал — writeBatch (2 doc атомик) ────────
+    // ── Төрөл A: мөнгөн урсгалын / зардлын ангилал — writeBatch (2 doc атомик) ─
+    // cashFlowCategory болон expenseCategory хоёуланг нь null болгоно
     const batchA = writeBatch(db);
+    const clearedCategory = txn.cashFlowCategory ? 'cashflow' : 'expense';
     batchA.update(doc(db,'bankTxns', txn.id), {
       linkedAmount: 0, unlinkedAmount: txn.income||txn.credit||0,
       linkStatus: 'unlinked', status: 'unlinked',
       linkedCustomerId: null, paymentId: null,
+      cashFlowCategory: null, expenseCategory: null,
       updatedAt: serverTimestamp(), updatedBy: currentUser.email
     });
     const auditRefA = doc(collection(db,'auditLogs'));
     batchA.set(auditRefA, {
-      action: 'bank_unlink_modal', type: 'cashflow_classification',
+      action: 'bank_unlink_modal', type: clearedCategory + '_classification',
       bankTransactionId: txn.id,
+      clearedCashFlow: txn.cashFlowCategory || null,
+      clearedExpense: txn.expenseCategory || null,
       userId: currentUser.email, timestamp: serverTimestamp(), before
     });
     await batchA.commit();
@@ -11217,12 +11235,19 @@ window.editBankTxnFull = (id) => {
         <div style="font-weight:700;margin-bottom:4px"><i class="ti ti-tag"></i> Холболтын мэдээлэл</div>
         <div>Холбогдсон эсэх: <b>Тийм</b> &nbsp; Холболтын төрөл: <b>Зардал ангилсан</b></div>
         <div>Зардлын ангилал: <b>${txn.expenseCategory}</b> &nbsp; Мөнгөн гүйлгээний үзүүлэлт: <b>${txn.cashFlowCategory||'—'}</b></div>
+        <div style="margin-top:6px">
+          <button class="btn" style="background:var(--re,#e53e3e);color:#fff;border:none;font-size:11px" onclick="closeModal('edit-bank-txn-modal');openLinkModal('${txn.id}')"><i class="ti ti-unlink"></i>Ангилал цуцлах</button>
+        </div>
       </div>`;
     } else if(conn.connectionType === 'cashflow') {
-      html = `<div style="padding:10px 12px;background:var(--sur2);border-radius:var(--r);font-size:12px">
-        <div style="font-weight:700;margin-bottom:4px"><i class="ti ti-arrows-exchange"></i> Холболтын мэдээлэл</div>
+      html = `<div style="padding:10px 12px;background:#ebf4ff;border-radius:var(--r);font-size:12px">
+        <div style="font-weight:700;margin-bottom:4px;color:#2b6cb0"><i class="ti ti-arrows-exchange"></i> Холболтын мэдээлэл</div>
         <div>Холбогдсон эсэх: <b>Тийм</b> &nbsp; Холболтын төрөл: <b>Мөнгөн гүйлгээ ангилсан</b></div>
         <div>Мөнгөн гүйлгээний үзүүлэлт: <b>${txn.cashFlowCategory}</b></div>
+        ${(txn.income||0)>0?`<div style="margin-top:6px;display:flex;gap:6px">
+          <button class="btn bp bxs" onclick="closeModal('edit-bank-txn-modal');openIncLinkModal('${txn.id}')"><i class="ti ti-link"></i>Авлагатай холбох</button>
+          <button class="btn" style="background:var(--re,#e53e3e);color:#fff;border:none;font-size:11px" onclick="closeModal('edit-bank-txn-modal');openLinkModal('${txn.id}')"><i class="ti ti-unlink"></i>Ангилал цуцлах</button>
+        </div>`:''}
       </div>`;
     } else {
       html = `<div style="padding:10px 12px;background:var(--sur2);border-radius:var(--r);font-size:12px;color:var(--tx3)">
@@ -11390,11 +11415,13 @@ window.openLinkModal = (txnId) => {
   // Total display reset
   const totalEl = document.getElementById('link-total-display');
   if(totalEl) totalEl.innerHTML = '';
-  // Холболт цуцлах товч: холбогдсон гүйлгээнд л харагдана
+  // Холболт цуцлах товч: AR, cashflow, expense аль ч ангилалтай бол харуул
   const unlinkBtn = document.getElementById('link-unlink-btn');
   if(unlinkBtn) {
     const isLinked = txn.paymentId || txn.linkedCustomerId ||
-      bankLinks.some(l => l.txnId === txn.id && !l.reversed);
+      txn.cashFlowCategory || txn.expenseCategory ||
+      bankLinks.some(l => l.txnId === txn.id && !l.reversed) ||
+      payments.some(p => p.bankTransactionId === txn.id && !p.isCancelled && p.status !== 'cancelled');
     unlinkBtn.style.display = isLinked ? '' : 'none';
   }
   openModal('link-modal');
