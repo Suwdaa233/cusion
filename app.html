@@ -2128,7 +2128,8 @@ function _csdRender(key) {
 function csdOpen(key) {
   var drop = document.getElementById(key+'-drop'); if(!drop) return;
   document.querySelectorAll('.csd-dropdown.open').forEach(function(d){ if(d!==drop) d.classList.remove('open'); });
-  // Position dropdown using fixed coords to escape stacking context issues
+  // Move to body to escape stacking context & overflow issues
+  if(drop.parentNode !== document.body) { document.body.appendChild(drop); }
   var trigger = document.getElementById(key+'-display');
   if(trigger) {
     var r = trigger.getBoundingClientRect();
@@ -3903,7 +3904,7 @@ function populateSels(){
   const lo='<option value="">-- Сонгох --</option>'+locations.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
   const po='<option value="">-- Сонгох --</option>'+products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
   // Идэвхтэй харилцагчид — searchable dropdown-д
-  const activeCusts = customers.filter(c => c.active !== false)
+  const activeCusts = customers.filter(c => c.active !== false && c.active !== 0)
     .sort((a,b) => (a.name||'').localeCompare(b.name||'', 'mn'))
     .map(c => ({
       id: c.id,
@@ -3913,7 +3914,7 @@ function populateSels(){
     }));
   csdInit('scust', activeCusts);
   // Hidden select-д бас option-уудыг оноох (getValue() ашиглахад зориулж)
-  const co='<option value="">-- Сонгох --</option>'+customers.filter(c=>c.active!==false).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  const co='<option value="">-- Сонгох --</option>'+customers.filter(c=>c.active!==false&&c.active!==0).map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
   ['s-cust'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=co;/* preserve selected */}});
   ['s-loc','in-loc','out-loc','out-to-loc'].forEach(id=>{ const el=document.getElementById(id);if(el){const v=el.value;el.innerHTML=lo;el.value=v;}});
   document.querySelectorAll('.row-prod-sel').forEach(sel=>{ const v=sel.value;sel.innerHTML=po;sel.value=v;});
