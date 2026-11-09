@@ -169,8 +169,8 @@ tbody tr:hover td{background:var(--sur2)}
 .csd-opt{padding:7px 12px;font-size:13px;cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .csd-opt:hover,.csd-opt.focused{background:var(--pul);color:var(--pu)}
 .csd-opt.selected{font-weight:600;color:var(--pu)}
-.csd-opt.empty{color:var(--tx3);font-size:12px;cursor:default}
-.csd-opt.empty:hover{background:none}
+.csd-opt.empty,.csd-opt.csd-empty{color:var(--tx3);font-size:12px;cursor:default}
+.csd-opt.empty:hover,.csd-opt.csd-empty:hover{background:none}
 </style>
 </head>
 <body>
@@ -3753,51 +3753,56 @@ window.closeModal = id => document.getElementById(id).classList.remove('open');
 // csdOpen/csdClose/csdFilter/csdSelect/csdKey — UI үйлдлүүд
 // csdGetValue(key) — одоогийн сонгосон харилцагчийн ID буцаана
 // csdSetValue(key, id) — программаар утга тохируулна
+// ── Searchable custom dropdown engine ────────────────────────────────────────
+// State per dropdown key
 const _csdState = {}; // key → { items, filtered, selectedId, focusIdx }
 
+// Realmap: short key → hidden <select> element id
+const _csdRealMap = { scust: 's-cust', escust: 'es-cust' };
+
 function csdInit(key, items) {
-  _csdState[key] = { items, filtered: items, selectedId: '', focusIdx: -1 };
-  _csdRender(key);
+  _csdState[key] = { items: items||[], filtered: items||[], selectedId: '', focusIdx: -1 };
+  // DOM бэлэн байвал render
+  const list = document.getElementById(key+'-list');
+  if(list) _csdRender(key);
 }
 
 function _csdRender(key) {
   const st = _csdState[key]; if(!st) return;
   const list = document.getElementById(key+'-list'); if(!list) return;
-  if(st.filtered.length === 0) {
-    list.innerHTML = '<div class="csd-opt empty">Харилцагч олдсонгүй</div>';
+  if(!st.filtered || st.filtered.length === 0) {
+    list.innerHTML = '<div class="csd-opt csd-empty">Харилцагч олдсонгүй</div>';
     return;
   }
-  // data-id attribute-д ID хадгалж, event listener-ийг JS-ээр холбоно (inline onmousedown биш)
-  list.innerHTML = st.filtered.map((c,i) =>
-    `<div class="csd-opt${c.id===st.selectedId?' selected':''}${i===st.focusIdx?' focused':''}"
-      data-id="${c.id.replace(/"/g,'&quot;')}" data-key="${key}">${c.label}</div>`
-  ).join('');
-  // Event delegation — mousedown
-  list.onmousedown = e => {
-    const opt = e.target.closest('.csd-opt');
-    if(opt && opt.dataset.id !== undefined && !opt.classList.contains('empty')) {
-      e.preventDefault();
-      csdSelect(opt.dataset.key, opt.dataset.id);
-    }
-  };
+  list.innerHTML = st.filtered.map((c,i) => {
+    const esc = String(c.id).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    const sel = c.id === st.selectedId ? ' selected' : '';
+    const foc = i === st.focusIdx ? ' focused' : '';
+    return `<div class="csd-opt${sel}${foc}" data-csd-key="${key}" data-csd-id="${esc}">${c.label}</div>`;
+  }).join('');
 }
 
 function csdOpen(key) {
   const drop = document.getElementById(key+'-drop'); if(!drop) return;
-  // 다른 dropdown 닫기
   document.querySelectorAll('.csd-dropdown.open').forEach(d=>{ if(d!==drop) d.classList.remove('open'); });
   drop.classList.add('open');
-  const si = document.getElementById(key+'-search'); if(si){ si.value=''; si.focus(); }
-  const st = _csdState[key]; if(st){ st.filtered = st.items; st.focusIdx=-1; _csdRender(key); }
-  // Сонгосон item рүү scroll
+  // items дахин filter хийж render
+  const st = _csdState[key];
+  if(st) { st.filtered = st.items.slice(); st.focusIdx = -1; _csdRender(key); }
+  // Search талбар цэвэрлэж focus өгөх (setTimeout-гүйгээр)
+  const si = document.getElementById(key+'-search');
+  if(si) { si.value = ''; }
+  // Сонгосон item харуулах
   setTimeout(()=>{
-    const sel = document.querySelector(`#${key}-list .csd-opt.selected`);
+    if(si) si.focus();
+    const sel = drop.querySelector('.csd-opt.selected');
     if(sel) sel.scrollIntoView({block:'nearest'});
-  }, 50);
+  }, 10);
 }
 
 function csdClose(key) {
-  const drop = document.getElementById(key+'-drop'); if(drop) drop.classList.remove('open');
+  const drop = document.getElementById(key+'-drop');
+  if(drop) drop.classList.remove('open');
 }
 
 function csdFilter(key) {
@@ -3805,34 +3810,40 @@ function csdFilter(key) {
   const q = si.value.toLowerCase().trim();
   const st = _csdState[key]; if(!st) return;
   st.filtered = q ? st.items.filter(c =>
-    c.label.toLowerCase().includes(q) ||
-    (c.code && c.code.toLowerCase().includes(q)) ||
-    (c.phone && c.phone.includes(q))
-  ) : st.items;
+    String(c.label).toLowerCase().includes(q) ||
+    (c.code && String(c.code).toLowerCase().includes(q)) ||
+    (c.phone && String(c.phone).includes(q))
+  ) : st.items.slice();
   st.focusIdx = -1;
   _csdRender(key);
 }
 
+function _csdSetHiddenSelect(key, id, label) {
+  const selId = _csdRealMap[key] || key;
+  const sel = document.getElementById(selId); if(!sel) return;
+  // Option байхгүй бол нэмэх
+  let found = false;
+  for(let i=0;i<sel.options.length;i++) {
+    if(sel.options[i].value === id) { found=true; break; }
+  }
+  if(!found && id) {
+    const o = document.createElement('option');
+    o.value = id; o.textContent = label||id;
+    sel.appendChild(o);
+  }
+  sel.value = id || '';
+}
+
 function csdSelect(key, id) {
   const st = _csdState[key]; if(!st) return;
-  st.selectedId = id;
-  const item = st.items.find(c=>c.id===id);
+  st.selectedId = id || '';
+  const item = st.items.find(c => c.id === id);
+  const label = item ? item.label : (id||'');
   // Display input шинэчлэх
   const disp = document.getElementById(key+'-display');
   if(disp) disp.value = item ? item.label : '';
-  // Hidden select-д утга оноох — key → real select ID mapping
-  const realMap = { scust: 's-cust', escust: 'es-cust' };
-  const realId = realMap[key] || key;
-  const sel = document.getElementById(realId);
-  if(sel) {
-    // Option байхгүй бол нэмэх
-    if(id && !sel.querySelector(`option[value="${CSS.escape(id)}"]`)) {
-      const opt = document.createElement('option');
-      opt.value = id; opt.textContent = item ? item.label : id;
-      sel.appendChild(opt);
-    }
-    sel.value = id;
-  }
+  // Hidden select шинэчлэх
+  _csdSetHiddenSelect(key, id, label);
   csdClose(key);
   if(key==='scust' && typeof refreshSaleRows==='function') refreshSaleRows();
 }
@@ -3849,19 +3860,19 @@ function csdKey(e, key) {
       ? Math.min(st.focusIdx+1, len-1)
       : Math.max(st.focusIdx-1, 0);
     _csdRender(key);
-    const focused = document.querySelector(`#${key}-list .csd-opt.focused`);
+    const focused = drop.querySelector('.csd-opt.focused');
     if(focused) focused.scrollIntoView({block:'nearest'});
   } else if(e.key==='Enter') {
     e.preventDefault();
     if(!isOpen) { csdOpen(key); return; }
     if(st.focusIdx>=0 && st.filtered[st.focusIdx]) {
-      csdSelect(key, st.filtered[st.focusIdx].id, null);
+      csdSelect(key, st.filtered[st.focusIdx].id);
     }
   } else if(e.key==='Escape') { csdClose(key); }
 }
 
 function csdGetValue(key) {
-  const st = _csdState[key]; return st ? st.selectedId : '';
+  const st = _csdState[key]; return st ? (st.selectedId||'') : '';
 }
 
 function csdSetValue(key, id) {
@@ -3870,29 +3881,30 @@ function csdSetValue(key, id) {
   const item = id ? st.items.find(c=>c.id===id) : null;
   const disp = document.getElementById(key+'-display');
   if(disp) disp.value = item ? item.label : '';
-  const realMap = { scust:'s-cust', escust:'es-cust' };
-  const sel = document.getElementById(realMap[key]||key);
-  if(sel && id) {
-    if(!sel.querySelector(`option[value="${CSS.escape(id)}"]`)) {
-      const opt = document.createElement('option');
-      opt.value = id; opt.textContent = item ? item.label : id;
-      sel.appendChild(opt);
-    }
-    sel.value = id;
-  } else if(sel) { sel.value = ''; }
+  _csdSetHiddenSelect(key, id||'', item ? item.label : (id||''));
 }
 
 function csdReset(key) {
   const st = _csdState[key]; if(!st) return;
   st.selectedId = '';
   const disp = document.getElementById(key+'-display'); if(disp) disp.value='';
-  const realMap = { scust:'s-cust', escust:'es-cust' };
-  const sel = document.getElementById(realMap[key]||key);
-  if(sel) sel.value='';
+  _csdSetHiddenSelect(key, '', '');
 }
 
-// Dropdown гадна дарахад хаах
+// Dropdown гадна дарахад хаах + item click delegation
 document.addEventListener('mousedown', e => {
+  // Item сонгох — .csd-opt дээр click
+  const opt = e.target.closest('[data-csd-id]');
+  if(opt && !opt.classList.contains('csd-empty')) {
+    e.preventDefault(); // blur болохоос сэргийлэх
+    const k = opt.dataset.csdKey;
+    const id = opt.dataset.csdId;
+    if(k && id !== undefined) {
+      csdSelect(k, id);
+      return;
+    }
+  }
+  // Dropdown гадна дарахад хаах
   document.querySelectorAll('.csd-dropdown.open').forEach(drop => {
     const wrap = drop.closest('.csd-wrap');
     if(wrap && !wrap.contains(e.target)) drop.classList.remove('open');
