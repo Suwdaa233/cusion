@@ -3901,6 +3901,8 @@ document.addEventListener('mousedown', e => {
 
 // ─── SELECTS ─────────────────────────────────────────────────────────────────
 function populateSels(){
+  const lo='<option value="">-- Сонгох --</option>'+locations.map(l=>`<option value="${l.id}">${l.name}</option>`).join('');
+  const po='<option value="">-- Сонгох --</option>'+products.map(p=>`<option value="${p.id}" data-barcode="${p.barcode||p.sku||''}">${p.name}·${p.variant}</option>`).join('');
   // Идэвхтэй харилцагчид — searchable dropdown-д
   const activeCusts = customers.filter(c => c.active !== false)
     .sort((a,b) => (a.name||'').localeCompare(b.name||'', 'mn'))
