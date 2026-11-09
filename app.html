@@ -160,7 +160,7 @@ tbody tr:hover td{background:var(--sur2)}
 .csd-wrap{position:relative;display:inline-block;width:100%}
 .csd-input{width:100%;padding:7px 10px;border:1px solid var(--bd);border-radius:var(--r);background:var(--sur);color:var(--tx);font-size:13px;cursor:pointer;outline:none}
 .csd-input:focus{border-color:var(--pu);box-shadow:0 0 0 2px var(--pul)}
-.csd-dropdown{position:absolute;top:calc(100% + 2px);left:0;right:0;background:var(--sur);border:1px solid var(--bd);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:9999;display:none;flex-direction:column;max-height:280px}
+.csd-dropdown{position:fixed;top:0;left:0;width:200px;background:var(--sur);border:1px solid var(--bd);border-radius:var(--r);box-shadow:0 4px 16px rgba(0,0,0,.12);z-index:999999;display:none;flex-direction:column;max-height:280px}
 .csd-dropdown.open{display:flex}
 .csd-search{padding:6px 8px;border-bottom:1px solid var(--bd)}
 .csd-search input{width:100%;padding:5px 8px;border:1px solid var(--bd);border-radius:6px;font-size:12px;outline:none;background:var(--sur2)}
@@ -395,7 +395,7 @@ tbody tr:hover td{background:var(--sur2)}
     <div class="cb">
       <div class="fg">
         <div class="fl"><label>Огноо</label><input type="date" id="s-date"></div>
-        <div class="fl"><label>Харилцагч</label>
+        <div class="fl" style="position:relative;z-index:10"><label>Харилцагч</label>
           <!-- Searchable customer dropdown — hidden real select for form value -->
           <select id="s-cust" style="display:none"></select>
           <div class="csd-wrap" id="scust-wrap">
@@ -2127,9 +2127,18 @@ function _csdRender(key) {
 }
 function csdOpen(key) {
   var drop = document.getElementById(key+'-drop'); if(!drop) return;
-  // Аль хэдийн нээлттэй бол хаана (item сонгосны дараа click дахин ирвэл toggle)
-  if(drop.classList.contains('open')) { csdClose(key); return; }
   document.querySelectorAll('.csd-dropdown.open').forEach(function(d){ if(d!==drop) d.classList.remove('open'); });
+  // Position dropdown using fixed coords to escape stacking context issues
+  var trigger = document.getElementById(key+'-display');
+  if(trigger) {
+    var r = trigger.getBoundingClientRect();
+    drop.style.position = 'fixed';
+    drop.style.top = (r.bottom + 2) + 'px';
+    drop.style.left = r.left + 'px';
+    drop.style.width = r.width + 'px';
+    drop.style.right = 'auto';
+    drop.style.zIndex = '999999';
+  }
   drop.classList.add('open');
   var st = _csdState[key];
   if(st) { st.filtered = st.items.slice(); st.focusIdx = -1; _csdRender(key); }
@@ -2212,19 +2221,29 @@ function csdReset(key) {
   _csdSetHiddenSelect(key,'','');
 }
 // Dropdown гадна дарахад хаах + item click delegation
+// Item сонгох — mousedown дээр (blur болохоос өмнө)
 document.addEventListener('mousedown', function(e) {
-  var opt = e.target.closest ? e.target.closest('[data-csd-id]') : null;
-  if(opt && !opt.classList.contains('csd-empty')) {
-    e.preventDefault();   // blur болохоос сэргийлэх
-    e.stopPropagation();  // scust-display-н click/mousedown дуудагдахаас сэргийлэх
-    var k=opt.getAttribute('data-csd-key'), id=opt.getAttribute('data-csd-id');
-    if(k && id!==null) { csdSelect(k,id); return; }
+  // Parent chain-ийг гараар хайх (closest-с найдвартай)
+  var node = e.target;
+  var opt = null;
+  while(node && node !== document) {
+    if(node.getAttribute && node.getAttribute('data-csd-id') !== null) { opt = node; break; }
+    node = node.parentNode;
   }
+  if(opt && !opt.classList.contains('csd-empty')) {
+    e.preventDefault();
+    e.stopPropagation();
+    var k = opt.getAttribute('data-csd-key');
+    var id = opt.getAttribute('data-csd-id');
+    if(k) { csdSelect(k, id); }
+    return false;
+  }
+  // Гадна дарахад хаах
   document.querySelectorAll('.csd-dropdown.open').forEach(function(drop){
-    var wrap=drop.closest('.csd-wrap');
+    var wrap = drop.parentNode;
     if(wrap && !wrap.contains(e.target)) drop.classList.remove('open');
   });
-}, true); // capture phase — bubble phase-с өмнө дуудагдана
+}, true);
 </script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
