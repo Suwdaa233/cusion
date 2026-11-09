@@ -2533,8 +2533,9 @@ window.doLogout = async () => {
 // (bankTxns/invLogs/purchases/importPurchases/transfers/reconcileDocs/
 // bankLinks) тухайн module/tab нээгдэх үед л lazy ачаалагдана (§2-3,§10).
 function subscribeMasterData() {
-  onSnapshot(query(collection(db,'customers'), orderBy('createdAt','desc')), snap => {
-    customers = snap.docs.map(d => ({id:d.id,...d.data()}));
+  onSnapshot(collection(db,'customers'), snap => {
+    customers = snap.docs.map(d => ({id:d.id,...d.data()}))
+      .sort((a,b)=>(b.createdAt?.seconds||0)-(a.createdAt?.seconds||0));
     populateSels(); renderCustomers();
   });
   onSnapshot(query(collection(db,'products'), orderBy('createdAt','desc')), snap => {
