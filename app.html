@@ -2127,9 +2127,14 @@ function _csdRender(key) {
 }
 function csdOpen(key) {
   var drop = document.getElementById(key+'-drop'); if(!drop) return;
+  // Бусад dropdown хаах
   document.querySelectorAll('.csd-dropdown.open').forEach(function(d){ if(d!==drop) d.classList.remove('open'); });
-  // Move to body to escape stacking context & overflow issues
-  if(drop.parentNode !== document.body) { document.body.appendChild(drop); }
+  // body-д нэг л удаа append хийх (stacking context escape)
+  if(!drop._movedToBody) {
+    document.body.appendChild(drop);
+    drop._movedToBody = true;
+  }
+  // Trigger-ийн байрлал олж fixed position тавих
   var trigger = document.getElementById(key+'-display');
   if(trigger) {
     var r = trigger.getBoundingClientRect();
@@ -2139,6 +2144,7 @@ function csdOpen(key) {
     drop.style.width = r.width + 'px';
     drop.style.right = 'auto';
     drop.style.zIndex = '999999';
+    drop._triggerKey = key; // хаах үед trigger мэдэх
   }
   drop.classList.add('open');
   var st = _csdState[key];
@@ -2157,13 +2163,21 @@ function csdClose(key) {
 }
 function csdFilter(key) {
   var si = document.getElementById(key+'-search'); if(!si) return;
-  var q = si.value.toLowerCase().trim();
+  var raw = si.value.trim();
   var st = _csdState[key]; if(!st) return;
-  st.filtered = q ? st.items.filter(function(c){
-    return String(c.label).toLowerCase().indexOf(q)>=0 ||
-      (c.code && String(c.code).toLowerCase().indexOf(q)>=0) ||
-      (c.phone && String(c.phone).indexOf(q)>=0);
-  }) : st.items.slice();
+  if(!raw) { st.filtered = st.items.slice(); st.focusIdx=-1; _csdRender(key); return; }
+  // Кирилл болон латин хоёулангаас хайхын тулд localeCompare биш indexOf ашиглах
+  // toLowerCase кирилл үсгийг зарим browser-д буруу боловсруулдаг тул
+  // toLocaleLowerCase('mn') ашиглана
+  var q = raw.toLocaleLowerCase('mn');
+  st.filtered = st.items.filter(function(c){
+    var label = String(c.label||'').toLocaleLowerCase('mn');
+    var code  = String(c.code||'').toLocaleLowerCase('mn');
+    var phone = String(c.phone||'');
+    var rawLow = String(c.label||'').toLowerCase();
+    return label.indexOf(q)>=0 || rawLow.indexOf(q)>=0 ||
+           code.indexOf(q)>=0 || phone.indexOf(raw)>=0;
+  });
   st.focusIdx = -1;
   _csdRender(key);
 }
@@ -2224,7 +2238,7 @@ function csdReset(key) {
 // Dropdown гадна дарахад хаах + item click delegation
 // Item сонгох — mousedown дээр (blur болохоос өмнө)
 document.addEventListener('mousedown', function(e) {
-  // Parent chain-ийг гараар хайх (closest-с найдвартай)
+  // 1. Item дарсан эсэхийг parent chain-ээр шалга
   var node = e.target;
   var opt = null;
   while(node && node !== document) {
@@ -2239,10 +2253,25 @@ document.addEventListener('mousedown', function(e) {
     if(k) { csdSelect(k, id); }
     return false;
   }
-  // Гадна дарахад хаах
+  // 2. Dropdown дотор дарсан эсэхийг шалга (search input гэх мэт)
+  var insideDrop = false;
   document.querySelectorAll('.csd-dropdown.open').forEach(function(drop){
-    var wrap = drop.parentNode;
-    if(wrap && !wrap.contains(e.target)) drop.classList.remove('open');
+    if(drop.contains(e.target)) insideDrop = true;
+  });
+  if(insideDrop) return;
+  // 3. Trigger input дарсан эсэхийг шалга — csdOpen дуудагдана, хаах хэрэггүй
+  var triggerClicked = false;
+  document.querySelectorAll('.csd-dropdown.open').forEach(function(drop){
+    var k = drop._triggerKey;
+    if(k) {
+      var trigger = document.getElementById(k+'-display');
+      if(trigger && trigger.contains(e.target)) triggerClicked = true;
+    }
+  });
+  if(triggerClicked) return;
+  // 4. Гадна дарсан бол бүх dropdown хаах
+  document.querySelectorAll('.csd-dropdown.open').forEach(function(drop){
+    drop.classList.remove('open');
   });
 }, true);
 </script>
