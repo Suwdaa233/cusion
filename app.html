@@ -399,9 +399,9 @@ tbody tr:hover td{background:var(--sur2)}
           <!-- Searchable customer dropdown — hidden real select for form value -->
           <select id="s-cust" style="display:none"></select>
           <div class="csd-wrap" id="scust-wrap">
-            <input class="csd-input" id="scust-display" type="text" placeholder="-- Харилцагч сонгох --" autocomplete="off" readonly onclick="csdOpen('scust')" onkeydown="csdKey(event,'scust')">
+            <input class="csd-input" id="scust-display" type="text" placeholder="-- Харилцагч сонгох --" autocomplete="off" readonly>
             <div class="csd-dropdown" id="scust-drop">
-              <div class="csd-search"><input type="text" id="scust-search" placeholder="Нэрээр хайх..." oninput="csdFilter('scust')" onkeydown="csdKey(event,'scust')"></div>
+              <div class="csd-search"><input type="text" id="scust-search" placeholder="Нэрээр хайх..."></div>
               <div class="csd-list" id="scust-list"></div>
             </div>
           </div>
@@ -3890,6 +3890,34 @@ function csdReset(key) {
   const disp = document.getElementById(key+'-display'); if(disp) disp.value='';
   _csdSetHiddenSelect(key, '', '');
 }
+
+// module scope → window-д expose (аюулгүй байдлын үүднээс)
+window.csdOpen   = csdOpen;
+window.csdClose  = csdClose;
+window.csdFilter = csdFilter;
+window.csdSelect = csdSelect;
+window.csdKey    = csdKey;
+window.csdGetValue  = csdGetValue;
+window.csdSetValue  = csdSetValue;
+window.csdReset  = csdReset;
+window.csdInit   = csdInit;
+
+// CSD элементүүдэд event listener-уудыг JS-ээр холбох (onclick HTML attribute биш)
+function _csdBindListeners(key) {
+  const disp = document.getElementById(key+'-display');
+  const search = document.getElementById(key+'-search');
+  if(disp) {
+    disp.addEventListener('click', () => csdOpen(key));
+    disp.addEventListener('keydown', e => csdKey(e, key));
+  }
+  if(search) {
+    search.addEventListener('input', () => csdFilter(key));
+    search.addEventListener('keydown', e => csdKey(e, key));
+  }
+}
+// DOM бэлэн болмогц холбох — module script нь deferred тул DOMContentLoaded-ийг хүлээхгүйгээр шууд
+_csdBindListeners('scust');
+_csdBindListeners('escust');
 
 // Dropdown гадна дарахад хаах + item click delegation
 document.addEventListener('mousedown', e => {
