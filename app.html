@@ -399,9 +399,9 @@ tbody tr:hover td{background:var(--sur2)}
           <!-- Searchable customer dropdown — hidden real select for form value -->
           <select id="s-cust" style="display:none"></select>
           <div class="csd-wrap" id="scust-wrap">
-            <input class="csd-input" id="scust-display" type="text" placeholder="-- Харилцагч сонгох --" autocomplete="off" readonly>
+            <input class="csd-input" id="scust-display" type="text" placeholder="-- Харилцагч сонгох --" autocomplete="off" readonly onclick="csdOpen('scust')" onkeydown="csdKey(event,'scust')">
             <div class="csd-dropdown" id="scust-drop">
-              <div class="csd-search"><input type="text" id="scust-search" placeholder="Нэрээр хайх..."></div>
+              <div class="csd-search"><input type="text" id="scust-search" placeholder="Нэрээр хайх..." oninput="csdFilter('scust')" onkeydown="csdKey(event,'scust')"></div>
               <div class="csd-list" id="scust-list"></div>
             </div>
           </div>
@@ -2101,6 +2101,128 @@ tbody tr:hover td{background:var(--sur2)}
 
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script>
+/* ── Searchable custom dropdown engine — global scope (window) ── */
+var _csdState = {};
+var _csdRealMap = { scust: 's-cust', escust: 'es-cust' };
+
+function csdInit(key, items) {
+  _csdState[key] = { items: items||[], filtered: items||[], selectedId: '', focusIdx: -1 };
+  var list = document.getElementById(key+'-list');
+  if(list) _csdRender(key);
+}
+function _csdRender(key) {
+  var st = _csdState[key]; if(!st) return;
+  var list = document.getElementById(key+'-list'); if(!list) return;
+  if(!st.filtered || st.filtered.length === 0) {
+    list.innerHTML = '<div class="csd-opt csd-empty">Харилцагч олдсонгүй</div>';
+    return;
+  }
+  list.innerHTML = st.filtered.map(function(c,i) {
+    var esc = String(c.id).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+    var sel = c.id === st.selectedId ? ' selected' : '';
+    var foc = i === st.focusIdx ? ' focused' : '';
+    return '<div class="csd-opt'+sel+foc+'" data-csd-key="'+key+'" data-csd-id="'+esc+'">'+c.label+'</div>';
+  }).join('');
+}
+function csdOpen(key) {
+  var drop = document.getElementById(key+'-drop'); if(!drop) return;
+  document.querySelectorAll('.csd-dropdown.open').forEach(function(d){ if(d!==drop) d.classList.remove('open'); });
+  drop.classList.add('open');
+  var st = _csdState[key];
+  if(st) { st.filtered = st.items.slice(); st.focusIdx = -1; _csdRender(key); }
+  var si = document.getElementById(key+'-search');
+  if(si) si.value = '';
+  setTimeout(function(){
+    if(si) si.focus();
+    var sel = drop.querySelector('.csd-opt.selected');
+    if(sel) sel.scrollIntoView({block:'nearest'});
+  }, 10);
+}
+function csdClose(key) {
+  var drop = document.getElementById(key+'-drop');
+  if(drop) drop.classList.remove('open');
+}
+function csdFilter(key) {
+  var si = document.getElementById(key+'-search'); if(!si) return;
+  var q = si.value.toLowerCase().trim();
+  var st = _csdState[key]; if(!st) return;
+  st.filtered = q ? st.items.filter(function(c){
+    return String(c.label).toLowerCase().indexOf(q)>=0 ||
+      (c.code && String(c.code).toLowerCase().indexOf(q)>=0) ||
+      (c.phone && String(c.phone).indexOf(q)>=0);
+  }) : st.items.slice();
+  st.focusIdx = -1;
+  _csdRender(key);
+}
+function _csdSetHiddenSelect(key, id, label) {
+  var selId = _csdRealMap[key] || key;
+  var sel = document.getElementById(selId); if(!sel) return;
+  var found = false;
+  for(var i=0;i<sel.options.length;i++) { if(sel.options[i].value===id){found=true;break;} }
+  if(!found && id) {
+    var o = document.createElement('option');
+    o.value = id; o.textContent = label||id; sel.appendChild(o);
+  }
+  sel.value = id || '';
+}
+function csdSelect(key, id) {
+  var st = _csdState[key]; if(!st) return;
+  st.selectedId = id || '';
+  var item = null;
+  for(var i=0;i<st.items.length;i++){if(st.items[i].id===id){item=st.items[i];break;}}
+  var disp = document.getElementById(key+'-display');
+  if(disp) disp.value = item ? item.label : '';
+  _csdSetHiddenSelect(key, id, item ? item.label : (id||''));
+  csdClose(key);
+  if(key==='scust' && typeof refreshSaleRows==='function') refreshSaleRows();
+}
+function csdKey(e, key) {
+  var st = _csdState[key]; if(!st) return;
+  var drop = document.getElementById(key+'-drop');
+  var isOpen = drop && drop.classList.contains('open');
+  if(e.key==='ArrowDown'||e.key==='ArrowUp') {
+    e.preventDefault();
+    if(!isOpen){ csdOpen(key); return; }
+    var len = st.filtered.length; if(!len) return;
+    st.focusIdx = e.key==='ArrowDown' ? Math.min(st.focusIdx+1,len-1) : Math.max(st.focusIdx-1,0);
+    _csdRender(key);
+    var focused = drop.querySelector('.csd-opt.focused');
+    if(focused) focused.scrollIntoView({block:'nearest'});
+  } else if(e.key==='Enter') {
+    e.preventDefault();
+    if(!isOpen){ csdOpen(key); return; }
+    if(st.focusIdx>=0 && st.filtered[st.focusIdx]) csdSelect(key, st.filtered[st.focusIdx].id);
+  } else if(e.key==='Escape') { csdClose(key); }
+}
+function csdGetValue(key) { var st=_csdState[key]; return st?(st.selectedId||''):''; }
+function csdSetValue(key, id) {
+  var st=_csdState[key]; if(!st) return;
+  st.selectedId=id||'';
+  var item=null; for(var i=0;i<st.items.length;i++){if(st.items[i].id===id){item=st.items[i];break;}}
+  var disp=document.getElementById(key+'-display'); if(disp) disp.value=item?item.label:'';
+  _csdSetHiddenSelect(key,id||'',item?item.label:(id||''));
+}
+function csdReset(key) {
+  var st=_csdState[key]; if(!st) return;
+  st.selectedId='';
+  var disp=document.getElementById(key+'-display'); if(disp) disp.value='';
+  _csdSetHiddenSelect(key,'','');
+}
+// Dropdown гадна дарахад хаах + item click delegation
+document.addEventListener('mousedown', function(e) {
+  var opt = e.target.closest ? e.target.closest('[data-csd-id]') : null;
+  if(opt && !opt.classList.contains('csd-empty')) {
+    e.preventDefault();
+    var k=opt.getAttribute('data-csd-key'), id=opt.getAttribute('data-csd-id');
+    if(k && id!==null) { csdSelect(k,id); return; }
+  }
+  document.querySelectorAll('.csd-dropdown.open').forEach(function(drop){
+    var wrap=drop.closest('.csd-wrap');
+    if(wrap && !wrap.contains(e.target)) drop.classList.remove('open');
+  });
+});
+</script>
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
@@ -3752,192 +3874,7 @@ window.closeModal = id => document.getElementById(id).classList.remove('open');
 // csdInit(key, customers) — харилцагчийн жагсаалтыг бэлтгэнэ
 // csdOpen/csdClose/csdFilter/csdSelect/csdKey — UI үйлдлүүд
 // csdGetValue(key) — одоогийн сонгосон харилцагчийн ID буцаана
-// csdSetValue(key, id) — программаар утга тохируулна
-// ── Searchable custom dropdown engine ────────────────────────────────────────
-// State per dropdown key
-const _csdState = {}; // key → { items, filtered, selectedId, focusIdx }
-
-// Realmap: short key → hidden <select> element id
-const _csdRealMap = { scust: 's-cust', escust: 'es-cust' };
-
-function csdInit(key, items) {
-  _csdState[key] = { items: items||[], filtered: items||[], selectedId: '', focusIdx: -1 };
-  // DOM бэлэн байвал render
-  const list = document.getElementById(key+'-list');
-  if(list) _csdRender(key);
-}
-
-function _csdRender(key) {
-  const st = _csdState[key]; if(!st) return;
-  const list = document.getElementById(key+'-list'); if(!list) return;
-  if(!st.filtered || st.filtered.length === 0) {
-    list.innerHTML = '<div class="csd-opt csd-empty">Харилцагч олдсонгүй</div>';
-    return;
-  }
-  list.innerHTML = st.filtered.map((c,i) => {
-    const esc = String(c.id).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
-    const sel = c.id === st.selectedId ? ' selected' : '';
-    const foc = i === st.focusIdx ? ' focused' : '';
-    return `<div class="csd-opt${sel}${foc}" data-csd-key="${key}" data-csd-id="${esc}">${c.label}</div>`;
-  }).join('');
-}
-
-function csdOpen(key) {
-  const drop = document.getElementById(key+'-drop'); if(!drop) return;
-  document.querySelectorAll('.csd-dropdown.open').forEach(d=>{ if(d!==drop) d.classList.remove('open'); });
-  drop.classList.add('open');
-  // items дахин filter хийж render
-  const st = _csdState[key];
-  if(st) { st.filtered = st.items.slice(); st.focusIdx = -1; _csdRender(key); }
-  // Search талбар цэвэрлэж focus өгөх (setTimeout-гүйгээр)
-  const si = document.getElementById(key+'-search');
-  if(si) { si.value = ''; }
-  // Сонгосон item харуулах
-  setTimeout(()=>{
-    if(si) si.focus();
-    const sel = drop.querySelector('.csd-opt.selected');
-    if(sel) sel.scrollIntoView({block:'nearest'});
-  }, 10);
-}
-
-function csdClose(key) {
-  const drop = document.getElementById(key+'-drop');
-  if(drop) drop.classList.remove('open');
-}
-
-function csdFilter(key) {
-  const si = document.getElementById(key+'-search'); if(!si) return;
-  const q = si.value.toLowerCase().trim();
-  const st = _csdState[key]; if(!st) return;
-  st.filtered = q ? st.items.filter(c =>
-    String(c.label).toLowerCase().includes(q) ||
-    (c.code && String(c.code).toLowerCase().includes(q)) ||
-    (c.phone && String(c.phone).includes(q))
-  ) : st.items.slice();
-  st.focusIdx = -1;
-  _csdRender(key);
-}
-
-function _csdSetHiddenSelect(key, id, label) {
-  const selId = _csdRealMap[key] || key;
-  const sel = document.getElementById(selId); if(!sel) return;
-  // Option байхгүй бол нэмэх
-  let found = false;
-  for(let i=0;i<sel.options.length;i++) {
-    if(sel.options[i].value === id) { found=true; break; }
-  }
-  if(!found && id) {
-    const o = document.createElement('option');
-    o.value = id; o.textContent = label||id;
-    sel.appendChild(o);
-  }
-  sel.value = id || '';
-}
-
-function csdSelect(key, id) {
-  const st = _csdState[key]; if(!st) return;
-  st.selectedId = id || '';
-  const item = st.items.find(c => c.id === id);
-  const label = item ? item.label : (id||'');
-  // Display input шинэчлэх
-  const disp = document.getElementById(key+'-display');
-  if(disp) disp.value = item ? item.label : '';
-  // Hidden select шинэчлэх
-  _csdSetHiddenSelect(key, id, label);
-  csdClose(key);
-  if(key==='scust' && typeof refreshSaleRows==='function') refreshSaleRows();
-}
-
-function csdKey(e, key) {
-  const st = _csdState[key]; if(!st) return;
-  const drop = document.getElementById(key+'-drop');
-  const isOpen = drop && drop.classList.contains('open');
-  if(e.key==='ArrowDown'||e.key==='ArrowUp') {
-    e.preventDefault();
-    if(!isOpen) { csdOpen(key); return; }
-    const len = st.filtered.length; if(!len) return;
-    st.focusIdx = e.key==='ArrowDown'
-      ? Math.min(st.focusIdx+1, len-1)
-      : Math.max(st.focusIdx-1, 0);
-    _csdRender(key);
-    const focused = drop.querySelector('.csd-opt.focused');
-    if(focused) focused.scrollIntoView({block:'nearest'});
-  } else if(e.key==='Enter') {
-    e.preventDefault();
-    if(!isOpen) { csdOpen(key); return; }
-    if(st.focusIdx>=0 && st.filtered[st.focusIdx]) {
-      csdSelect(key, st.filtered[st.focusIdx].id);
-    }
-  } else if(e.key==='Escape') { csdClose(key); }
-}
-
-function csdGetValue(key) {
-  const st = _csdState[key]; return st ? (st.selectedId||'') : '';
-}
-
-function csdSetValue(key, id) {
-  const st = _csdState[key]; if(!st) return;
-  st.selectedId = id || '';
-  const item = id ? st.items.find(c=>c.id===id) : null;
-  const disp = document.getElementById(key+'-display');
-  if(disp) disp.value = item ? item.label : '';
-  _csdSetHiddenSelect(key, id||'', item ? item.label : (id||''));
-}
-
-function csdReset(key) {
-  const st = _csdState[key]; if(!st) return;
-  st.selectedId = '';
-  const disp = document.getElementById(key+'-display'); if(disp) disp.value='';
-  _csdSetHiddenSelect(key, '', '');
-}
-
-// module scope → window-д expose (аюулгүй байдлын үүднээс)
-window.csdOpen   = csdOpen;
-window.csdClose  = csdClose;
-window.csdFilter = csdFilter;
-window.csdSelect = csdSelect;
-window.csdKey    = csdKey;
-window.csdGetValue  = csdGetValue;
-window.csdSetValue  = csdSetValue;
-window.csdReset  = csdReset;
-window.csdInit   = csdInit;
-
-// CSD элементүүдэд event listener-уудыг JS-ээр холбох (onclick HTML attribute биш)
-function _csdBindListeners(key) {
-  const disp = document.getElementById(key+'-display');
-  const search = document.getElementById(key+'-search');
-  if(disp) {
-    disp.addEventListener('click', () => csdOpen(key));
-    disp.addEventListener('keydown', e => csdKey(e, key));
-  }
-  if(search) {
-    search.addEventListener('input', () => csdFilter(key));
-    search.addEventListener('keydown', e => csdKey(e, key));
-  }
-}
-// DOM бэлэн болмогц холбох — module script нь deferred тул DOMContentLoaded-ийг хүлээхгүйгээр шууд
-_csdBindListeners('scust');
-_csdBindListeners('escust');
-
-// Dropdown гадна дарахад хаах + item click delegation
-document.addEventListener('mousedown', e => {
-  // Item сонгох — .csd-opt дээр click
-  const opt = e.target.closest('[data-csd-id]');
-  if(opt && !opt.classList.contains('csd-empty')) {
-    e.preventDefault(); // blur болохоос сэргийлэх
-    const k = opt.dataset.csdKey;
-    const id = opt.dataset.csdId;
-    if(k && id !== undefined) {
-      csdSelect(k, id);
-      return;
-    }
-  }
-  // Dropdown гадна дарахад хаах
-  document.querySelectorAll('.csd-dropdown.open').forEach(drop => {
-    const wrap = drop.closest('.csd-wrap');
-    if(wrap && !wrap.contains(e.target)) drop.classList.remove('open');
-  });
-});
+// csdSetValue(key, id) — программаар утга тохируулна — global <script>-д тодорхойлогдсон
 
 // ─── SELECTS ─────────────────────────────────────────────────────────────────
 function populateSels(){
